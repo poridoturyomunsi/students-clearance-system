@@ -4275,6 +4275,16 @@ if (require.main === module) {
   let dbConfig = null;
   if (process.env.DATABASE_URL) {
     dbConfig = process.env.DATABASE_URL;
+  } else if (process.env.MYSQL_URL) {
+    dbConfig = process.env.MYSQL_URL;
+  } else if (process.env.MYSQLHOST) {
+    dbConfig = {
+      host: process.env.MYSQLHOST,
+      port: parseInt(process.env.MYSQLPORT || '3306', 10),
+      user: process.env.MYSQLUSER || 'root',
+      password: process.env.MYSQLPASSWORD || '',
+      database: process.env.MYSQLDATABASE || 'railway'
+    };
   } else if (process.env.DB_HOST) {
     dbConfig = {
       host: process.env.DB_HOST,
