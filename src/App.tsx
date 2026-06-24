@@ -476,6 +476,7 @@ function AppContent() {
   // Load full student list from backend (or fallback to local storage)
   const loadStudentsFromServer = useCallback(async () => {
     if (dbConnectionError) return;
+    if (!authSession) return; // Wait until authenticated to fetch from backend
     setIsTableLoading(true);
     setTableError(null);
     try {
@@ -631,7 +632,7 @@ function AppContent() {
       loadStudentsFromServer();
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [dbConnectionError, searchQuery, filterClass, filterStream, filterGender, filterClearance, filterBoarding, filterAcademicYear, filterPhoto, printNewOnly, sortBy, currentPage, pageSize, viewMode, activeBoardClass]);
+  }, [authSession, dbConnectionError, searchQuery, filterClass, filterStream, filterGender, filterClearance, filterBoarding, filterAcademicYear, filterPhoto, printNewOnly, sortBy, currentPage, pageSize, viewMode, activeBoardClass]);
 
   // Dev shortcut: directly render TeacherPortal when visiting /_dev_teacher
   if (typeof window !== 'undefined' && window.location && window.location.pathname === '/_dev_teacher') {
