@@ -1,0 +1,124 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    
+    // Global Safety Net Default Deny
+    match /{document=**} {
+      allow read, write: if false;
+    }
+
+    // Reuseable global helpers
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function isValidId(id) {
+      return id is string && id.size() <= 128 && id.matches('^[a-zA-Z0-9_\\-]+$');
+    }
+
+    // Since list is checked below with resource.data, we provide get and list operations securely.
+    function incoming() {
+      return request.resource.data;
+    }
+
+    // Students match block
+    match /students/{studentId} {
+      allow read, list: if isSignedIn();
+      allow create: if isSignedIn() && isValidId(studentId) && studentId == incoming().id && isValidStudent(incoming());
+      allow update: if isSignedIn() && isValidId(studentId) && studentId == incoming().id && isValidStudent(incoming());
+      allow delete: if isSignedIn() && isValidId(studentId);
+    }
+
+    function isValidStudent(data) {
+      return data.keys().hasAll(['id', 'adminNo', 'name', 'gender', 'gradeClass', 'boardingStatus', 'isCleared'])
+        && data.keys().hasOnly(['id', 'adminNo', 'name', 'gender', 'gradeClass', 'boardingStatus', 'isCleared', 'photo', 'remarks', 'gateClearanceDate', 'mealsClearanceDate'])
+        && data.id is string && data.id.size() <= 128
+        && data.adminNo is string && data.adminNo.size() >= 3 && data.adminNo.size() <= 32 && data.adminNo.matches('^[a-zA-Z0-9_\\-\\/]+$')
+        && data.name is string && data.name.size() >= 2 && data.name.size() <= 128
+        && (data.gender == 'Male' || data.gender == 'Female')
+        && data.gradeClass is string && data.gradeClass.size() > 0 && data.gradeClass.size() < 32
+        && (data.boardingStatus == 'Boarder' || data.boardingStatus == 'Day Scholar')
+        && data.isCleared is bool
+        && (!('photo' in data) || (data.photo is string && data.photo.size() > 0 && data.photo.size() <= 2000000 && (data.photo.startsWith('data:image/') || data.photo.startsWith('http://') || data.photo.startsWith('https://') || data.photo.startsWith('gs://'))))
+        && (!('remarks' in data) || data.remarks is string)
+        && (!('gateClearanceDate' in data) || data.gateClearanceDate is string)
+        && (!('mealsClearanceDate' in data) || data.mealsClearanceDate is string);
+    }
+
+    // Branding configuration match block
+    match /branding/{docId} {
+      allow read: if isSignedIn();
+      allow write: if isSignedIn() && isValidId(docId) && docId == 'school' && isValidBranding(incoming());
+    }
+
+    function isValidBranding(data) {
+      return data.keys().hasAll(['logo', 'logoCleaned', 'updatedAt'])
+        && data.keys().hasOnly(['logo', 'logoCleaned', 'updatedAt'])
+        && data.logo is string && data.logo.size() > 0 && data.logo.size() <= 2500000 && data.logo.startsWith('data:image/')
+        && data.logoCleaned is bool
+        && data.updatedAt is timestamp && data.updatedAt == request.time;
+    }
+
+    // Class Themes match block
+    match /classThemes/{docId} {
+      allow read: if isSignedIn();
+      allow write: if isSignedIn() && isValidId(docId) && docId == 'custom' && isValidClassThemes(incoming());
+    }
+
+    function isValidClassThemes(data) {
+      return data.keys().hasAll(['themes', 'updatedAt'])
+        && data.keys().hasOnly(['themes', 'updatedAt'])
+        && data.themes is map
+        && data.updatedAt is timestamp && data.updatedAt == request.time;
+    }
+
+    // Student Balances
+    match /balances/{studentId} {
+      allow read, list: if isSignedIn();
+      allow write: if isSignedIn() && isValidId(studentId) && isValidBalance(incoming());
+    }
+
+    function isValidBalance(data) {
+      return data.keys().hasAll(['studentId', 'amountDue', 'status'])
+        && data.keys().hasOnly(['studentId', 'amountDue', 'status', 'updatedAt'])
+        && data.studentId is string && data.studentId.size() <= 128
+        && data.amountDue is number && data.amountDue >= 0
+        && (data.status == 'Paid' || data.status == 'Pending' || data.status == 'Overdue')
+        && (!('updatedAt' in data) || data.updatedAt is string);
+    }
+
+    // Departmental Clearance Checkpoints
+    match /clearance/{clearanceId} {
+      allow read, list: if isSignedIn();
+      allow write: if isSignedIn() && isValidId(clearanceId) && isValidClearanceRecord(incoming());
+    }
+
+    function isValidClearanceRecord(data) {
+      return data.keys().hasAll(['id', 'studentId', 'department', 'status'])
+        && data.keys().hasOnly(['id', 'studentId', 'department', 'status', 'remarks', 'clearedBy', 'approvedAt'])
+        && data.id is string && data.id.size() <= 128
+        && data.studentId is string && data.studentId.size() <= 128
+        && (data.department == 'Bursar' || data.department == 'Library' || data.department == 'Headteacher' || data.department == 'Meals' || data.department == 'Gate')
+        && (data.status == 'Cleared' || data.status == 'Hold')
+        && (!('remarks' in data) || data.remarks is string)
+        && (!('clearedBy' in data) || data.clearedBy is string)
+        && (!('approvedAt' in data) || data.approvedAt is string);
+    }
+
+    // Printing Queue items
+    match /printing_queue/{queueId} {
+      allow read, list: if isSignedIn();
+      allow write: if isSignedIn() && isValidId(queueId) && isValidPrintQueueItem(incoming());
+      allow delete: if isSignedIn() && isValidId(queueId);
+    }
+
+    function isValidPrintQueueItem(data) {
+      return data.keys().hasAll(['id', 'studentId', 'queuedAt', 'status'])
+        && data.keys().hasOnly(['id', 'studentId', 'queuedAt', 'status'])
+        && data.id is string && data.id.size() <= 128
+        && data.studentId is string && data.studentId.size() <= 128
+        && data.queuedAt is string
+        && (data.status == 'Queued' || data.status == 'Printed' || data.status == 'Failed');
+    }
+  }
+}

@@ -1,0 +1,213 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>St. Paul Student System - Loading</title>
+  <style>
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', 'Oxygen',
+        'Ubuntu', 'Cantarell', 'Fira Sans', 'Droid Sans', 'Helvetica Neue',
+        sans-serif;
+      background: linear-gradient(135deg, #f5f5f5 0%, #ececec 100%);
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      min-height: 100vh;
+      overflow: hidden;
+    }
+
+    .loading-container {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 2rem;
+    }
+
+    /* Dice Loader Grid */
+    .dice-loader {
+      display: grid;
+      grid-template-columns: repeat(3, 60px);
+      grid-gap: 8px;
+      perspective: 1000px;
+    }
+
+    .dice-square {
+      width: 60px;
+      height: 60px;
+      background: #e0e0e0;
+      border-radius: 8px;
+      box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+      transition: all 0.3s ease;
+    }
+
+    .dice-square.active {
+      background: #4caf50;
+      box-shadow: 0 2px 12px rgba(76, 175, 80, 0.4);
+      transform: scale(1.05);
+    }
+
+    /* Animation for red square moving through grid */
+    @keyframes diceRotate {
+      0% { grid-column: 1; grid-row: 1; }
+      11% { grid-column: 2; grid-row: 1; }
+      22% { grid-column: 3; grid-row: 1; }
+      33% { grid-column: 3; grid-row: 2; }
+      44% { grid-column: 3; grid-row: 3; }
+      55% { grid-column: 2; grid-row: 3; }
+      66% { grid-column: 1; grid-row: 3; }
+      77% { grid-column: 1; grid-row: 2; }
+      88% { grid-column: 1; grid-row: 1; }
+      100% { grid-column: 1; grid-row: 1; }
+    }
+
+    /* Progress Bar */
+    .progress-section {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 1.5rem;
+      min-width: 300px;
+    }
+
+    .progress-message {
+      font-size: 16px;
+      font-weight: 500;
+      color: #333;
+      text-align: center;
+      min-height: 24px;
+      letter-spacing: 0.3px;
+    }
+
+    .progress-bar {
+      width: 100%;
+      height: 4px;
+      background: #e0e0e0;
+      border-radius: 2px;
+      overflow: hidden;
+    }
+
+    .progress-fill {
+      height: 100%;
+      background: linear-gradient(90deg, #4caf50, #45a049);
+      width: 0%;
+      transition: width 0.5s ease;
+      border-radius: 2px;
+    }
+
+    .status-text {
+      font-size: 13px;
+      color: #999;
+      text-align: center;
+      font-style: italic;
+    }
+
+    /* Smooth fade-out animation when done */
+    @keyframes fadeOut {
+      from {
+        opacity: 1;
+      }
+      to {
+        opacity: 0;
+      }
+    }
+
+    .loading-container.done {
+      animation: fadeOut 0.6s ease-out forwards;
+    }
+  </style>
+</head>
+<body>
+  <div class="loading-container">
+    <!-- Dice Loader Grid -->
+    <div class="dice-loader" id="diceLoader">
+      <div class="dice-square"></div>
+      <div class="dice-square"></div>
+      <div class="dice-square"></div>
+      <div class="dice-square"></div>
+      <div class="dice-square"></div>
+      <div class="dice-square"></div>
+      <div class="dice-square"></div>
+      <div class="dice-square"></div>
+      <div class="dice-square"></div>
+    </div>
+
+    <!-- Progress Section -->
+    <div class="progress-section">
+      <div class="progress-message" id="progressMessage">
+        Initializing Application...
+      </div>
+      <div class="progress-bar">
+        <div class="progress-fill" id="progressFill"></div>
+      </div>
+      <div class="status-text" id="statusText">Starting services...</div>
+    </div>
+  </div>
+
+  <script>
+    // Dice animation sequence
+    const diceSquares = document.querySelectorAll('.dice-square');
+    const sequence = [0, 1, 2, 5, 8, 7, 6, 3]; // Path around the grid
+
+    let currentIndex = 0;
+
+    function updateDicePosition() {
+      diceSquares.forEach(square => square.classList.remove('active'));
+      const activeIndex = sequence[currentIndex];
+      diceSquares[activeIndex].classList.add('active');
+      currentIndex = (currentIndex + 1) % sequence.length;
+    }
+
+    // Initial position
+    updateDicePosition();
+
+    // Update dice every 400ms
+    setInterval(updateDicePosition, 400);
+
+    // Simulate progress updates
+    const stages = [
+      { message: 'Initializing Application...', progress: 10 },
+      { message: 'Connecting to Database...', progress: 35 },
+      { message: 'Loading Student Records...', progress: 60 },
+      { message: 'Loading Modules...', progress: 85 },
+      { message: 'Ready', progress: 100 }
+    ];
+
+    let stageIndex = 0;
+
+    window.updateProgress = function(stage) {
+      if (stage >= 0 && stage < stages.length) {
+        const { message, progress } = stages[stage];
+        document.getElementById('progressMessage').textContent = message;
+        document.getElementById('progressFill').style.width = progress + '%';
+        document.getElementById('statusText').textContent = `Step ${stage + 1} of ${stages.length}`;
+      }
+    };
+
+    window.completeLoading = function() {
+      const container = document.querySelector('.loading-container');
+      container.classList.add('done');
+      setTimeout(() => {
+        window.close();
+      }, 600);
+    };
+
+    // Listen for IPC messages from Electron (via preload)
+    if (window.electronAPI) {
+      window.electronAPI.onLoadingProgress((stage) => {
+        window.updateProgress(stage);
+      });
+
+      window.electronAPI.onLoadingComplete(() => {
+        window.completeLoading();
+      });
+    }
+  </script>
+</body>
+</html>

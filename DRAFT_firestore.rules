@@ -1,0 +1,75 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    
+    // Global Safety Net Default Deny
+    match /{document=**} {
+      allow read, write: if false;
+    }
+
+    // Reuseable global helpers
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function isValidId(id) {
+      return id is string && id.size() <= 128 && id.matches('^[a-zA-Z0-9_\\-]+$');
+    }
+
+    function incoming() {
+      return request.resource.data;
+    }
+
+    function existing() {
+      return resource.data;
+    }
+
+    // Students match block
+    match /students/{studentId} {
+      allow read, list: if isSignedIn();
+      allow create: if isSignedIn() && isValidId(studentId) && studentId == incoming().id && isValidStudent(incoming());
+      allow update: if isSignedIn() && isValidId(studentId) && studentId == incoming().id && isValidStudent(incoming());
+      allow delete: if isSignedIn() && isValidId(studentId);
+    }
+
+    function isValidStudent(data) {
+      return data.keys().hasAll(['id', 'adminNo', 'name', 'gender', 'gradeClass', 'boardingStatus', 'isCleared'])
+        && data.keys().size() <= 12
+        && data.id is string && data.id.size() <= 128
+        && data.adminNo is string && data.adminNo.size() <= 64
+        && data.name is string && data.name.size() <= 128
+        && (data.gender == 'Male' || data.gender == 'Female')
+        && data.gradeClass is string && data.gradeClass.size() <= 64
+        && (data.boardingStatus == 'Boarder' || data.boardingStatus == 'Day Scholar')
+        && data.isCleared is bool
+        && (!('photo' in data) || data.photo is string)
+        && (!('remarks' in data) || data.remarks is string)
+        && (!('gateClearanceDate' in data) || data.gateClearanceDate is string)
+        && (!('mealsClearanceDate' in data) || data.mealsClearanceDate is string);
+    }
+
+    // Branding configuration match block
+    match /branding/{docId} {
+      allow read: if isSignedIn();
+      allow write: if isSignedIn() && isValidId(docId) && docId == 'school' && isValidBranding(incoming());
+    }
+
+    function isValidBranding(data) {
+      return data.keys().hasAll(['logo'])
+        && data.keys().size() <= 4
+        && data.logo is string
+        && (!('logoCleaned' in data) || data.logoCleaned is bool);
+    }
+
+    // Class Themes match block
+    match /classThemes/{docId} {
+      allow read: if isSignedIn();
+      allow write: if isSignedIn() && isValidId(docId) && docId == 'custom' && isValidClassThemes(incoming());
+    }
+
+    function isValidClassThemes(data) {
+      return data.keys().hasAll(['themes'])
+        && data.themes is map;
+    }
+  }
+}

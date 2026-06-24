@@ -1,0 +1,8 @@
+{
+  "name": "Remix: Remix: Remix: Remix: Student Clearance Card Printer",
+  "description": "A system to manage student clearance statuses (gate pass and meals), view two-sided passes for Term 2 2026, and print or export them as PDFs.",
+  "requestFramePermissions": ["camera"],
+  "majorCapabilities": [
+    "MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"
+  ]
+}

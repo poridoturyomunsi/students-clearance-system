@@ -1,0 +1,193 @@
+{
+  "entities": {
+    "student": {
+      "title": "Student",
+      "description": "Represents a student and their clearance status in the school.",
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Unique identifier of the student."
+        },
+        "adminNo": {
+          "type": "string",
+          "description": "Standard school admission/registration number."
+        },
+        "name": {
+          "type": "string",
+          "description": "Full name of the student."
+        },
+        "gender": {
+          "type": "string",
+          "enum": ["Male", "Female"],
+          "description": "Gender of the student."
+        },
+        "gradeClass": {
+          "type": "string",
+          "description": "Class/Form prefix (e.g. S.1 A, S.4 B)."
+        },
+        "boardingStatus": {
+          "type": "string",
+          "enum": ["Boarder", "Day Scholar"],
+          "description": "Boarding status of the student."
+        },
+        "isCleared": {
+          "type": "boolean",
+          "description": "General clearance status."
+        },
+        "gateClearanceDate": {
+          "type": "string",
+          "description": "Clearance date for gate pass."
+        },
+        "mealsClearanceDate": {
+          "type": "string",
+          "description": "Clearance date for meals slip."
+        },
+        "remarks": {
+          "type": "string",
+          "description": "Optional staff remarks."
+        },
+        "photo": {
+          "type": "string",
+          "description": "Passport photo stored as base64 string."
+        }
+      },
+      "required": ["id", "adminNo", "name", "gender", "gradeClass", "boardingStatus", "isCleared"]
+    },
+    "branding": {
+      "title": "SchoolBranding",
+      "description": "Represents the permanent official school logo and branding.",
+      "type": "object",
+      "properties": {
+        "logo": {
+          "type": "string",
+          "description": "Base64 encoded string of the school crest/logo."
+        },
+        "logoCleaned": {
+          "type": "boolean",
+          "description": "Whether background cleaning has been run."
+        },
+        "updatedAt": {
+          "type": "string",
+          "description": "Timestamp when logo was last saved."
+        }
+      },
+      "required": ["logo"]
+    },
+    "classThemes": {
+      "title": "ClassThemes",
+      "description": "Holds the custom-defined colors and themes for each S-class group.",
+      "type": "object",
+      "properties": {
+        "themes": {
+          "type": "object",
+          "description": "A mapping of class prefixes (e.g. S.1) to ClassTheme objects."
+        },
+        "updatedAt": {
+          "type": "string",
+          "description": "Timestamp of the last custom theme updates."
+        }
+      },
+      "required": ["themes"]
+    },
+    "balance": {
+      "title": "StudentBalance",
+      "description": "Represents outstanding school fees or requirements balances.",
+      "type": "object",
+      "properties": {
+        "studentId": {
+          "type": "string"
+        },
+        "amountDue": {
+          "type": "number"
+        },
+        "status": {
+          "type": "string",
+          "enum": ["Paid", "Pending", "Overdue"]
+        },
+        "updatedAt": {
+          "type": "string"
+        }
+      },
+      "required": ["studentId", "amountDue", "status"]
+    },
+    "clearanceRecord": {
+      "title": "DepartmentalClearance",
+      "description": "Indicates clearance at individual departmental checkpoints.",
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string"
+        },
+        "studentId": {
+          "type": "string"
+        },
+        "department": {
+          "type": "string",
+          "enum": ["Bursar", "Library", "Headteacher", "Meals", "Gate"]
+        },
+        "status": {
+          "type": "string",
+          "enum": ["Cleared", "Hold"]
+        },
+        "remarks": {
+          "type": "string"
+        },
+        "clearedBy": {
+          "type": "string"
+        },
+        "approvedAt": {
+          "type": "string"
+        }
+      },
+      "required": ["id", "studentId", "department", "status"]
+    },
+    "printQueueItem": {
+      "title": "PrintQueueItem",
+      "description": "A student clearance card currently queued for batch printing.",
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string"
+        },
+        "studentId": {
+          "type": "string"
+        },
+        "queuedAt": {
+          "type": "string"
+        },
+        "status": {
+          "type": "string",
+          "enum": ["Queued", "Printed", "Failed"]
+        }
+      },
+      "required": ["id", "studentId", "queuedAt", "status"]
+    }
+  },
+  "firestore": {
+    "/students/{studentId}": {
+      "schema": "student",
+      "description": "Collection of student records."
+    },
+    "/branding/school": {
+      "schema": "branding",
+      "description": "Singleton configuration holding the school's official branding."
+    },
+    "/classThemes/custom": {
+      "schema": "classThemes",
+      "description": "Singleton configuration holding custom themes."
+    },
+    "/balances/{studentId}": {
+      "schema": "balance",
+      "description": "Outstanding student term account balances."
+    },
+    "/clearance/{clearanceId}": {
+      "schema": "clearanceRecord",
+      "description": "Departmental checkpoint clearances."
+    },
+    "/printing_queue/{queueId}": {
+      "schema": "printQueueItem",
+      "description": "Queued cards for active print suite runs."
+    }
+  }
+}
