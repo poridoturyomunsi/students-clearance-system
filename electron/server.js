@@ -55,10 +55,15 @@ function getInitials(name) {
   }
 }
 
+const imageCache = {};
+
 async function getBase64ImageFromUrl(url) {
   if (!url) return null;
   if (url.startsWith('data:')) {
     return url;
+  }
+  if (imageCache[url]) {
+    return imageCache[url];
   }
   try {
     const response = await fetch(url);
@@ -68,7 +73,9 @@ async function getBase64ImageFromUrl(url) {
     const contentType = response.headers.get('content-type') || 'image/jpeg';
     const arrayBuffer = await response.arrayBuffer();
     const base64 = Buffer.from(arrayBuffer).toString('base64');
-    return `data:${contentType};base64,${base64}`;
+    const dataUri = `data:${contentType};base64,${base64}`;
+    imageCache[url] = dataUri;
+    return dataUri;
   } catch (err) {
     console.error(`Error resolving image URL to base64 for "${url}":`, err);
     return null;
@@ -2227,11 +2234,15 @@ app.post('/api/pdf/generate', async (req, res) => {
           activeLogo = await getLogoAsBase64(activeLogo) || activeLogo;
         }
 
-        // Pre-resolve student photos if they are URLs
-        for (const student of orderedStudents) {
-          if (student.photo && student.photo.startsWith('http')) {
-            student.photo = await getBase64ImageFromUrl(student.photo) || student.photo;
-          }
+        // Pre-resolve student photos if they are URLs (in batches of 30 in parallel)
+        const batchSize = 30;
+        for (let i = 0; i < orderedStudents.length; i += batchSize) {
+          const batch = orderedStudents.slice(i, i + batchSize);
+          await Promise.all(batch.map(async (student) => {
+            if (student.photo && student.photo.startsWith('http')) {
+              student.photo = await getBase64ImageFromUrl(student.photo) || student.photo;
+            }
+          }));
         }
         
         const { generateClearancePdf } = require('./pdfGenerator');
@@ -3350,11 +3361,15 @@ app.post('/api/pdf/generate-reports', async (req, res) => {
         const [htRows] = await pool.query("SELECT name, signature FROM teachers WHERE position = 'Head Teacher' LIMIT 1");
         const htTeacher = htRows[0] || null;
 
-        // Pre-resolve URLs to Base64 data URIs to prevent Node.js jsPDF from erroring out
-        for (const student of students) {
-          if (student.photo && student.photo.startsWith('http')) {
-            student.photo = await getBase64ImageFromUrl(student.photo) || student.photo;
-          }
+        // Pre-resolve student photos in parallel (batches of 30)
+        const batchSize = 30;
+        for (let i = 0; i < students.length; i += batchSize) {
+          const batch = students.slice(i, i + batchSize);
+          await Promise.all(batch.map(async (student) => {
+            if (student.photo && student.photo.startsWith('http')) {
+              student.photo = await getBase64ImageFromUrl(student.photo) || student.photo;
+            }
+          }));
         }
 
         if (settings.school_logo) {
@@ -3365,20 +3380,25 @@ app.post('/api/pdf/generate-reports', async (req, res) => {
           settings.school_stamp = await getBase64ImageFromUrl(settings.school_stamp) || settings.school_stamp;
         }
 
-        for (const gradeClass of Object.keys(classTeachersMap)) {
-          const ct = classTeachersMap[gradeClass];
-          if (ct && ct.signature && ct.signature.startsWith('http')) {
-            ct.signature = await getBase64ImageFromUrl(ct.signature) || ct.signature;
-          }
-        }
-
-        if (dosTeacher && dosTeacher.signature && dosTeacher.signature.startsWith('http')) {
-          dosTeacher.signature = await getBase64ImageFromUrl(dosTeacher.signature) || dosTeacher.signature;
-        }
-
-        if (htTeacher && htTeacher.signature && htTeacher.signature.startsWith('http')) {
-          htTeacher.signature = await getBase64ImageFromUrl(htTeacher.signature) || htTeacher.signature;
-        }
+        // Pre-resolve all teacher signatures in parallel
+        await Promise.all([
+          ...Object.keys(classTeachersMap).map(async (gradeClass) => {
+            const ct = classTeachersMap[gradeClass];
+            if (ct && ct.signature && ct.signature.startsWith('http')) {
+              ct.signature = await getBase64ImageFromUrl(ct.signature) || ct.signature;
+            }
+          }),
+          (async () => {
+            if (dosTeacher && dosTeacher.signature && dosTeacher.signature.startsWith('http')) {
+              dosTeacher.signature = await getBase64ImageFromUrl(dosTeacher.signature) || dosTeacher.signature;
+            }
+          })(),
+          (async () => {
+            if (htTeacher && htTeacher.signature && htTeacher.signature.startsWith('http')) {
+              htTeacher.signature = await getBase64ImageFromUrl(htTeacher.signature) || htTeacher.signature;
+            }
+          })()
+        ]);
 
         const { compileReportsPdf, getOLevelGrade, getUACEPrincipalGrade, getUACESubGPGrade } = require('./reportGenerator');
         
