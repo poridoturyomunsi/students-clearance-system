@@ -7,6 +7,12 @@ import * as XLSX from 'xlsx';
 import { compressStudentPhoto } from '../../utils/imageProcessor.ts';
 
 export default function TeachersModule() {
+  const isHeadteacher = (position?: string) => {
+    if (!position) return false;
+    const pos = position.toLowerCase().replace(/\s+/g, '');
+    return pos === 'headteacher';
+  };
+
   const [teachers, setTeachers] = useState<Teacher[]>([]);
   const [classTeachers, setClassTeachers] = useState<any[]>([]);
   const [loading, setLoading] = useState(false);
@@ -65,16 +71,20 @@ export default function TeachersModule() {
       return;
     }
 
+    const payloadSubjects = isHeadteacher(formData.position) ? [] : formData.subjects;
+    const payloadClasses = isHeadteacher(formData.position) ? [] : formData.classes;
+
     try {
       if (editingTeacher) {
+        const { assignments, classTeacherFor, ...cleanEditingTeacher } = editingTeacher;
         await updateTeacher(editingTeacher.id, {
-          ...editingTeacher,
+          ...cleanEditingTeacher,
           ...formData,
           name: formData.name,
           username: formData.username,
           gender: formData.gender,
-          subjects: formData.subjects,
-          classes: formData.classes,
+          subjects: payloadSubjects,
+          classes: payloadClasses,
           position: formData.position,
           photo: formData.photo,
           status: formData.status,
@@ -91,8 +101,8 @@ export default function TeachersModule() {
           password: formData.password,
           name: formData.name,
           gender: formData.gender,
-          subjects: formData.subjects,
-          classes: formData.classes,
+          subjects: payloadSubjects,
+          classes: payloadClasses,
           position: formData.position,
           photo: formData.photo,
           status: formData.status
@@ -510,51 +520,55 @@ export default function TeachersModule() {
                 </div>
               </div>
 
-              <div className="space-y-2">
-                <label className="text-xs font-bold text-slate-400">Subjects</label>
-                <div className="flex flex-wrap gap-2">
-                  {allSubjects.map(subj => (
-                    <label key={subj} className="flex items-center gap-2 text-sm cursor-pointer">
-                      <input
-                        type="checkbox"
-                        checked={formData.subjects.includes(subj)}
-                        onChange={(e) => {
-                          if (e.target.checked) {
-                            setFormData({ ...formData, subjects: [...formData.subjects, subj] });
-                          } else {
-                            setFormData({ ...formData, subjects: formData.subjects.filter(s => s !== subj) });
-                          }
-                        }}
-                        className="rounded"
-                      />
-                      {subj}
-                    </label>
-                  ))}
-                </div>
-              </div>
+              {!isHeadteacher(formData.position) && (
+                <>
+                  <div className="space-y-2">
+                    <label className="text-xs font-bold text-slate-400">Subjects</label>
+                    <div className="flex flex-wrap gap-2">
+                      {allSubjects.map(subj => (
+                        <label key={subj} className="flex items-center gap-2 text-sm cursor-pointer">
+                          <input
+                            type="checkbox"
+                            checked={formData.subjects.includes(subj)}
+                            onChange={(e) => {
+                              if (e.target.checked) {
+                                setFormData({ ...formData, subjects: [...formData.subjects, subj] });
+                              } else {
+                                setFormData({ ...formData, subjects: formData.subjects.filter(s => s !== subj) });
+                              }
+                            }}
+                            className="rounded"
+                          />
+                          {subj}
+                        </label>
+                      ))}
+                    </div>
+                  </div>
 
-              <div className="space-y-2">
-                <label className="text-xs font-bold text-slate-400">Classes</label>
-                <div className="flex flex-wrap gap-2">
-                  {SCHOOL_CLASSES.map(cls => (
-                    <label key={cls} className="flex items-center gap-2 text-sm cursor-pointer">
-                      <input
-                        type="checkbox"
-                        checked={formData.classes.includes(cls)}
-                        onChange={(e) => {
-                          if (e.target.checked) {
-                            setFormData({ ...formData, classes: [...formData.classes, cls] });
-                          } else {
-                            setFormData({ ...formData, classes: formData.classes.filter(c => c !== cls) });
-                          }
-                        }}
-                        className="rounded"
-                      />
-                      {cls}
-                    </label>
-                  ))}
-                </div>
-              </div>
+                  <div className="space-y-2">
+                    <label className="text-xs font-bold text-slate-400">Classes</label>
+                    <div className="flex flex-wrap gap-2">
+                      {SCHOOL_CLASSES.map(cls => (
+                        <label key={cls} className="flex items-center gap-2 text-sm cursor-pointer">
+                          <input
+                            type="checkbox"
+                            checked={formData.classes.includes(cls)}
+                            onChange={(e) => {
+                              if (e.target.checked) {
+                                setFormData({ ...formData, classes: [...formData.classes, cls] });
+                              } else {
+                                setFormData({ ...formData, classes: formData.classes.filter(c => c !== cls) });
+                              }
+                            }}
+                            className="rounded"
+                          />
+                          {cls}
+                        </label>
+                      ))}
+                    </div>
+                  </div>
+                </>
+              )}
 
               <div className="flex gap-2 pt-2">
                 <button
@@ -619,12 +633,14 @@ export default function TeachersModule() {
                           </span>
                         </div>
                         <p className="text-[11px] text-slate-400">
-                          ID: <span className="font-mono text-slate-300 font-bold">{teacher.id}</span> • @{teacher.username} • {teacher.position || 'Teacher'} • {teacher.gender || 'Male'}
+                          {!isHeadteacher(teacher.position) && (
+                            <>ID: <span className="font-mono text-slate-300 font-bold">{teacher.id}</span> • </>
+                          )}@{teacher.username} • {teacher.position || 'Teacher'} • {teacher.gender || 'Male'}
                         </p>
-                        {teacher.subjects && teacher.subjects.length > 0 && (
+                        {!isHeadteacher(teacher.position) && teacher.subjects && teacher.subjects.length > 0 && (
                           <p className="text-[11px] text-indigo-400 font-medium">Subjects: {teacher.subjects.join(', ')}</p>
                         )}
-                        {teacher.classes && teacher.classes.length > 0 && (
+                        {!isHeadteacher(teacher.position) && teacher.classes && teacher.classes.length > 0 && (
                           <p className="text-[11px] text-violet-400 font-medium">Classes: {teacher.classes.join(', ')}</p>
                         )}
                       </div>
@@ -673,7 +689,7 @@ export default function TeachersModule() {
         <div className="space-y-4">
           <p className="text-sm text-slate-400">Manage which subjects teachers teach to which classes.</p>
           <div className="space-y-2">
-            {filteredTeachers.map(teacher => (
+            {filteredTeachers.filter(t => !isHeadteacher(t.position)).map(teacher => (
               <div key={teacher.id} className="bg-slate-950 border border-slate-800 rounded-lg p-3">
                 <h4 className="font-bold text-slate-100 mb-2">{teacher.name}</h4>
                 <div className="grid grid-cols-2 gap-2 text-xs">
@@ -719,10 +735,10 @@ export default function TeachersModule() {
                   className="w-full bg-slate-900 border border-slate-800 rounded p-2 text-sm text-slate-200 mb-2"
                 >
                   <option value="">-- Unassigned --</option>
-                  {allTeachers.map(t => (
+                  {allTeachers.filter(t => !isHeadteacher(t.position)).map(t => (
                     <option key={t.id} value={t.id}>{t.name}</option>
                   ))}
-                  {teachers.filter(t => !t.classes?.includes(className)).map(t => (
+                  {teachers.filter(t => !isHeadteacher(t.position) && !t.classes?.includes(className)).map(t => (
                     <option key={t.id} value={t.id}>{t.name}</option>
                   ))}
                 </select>

@@ -3754,13 +3754,12 @@ app.post('/api/teachers', async (req, res) => {
     await connection.beginTransaction();
     let { username, password, name, gender, subjects, classes, assignments, position, signature, photo, status } = req.body;
     if (!username || !password || !name) {
-      connection.release();
       return res.status(400).json({ error: 'Username, password, and name are required' });
     }
 
     const [existing] = await connection.query('SELECT id FROM teachers WHERE username = ?', [username]);
     if (existing.length > 0) {
-      connection.release();
+      await connection.rollback();
       return res.status(400).json({ error: 'Username is already taken' });
     }
 
@@ -3784,13 +3783,25 @@ app.post('/api/teachers', async (req, res) => {
       [id, username, hash, name, gender || null, JSON.stringify(finalSubjects), JSON.stringify(finalClasses), position || 'Teacher', signature || null, photo || null, status || 'Active']
     );
 
-    if (assignments && Array.isArray(assignments)) {
-      for (const a of assignments) {
-        await connection.query(
-          'INSERT INTO teacher_assignments (teacher_id, subject, grade_class) VALUES (?, ?, ?)',
-          [id, a.subject, a.grade_class]
-        );
+    const actualAssignments = assignments && Array.isArray(assignments)
+      ? assignments
+      : [];
+      
+    if (!assignments || !Array.isArray(assignments)) {
+      if (Array.isArray(finalSubjects) && Array.isArray(finalClasses)) {
+        for (const s of finalSubjects) {
+          for (const c of finalClasses) {
+            actualAssignments.push({ subject: s, grade_class: c });
+          }
+        }
       }
+    }
+
+    for (const a of actualAssignments) {
+      await connection.query(
+        'INSERT INTO teacher_assignments (teacher_id, subject, grade_class) VALUES (?, ?, ?)',
+        [id, a.subject, a.grade_class]
+      );
     }
 
     await connection.commit();
@@ -3817,7 +3828,7 @@ app.put('/api/teachers/:id', async (req, res) => {
       photo = await uploadToCloudinaryIfNeeded(photo, `teacher_${id}_photo`);
     } catch (e) {}
     if (existing.length > 0) {
-      connection.release();
+      await connection.rollback();
       return res.status(400).json({ error: 'Username is already taken' });
     }
 
@@ -3842,14 +3853,26 @@ app.put('/api/teachers/:id', async (req, res) => {
       );
     }
 
-    if (assignments && Array.isArray(assignments)) {
-      await connection.query('DELETE FROM teacher_assignments WHERE teacher_id = ?', [id]);
-      for (const a of assignments) {
-        await connection.query(
-          'INSERT INTO teacher_assignments (teacher_id, subject, grade_class) VALUES (?, ?, ?)',
-          [id, a.subject, a.grade_class]
-        );
+    const actualAssignments = assignments && Array.isArray(assignments)
+      ? assignments
+      : [];
+      
+    if (!assignments || !Array.isArray(assignments)) {
+      if (Array.isArray(finalSubjects) && Array.isArray(finalClasses)) {
+        for (const s of finalSubjects) {
+          for (const c of finalClasses) {
+            actualAssignments.push({ subject: s, grade_class: c });
+          }
+        }
       }
+    }
+
+    await connection.query('DELETE FROM teacher_assignments WHERE teacher_id = ?', [id]);
+    for (const a of actualAssignments) {
+      await connection.query(
+        'INSERT INTO teacher_assignments (teacher_id, subject, grade_class) VALUES (?, ?, ?)',
+        [id, a.subject, a.grade_class]
+      );
     }
 
     await connection.commit();

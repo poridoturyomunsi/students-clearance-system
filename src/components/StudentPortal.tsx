@@ -90,7 +90,49 @@ export default function StudentPortal({ studentId, studentName, adminNo, student
     );
   }
 
-  const { student, marks, attendance, fees, positions, announcements } = data;
+  const getSubjectSortIndex = (subjectName: string, gradeClass: string) => {
+    const normalized = (subjectName || '').trim().toLowerCase();
+    const cls = (gradeClass || '').trim().toUpperCase();
+    const isS1orS2 = cls.startsWith('S.1') || cls.startsWith('S.2');
+    const isS3orS4 = cls.startsWith('S.3') || cls.startsWith('S.4');
+
+    if (isS1orS2) {
+      if (normalized.includes('english')) return 1;
+      if (normalized === 'mathematics' || normalized === 'maths' || normalized === 'mtc') return 2;
+      if (normalized === 'physics' || normalized === 'phy') return 3;
+      if (normalized === 'chemistry' || normalized === 'chem') return 4;
+      if (normalized === 'biology' || normalized === 'bio') return 5;
+      if (normalized.includes('physical education') || normalized === 'pe') return 6;
+      if (normalized.includes('entrepreneurship') || normalized === 'ent') return 7;
+      if (normalized === 'geography' || normalized === 'geog' || normalized === 'georg') return 8;
+      if (normalized === 'kiswahili') return 9;
+      if (normalized.includes('christian religious') || normalized === 'cre') return 10;
+      if (normalized.includes('history') || normalized === 'hist') return 11;
+    } else if (isS3orS4) {
+      if (normalized.includes('english')) return 1;
+      if (normalized === 'mathematics' || normalized === 'maths' || normalized === 'mtc') return 2;
+      if (normalized === 'physics' || normalized === 'phy') return 3;
+      if (normalized === 'chemistry' || normalized === 'chem') return 4;
+      if (normalized === 'biology' || normalized === 'bio') return 5;
+      if (normalized.includes('history') || normalized === 'hist') return 6;
+      if (normalized === 'geography' || normalized === 'geog' || normalized === 'georg') return 7;
+    }
+    return 100;
+  };
+
+  const sortOLevelSubjects = (marksList: any[], gradeClass: string) => {
+    return [...marksList].sort((a, b) => {
+      const idxA = getSubjectSortIndex(a.subject, gradeClass);
+      const idxB = getSubjectSortIndex(b.subject, gradeClass);
+      if (idxA !== idxB) {
+        return idxA - idxB;
+      }
+      return (a.subject || '').localeCompare(b.subject || '');
+    });
+  };
+
+  const { student, marks: rawMarks, attendance, fees, positions, announcements } = data;
+  const marks = sortOLevelSubjects(rawMarks || [], student.gradeClass);
   const isUACE = student.gradeClass.startsWith('S.5') || student.gradeClass.startsWith('S.6');
 
   const getOrdinal = (n: number) => {
@@ -579,7 +621,6 @@ export default function StudentPortal({ studentId, studentName, adminNo, student
 
               {!isUACE && marks.length > 0 && (
                 <div className="p-4 mt-4 bg-slate-900/20 border border-slate-850 rounded-xl space-y-1.5 text-left" style={{ fontSize: '9.5pt' }}>
-                  <h4 className="font-black uppercase text-slate-300 tracking-wider">How Final Percentage is Computed</h4>
                   <p className="text-slate-400 leading-relaxed font-medium">
                     Final Percentage = (CA Score ÷ Maximum CA Marks × CA Weight) + (Exam Score ÷ Maximum Exam Marks × Exam Weight)
                   </p>

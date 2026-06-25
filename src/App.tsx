@@ -218,7 +218,13 @@ function chunkArray<T>(array: T[], size: number): T[][] {
 function AppContent() {
   const [activeModule, setActiveModule] = useState<string | null>(resolveInitialModule());
   // Ensure `schoolLogo` state is initialized early to avoid TDZ errors
-  const [schoolLogo, setSchoolLogo] = useState<string>(DEFAULT_SCHOOL_LOGO);
+  const [schoolLogo, setSchoolLogo] = useState<string>(() => {
+    if (typeof window !== 'undefined') {
+      const cached = localStorage.getItem('clearance_printer_school_logo');
+      if (cached) return cached;
+    }
+    return DEFAULT_SCHOOL_LOGO;
+  });
 
   const [authSession, setAuthSession] = useState<any>(() => {
     try {
@@ -466,9 +472,16 @@ function AppContent() {
         // 2. Load school logo branding from database
         try {
           const brandingRes = await fetchSchoolLogoFromDb();
-          if (mounted && brandingRes && brandingRes.logo) {
-            setSchoolLogo(brandingRes.logo);
-            console.log("[App Init] Successfully loaded branding school logo.");
+          if (mounted) {
+            if (brandingRes && brandingRes.logo) {
+              setSchoolLogo(brandingRes.logo);
+              localStorage.setItem('clearance_printer_school_logo', brandingRes.logo);
+              console.log("[App Init] Successfully loaded branding school logo.");
+            } else {
+              setSchoolLogo(DEFAULT_SCHOOL_LOGO);
+              localStorage.removeItem('clearance_printer_school_logo');
+              localStorage.removeItem('clearance_printer_school_logo_cleaned_v2');
+            }
           }
         } catch (logoErr) {
           console.warn("[App Init] Failed to load branding school logo:", logoErr);

@@ -100,22 +100,26 @@ interface SchoolLogoProps {
   logoBase64?: string | null; // optional Base64 uploaded logo
 }
 
+// Helper function to resolve logoBase64 to an actual image source synchronously
+const resolveLogo = (logo: string | null | undefined): string => {
+  if (logo) {
+    if (logo.startsWith('data:') || logo.startsWith('http')) {
+      return logo;
+    } else if (logo.startsWith('/')) {
+      const baseUrl = getApiBaseUrl();
+      return `${baseUrl}${logo}`;
+    } else {
+      return logo;
+    }
+  }
+  return DEFAULT_SCHOOL_LOGO;
+};
+
 export default function SchoolLogo({ className = 'w-7 h-7', logoBase64 }: SchoolLogoProps) {
-  const [imgSrc, setImgSrc] = React.useState<string>(DEFAULT_SCHOOL_LOGO);
+  const [imgSrc, setImgSrc] = React.useState<string>(() => resolveLogo(logoBase64));
 
   React.useEffect(() => {
-    if (logoBase64) {
-      if (logoBase64.startsWith('data:') || logoBase64.startsWith('http')) {
-        setImgSrc(logoBase64);
-      } else if (logoBase64.startsWith('/')) {
-        const baseUrl = getApiBaseUrl();
-        setImgSrc(`${baseUrl}${logoBase64}`);
-      } else {
-        setImgSrc(logoBase64);
-      }
-    } else {
-      setImgSrc(DEFAULT_SCHOOL_LOGO);
-    }
+    setImgSrc(resolveLogo(logoBase64));
   }, [logoBase64]);
 
   const handleError = () => {

@@ -156,6 +156,47 @@ function getInitials(name) {
   }
 }
 
+function getSubjectSortIndex(subjectName, gradeClass) {
+  const normalized = (subjectName || '').trim().toLowerCase();
+  const cls = (gradeClass || '').trim().toUpperCase();
+  const isS1orS2 = cls.startsWith('S.1') || cls.startsWith('S.2');
+  const isS3orS4 = cls.startsWith('S.3') || cls.startsWith('S.4');
+
+  if (isS1orS2) {
+    if (normalized.includes('english')) return 1;
+    if (normalized === 'mathematics' || normalized === 'maths' || normalized === 'mtc') return 2;
+    if (normalized === 'physics' || normalized === 'phy') return 3;
+    if (normalized === 'chemistry' || normalized === 'chem') return 4;
+    if (normalized === 'biology' || normalized === 'bio') return 5;
+    if (normalized.includes('physical education') || normalized === 'pe') return 6;
+    if (normalized.includes('entrepreneurship') || normalized === 'ent') return 7;
+    if (normalized === 'geography' || normalized === 'geog' || normalized === 'georg') return 8;
+    if (normalized === 'kiswahili') return 9;
+    if (normalized.includes('christian religious') || normalized === 'cre') return 10;
+    if (normalized.includes('history') || normalized === 'hist') return 11;
+  } else if (isS3orS4) {
+    if (normalized.includes('english')) return 1;
+    if (normalized === 'mathematics' || normalized === 'maths' || normalized === 'mtc') return 2;
+    if (normalized === 'physics' || normalized === 'phy') return 3;
+    if (normalized === 'chemistry' || normalized === 'chem') return 4;
+    if (normalized === 'biology' || normalized === 'bio') return 5;
+    if (normalized.includes('history') || normalized === 'hist') return 6;
+    if (normalized === 'geography' || normalized === 'geog' || normalized === 'georg') return 7;
+  }
+  return 100;
+}
+
+function sortOLevelSubjects(marksList, gradeClass) {
+  return [...marksList].sort((a, b) => {
+    const idxA = getSubjectSortIndex(a.subject, gradeClass);
+    const idxB = getSubjectSortIndex(b.subject, gradeClass);
+    if (idxA !== idxB) {
+      return idxA - idxB;
+    }
+    return (a.subject || '').localeCompare(b.subject || '');
+  });
+}
+
 async function compileReportsPdf({
   students,
   olevelMarks,
@@ -206,7 +247,8 @@ async function compileReportsPdf({
         subjectCount++;
       });
     } else {
-      const marks = olevelMarks.filter(m => m.student_id === student.id);
+      const rawMarks = olevelMarks.filter(m => m.student_id === student.id);
+      const marks = sortOLevelSubjects(rawMarks, student.gradeClass);
       marks.forEach(m => {
         const aiScores = [];
         if (m.integration1 !== null && m.integration1 !== undefined && m.integration1 !== '' && !isNaN(parseFloat(m.integration1))) {
@@ -540,7 +582,8 @@ async function compileReportsPdf({
       currentY = curY;
     } else {
       // Compute UCE Result Status
-      const sMarks = olevelMarks.filter(m => m.student_id === student.id);
+      const rawSMarks = olevelMarks.filter(m => m.student_id === student.id);
+      const sMarks = sortOLevelSubjects(rawSMarks, student.gradeClass);
       const olevelGrades = sMarks.map(m => {
         const aiScores = [];
         if (m.integration1 !== null && m.integration1 !== undefined && m.integration1 !== '' && !isNaN(parseFloat(m.integration1))) {
@@ -820,24 +863,20 @@ async function compileReportsPdf({
     // Draw Score Computation Note Section below results table for O-Level
     if (!isUACE) {
       const noteY = currentY + spacingGap;
-      doc.setFont('helvetica', 'bold');
-      doc.setFontSize(9.5);
-      doc.setTextColor(11, 30, 91); // Primary Navy Blue
-      doc.text("How Final Percentage is Computed", 15, noteY);
 
       doc.setFont('helvetica', 'normal');
       doc.setFontSize(9);
       doc.setTextColor(15, 23, 42); // Dark Slate
       const formulaText = "Final Percentage = (CA Score \u00F7 Maximum CA Marks \u00D7 CA Weight) + (Exam Score \u00F7 Maximum Exam Marks \u00D7 Exam Weight)";
-      doc.text(formulaText, 15, noteY + 4.5);
+      doc.text(formulaText, 15, noteY);
 
       doc.setFont('helvetica', 'italic');
       doc.setFontSize(8.5);
       doc.setTextColor(100, 116, 139); // Slate 500
       const exampleText = "Example: If CA Weight = 20% and Exam Weight = 80%: Final Percentage = (CA Score \u00F7 Maximum CA Marks \u00D7 20) + (Exam Score \u00F7 Maximum Exam Marks \u00D7 80).";
-      doc.text(exampleText, 15, noteY + 9, { maxWidth: 180 });
+      doc.text(exampleText, 15, noteY + 4.5, { maxWidth: 180 });
 
-      currentY = noteY + 12;
+      currentY = noteY + 8;
     }
 
     // Summary Cards Row

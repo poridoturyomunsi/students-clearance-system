@@ -27,6 +27,12 @@ interface AdminPortalExtensionsProps {
 }
 
 export default function AdminPortalExtensions({ schoolLogo, onLogoRefresh, authSession, onAddTask }: AdminPortalExtensionsProps) {
+  const isHeadteacher = (position?: string) => {
+    if (!position) return false;
+    const pos = position.toLowerCase().replace(/\s+/g, '');
+    return pos === 'headteacher';
+  };
+
   const [activeSubTab, setActiveSubTab] = useState<'teachers' | 'reports' | 'promotions' | 'emis' | 'studentsearch' | 'studentaccounts'>('teachers');
   
   // Teachers Management State
@@ -361,15 +367,20 @@ export default function AdminPortalExtensions({ schoolLogo, onLogoRefresh, authS
       return;
     }
 
+    const isHead = isHeadteacher(teacherForm.position);
+    const payloadSubjects = isHead ? [] : teacherForm.subjects;
+    const payloadClasses = isHead ? [] : teacherForm.classes;
+    const payloadAssignments = isHead ? [] : teacherForm.assignments;
+
     try {
       if (editingTeacher) {
         await updateTeacher(editingTeacher.id, {
           username: teacherForm.username,
           name: teacherForm.name,
           password: teacherForm.password || undefined,
-          subjects: teacherForm.subjects,
-          classes: teacherForm.classes,
-          assignments: teacherForm.assignments,
+          subjects: payloadSubjects,
+          classes: payloadClasses,
+          assignments: payloadAssignments,
           position: teacherForm.position,
           signature: teacherForm.signature,
           gender: teacherForm.gender,
@@ -382,9 +393,9 @@ export default function AdminPortalExtensions({ schoolLogo, onLogoRefresh, authS
           username: teacherForm.username,
           password: teacherForm.password,
           name: teacherForm.name,
-          subjects: teacherForm.subjects,
-          classes: teacherForm.classes,
-          assignments: teacherForm.assignments,
+          subjects: payloadSubjects,
+          classes: payloadClasses,
+          assignments: payloadAssignments,
           position: teacherForm.position,
           signature: teacherForm.signature,
           gender: teacherForm.gender,
@@ -1021,13 +1032,13 @@ export default function AdminPortalExtensions({ schoolLogo, onLogoRefresh, authS
                                 Role: {t.position}
                               </div>
                             )}
-                            {t.classTeacherFor && t.classTeacherFor.length > 0 && (
+                            {!isHeadteacher(t.position) && t.classTeacherFor && t.classTeacherFor.length > 0 && (
                               <div className="text-[9px] text-emerald-400 font-bold uppercase tracking-wider mt-0.5">
                                 Class Teacher: {t.classTeacherFor.join(', ')}
                               </div>
                             )}
                             <div className="text-[9px] text-slate-500 lowercase mt-0.5">
-                              id: {t.id} • gender: {t.gender || 'Male'}
+                              {!isHeadteacher(t.position) && <>id: {t.id} • </>}gender: {t.gender || 'Male'}
                             </div>
                           </div>
                         </div>
@@ -1035,7 +1046,7 @@ export default function AdminPortalExtensions({ schoolLogo, onLogoRefresh, authS
                       <td className="p-3 font-mono">{t.username}</td>
                       <td className="p-3" colSpan={2}>
                         <div className="flex flex-wrap gap-1.5">
-                          {t.assignments && t.assignments.length > 0 ? (
+                          {isHeadteacher(t.position) ? null : t.assignments && t.assignments.length > 0 ? (
                             t.assignments.map((a, idx) => (
                               <span key={idx} className="bg-slate-800 text-slate-300 px-2 py-0.5 rounded text-[10px] uppercase font-bold border border-slate-700">
                                 {a.subject} ({a.grade_class})
@@ -1127,7 +1138,7 @@ export default function AdminPortalExtensions({ schoolLogo, onLogoRefresh, authS
                         className="w-full bg-slate-900 border border-slate-800 rounded-lg p-2 text-xs text-slate-200 font-bold cursor-pointer focus:outline-none focus:border-indigo-500 uppercase"
                       >
                         <option value="">-- Unassigned --</option>
-                        {teachers.map(t => (
+                        {teachers.filter(t => !isHeadteacher(t.position)).map(t => (
                           <option key={t.id} value={t.id}>{t.name} (@{t.username})</option>
                         ))}
                       </select>
@@ -1313,57 +1324,58 @@ export default function AdminPortalExtensions({ schoolLogo, onLogoRefresh, authS
                     )}
                   </div>
 
-                  {/* Teaching Assignments Section */}
-                  <div className="space-y-2.5 border-t border-slate-800 pt-3">
-                    <label className="text-[10px] text-slate-400 font-bold uppercase block">Assign Subjects &amp; Classes</label>
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-                      <div className="flex flex-col gap-1">
-                        <label className="text-[8px] text-slate-500 font-bold uppercase">Class / Stream</label>
-                        <select
-                          value={selectedClassToAdd}
-                          onChange={(e) => setSelectedClassToAdd(e.target.value)}
-                          className="bg-slate-950 border border-slate-850 rounded-lg p-2 text-xs text-slate-200 focus:outline-none cursor-pointer uppercase"
-                        >
-                          {SCHOOL_CLASSES.map(cls => (
-                            <option key={cls} value={cls}>{cls}</option>
-                          ))}
-                        </select>
+                  {!isHeadteacher(teacherForm.position) && (
+                    <div className="space-y-2.5 border-t border-slate-800 pt-3">
+                      <label className="text-[10px] text-slate-400 font-bold uppercase block">Assign Subjects &amp; Classes</label>
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                        <div className="flex flex-col gap-1">
+                          <label className="text-[8px] text-slate-500 font-bold uppercase">Class / Stream</label>
+                          <select
+                            value={selectedClassToAdd}
+                            onChange={(e) => setSelectedClassToAdd(e.target.value)}
+                            className="bg-slate-950 border border-slate-855 rounded-lg p-2 text-xs text-slate-202 focus:outline-none cursor-pointer uppercase"
+                          >
+                            {SCHOOL_CLASSES.map(cls => (
+                              <option key={cls} value={cls}>{cls}</option>
+                            ))}
+                          </select>
+                        </div>
+                        <div className="flex flex-col gap-1">
+                          <label className="text-[8px] text-slate-500 font-bold uppercase">Subject</label>
+                          <select
+                            value={selectedSubjectToAdd}
+                            onChange={(e) => setSelectedSubjectToAdd(e.target.value)}
+                            className="bg-slate-955 border border-slate-850 rounded-lg p-2 text-xs text-slate-200 focus:outline-none cursor-pointer uppercase"
+                          >
+                            <option value="">-- Select Subject --</option>
+                            {subjectsDropdownList.map(s => (
+                              <option key={s} value={s}>{s}</option>
+                            ))}
+                          </select>
+                        </div>
                       </div>
-                      <div className="flex flex-col gap-1">
-                        <label className="text-[8px] text-slate-500 font-bold uppercase">Subject</label>
-                        <select
-                          value={selectedSubjectToAdd}
-                          onChange={(e) => setSelectedSubjectToAdd(e.target.value)}
-                          className="bg-slate-950 border border-slate-850 rounded-lg p-2 text-xs text-slate-200 focus:outline-none cursor-pointer uppercase"
-                        >
-                          <option value="">-- Select Subject --</option>
-                          {subjectsDropdownList.map(s => (
-                            <option key={s} value={s}>{s}</option>
-                          ))}
-                        </select>
-                      </div>
-                    </div>
-                    <button
-                      type="button"
-                      onClick={addAssignmentToForm}
-                      className="w-full py-2 bg-slate-800 hover:bg-slate-700 text-xs font-bold uppercase tracking-wider text-slate-200 rounded-lg border border-slate-700 cursor-pointer flex items-center justify-center gap-1.5"
-                    >
-                      <Plus className="w-4 h-4" /> Add Assignment
-                    </button>
+                      <button
+                        type="button"
+                        onClick={addAssignmentToForm}
+                        className="w-full py-2 bg-slate-800 hover:bg-slate-700 text-xs font-bold uppercase tracking-wider text-slate-202 rounded-lg border border-slate-700 cursor-pointer flex items-center justify-center gap-1.5"
+                      >
+                        <Plus className="w-4 h-4" /> Add Assignment
+                      </button>
 
-                    <div className="flex flex-wrap gap-1.5 mt-2.5 max-h-24 overflow-y-auto bg-slate-950 p-2 rounded-lg border border-slate-850 shadow-inner">
-                      {teacherForm.assignments && teacherForm.assignments.length === 0 ? (
-                        <span className="text-[10px] text-slate-500 italic">No specific teaching assignments added.</span>
-                      ) : (
-                        teacherForm.assignments?.map((a, idx) => (
-                          <span key={idx} className="bg-slate-800 text-slate-300 px-2 py-0.5 rounded text-[10px] font-bold flex items-center gap-1.5 uppercase border border-slate-700">
-                            {a.subject} ({a.grade_class})
-                            <X className="w-3.5 h-3.5 text-slate-500 hover:text-red-400 cursor-pointer" onClick={() => setTeacherForm(p => ({ ...p, assignments: p.assignments.filter((_, i) => i !== idx) }))} />
-                          </span>
-                        ))
-                      )}
+                      <div className="flex flex-wrap gap-1.5 mt-2.5 max-h-24 overflow-y-auto bg-slate-950 p-2 rounded-lg border border-slate-855 shadow-inner">
+                        {teacherForm.assignments && teacherForm.assignments.length === 0 ? (
+                          <span className="text-[10px] text-slate-500 italic">No specific teaching assignments added.</span>
+                        ) : (
+                          teacherForm.assignments?.map((a, idx) => (
+                            <span key={idx} className="bg-slate-800 text-slate-300 px-2 py-0.5 rounded text-[10px] font-bold flex items-center gap-1.5 uppercase border border-slate-700">
+                              {a.subject} ({a.grade_class})
+                              <X className="w-3.5 h-3.5 text-slate-500 hover:text-red-400 cursor-pointer" onClick={() => setTeacherForm(p => ({ ...p, assignments: p.assignments.filter((_, i) => i !== idx) }))} />
+                            </span>
+                          ))
+                        )}
+                      </div>
                     </div>
-                  </div>
+                  )}
                 </div>
 
                 <div className="flex flex-col sm:flex-row justify-end gap-2.5 pt-3 border-t border-slate-800">
