@@ -449,23 +449,72 @@ function AppContent() {
     return () => { mounted = false; };
   }, []);
 
+  // Unified app configuration and database startup initialization
   useEffect(() => {
     let mounted = true;
-    (async () => {
+    const initializeApp = async () => {
       try {
-        const res = await fetchDatabaseStatus();
-        if (mounted && res) {
-          setDbConfig(res.config);
-          setDbFormConfig({
-            mode: res.connectionMode || 'network',
-            db: res.config || { host: '', port: 3306, database: '', user: '', password: '' },
-            serverUrl: res.config ? `http://${res.config.host}:${res.config.port}` : ''
-          });
+        // 1. Resolve API base URL from Electron configuration if running inside Electron
+        if (typeof window !== 'undefined' && (window as any).electron?.getDbConfig) {
+          try {
+            const loadedConfig = await (window as any).electron.getDbConfig();
+            if (loadedConfig && loadedConfig.serverUrl) {
+              setApiBaseUrl(loadedConfig.serverUrl);
+              console.log("[App Init] Set API base URL to:", loadedConfig.serverUrl);
+            }
+          } catch (e) {
+            console.warn("[App Init] Failed to load DB config from Electron:", e);
+          }
         }
-      } catch (err) {
-        console.warn("Failed to fetch database status:", err);
+
+        // 2. Load school logo branding from database
+        try {
+          const brandingRes = await fetchSchoolLogoFromDb();
+          if (mounted && brandingRes && brandingRes.logo) {
+            setSchoolLogo(brandingRes.logo);
+            console.log("[App Init] Successfully loaded branding school logo.");
+          }
+        } catch (logoErr) {
+          console.warn("[App Init] Failed to load branding school logo:", logoErr);
+        }
+
+        // 3. Fetch database connection status
+        const statusRes = await fetchDatabaseStatus();
+        if (mounted && statusRes) {
+          setDbConfig(statusRes.config);
+          setDbFormConfig({
+            mode: statusRes.connectionMode || 'network',
+            db: statusRes.config || { host: '', port: 3306, database: '', user: '', password: '' },
+            serverUrl: statusRes.config ? `http://${statusRes.config.host}:${statusRes.config.port}` : ''
+          });
+          setDbConnectionError(!statusRes.connected);
+        }
+
+        // 4. Fetch lightweight early dashboard statistics if authenticated
+        if (authSession) {
+          try {
+            const statsRes = await fetchStatsFromDb();
+            if (mounted) {
+              setDbStats(statsRes || {});
+              setDbConnectionError(false);
+            }
+          } catch (statsErr) {
+            console.warn("[App Init] Failed to load dashboard statistics:", statsErr);
+          }
+        }
+      } catch (err: any) {
+        console.error("[App Init] Critical initialization failure:", err);
+        if (mounted) {
+          setDbConnectionError(true);
+        }
+      } finally {
+        if (mounted) {
+          setIsInitializing(false);
+        }
       }
-    })();
+    };
+
+    initializeApp();
     return () => { mounted = false; };
   }, []);
 
@@ -506,20 +555,25 @@ function AppContent() {
         setTotalStudentsCount(res.total || res.data.length || 0);
         setDbConnectionError(false);
       } else {
-        const local = await getStudentsAsync();
-        setStudents(Array.isArray(local) ? local : INITIAL_STUDENTS);
-        setTotalStudentsCount(Array.isArray(local) ? local.length : INITIAL_STUDENTS.length);
-        setDbConnectionError(false);
+        throw new Error("Invalid response format from database server.");
       }
     } catch (err: any) {
-      console.warn('Failed to load students from server, falling back to local cache:', err);
-      try {
-        const local = await getStudentsAsync();
-        setStudents(Array.isArray(local) ? local : INITIAL_STUDENTS);
-        setTotalStudentsCount(Array.isArray(local) ? local.length : INITIAL_STUDENTS.length);
-      } catch (e) {
-        setStudents(INITIAL_STUDENTS);
-        setTotalStudentsCount(INITIAL_STUDENTS.length);
+      console.warn('Failed to load students from server:', err);
+      
+      const isCentralized = dbConfig && (dbConfig.mode === 'network' || dbConfig.mode === 'client' || dbConfig.host);
+      
+      if (!isCentralized) {
+        try {
+          const local = await getStudentsAsync();
+          setStudents(Array.isArray(local) ? local : INITIAL_STUDENTS);
+          setTotalStudentsCount(Array.isArray(local) ? local.length : INITIAL_STUDENTS.length);
+        } catch (e) {
+          setStudents(INITIAL_STUDENTS);
+          setTotalStudentsCount(INITIAL_STUDENTS.length);
+        }
+      } else {
+        setStudents([]);
+        setTotalStudentsCount(0);
       }
       setDbConnectionError(true);
       setTableError(err?.message || 'Unable to load student records from server.');
@@ -890,22 +944,7 @@ function AppContent() {
     processStudentPhotoPreview(photoRaw);
   };
 
-  // Fetch lightweight dashboard stats asynchronously to keep startup fast
-  useEffect(() => {
-    let mounted = true;
-    (async () => {
-      try {
-        const s = await fetchStatsFromDb();
-        if (mounted) setDbStats(s || {});
-      } catch (e) {
-        // keep silent; dashboard will show placeholders
-        console.debug('Failed to fetch dashboard stats early:', e);
-      } finally {
-        if (mounted) setIsInitializing(false);
-      }
-    })();
-    return () => { mounted = false; };
-  }, []);
+  // Early dashboard stats load is handled in the unified initializeApp effect above.
 
   useEffect(() => {
     if (
@@ -961,7 +1000,11 @@ function AppContent() {
         }
         
         try {
-          await saveSchoolLogoInDb(cleanedLogo);
+          const res = await saveSchoolLogoInDb(cleanedLogo);
+          if (res && res.logo) {
+            setSchoolLogo(res.logo);
+            localStorage.setItem('clearance_printer_school_logo', res.logo);
+          }
         } catch (err) {
           console.error("MySQL database branding write failed:", err);
         }
@@ -986,7 +1029,11 @@ function AppContent() {
         }
         
         try {
-          await saveSchoolLogoInDb(base64String);
+          const res = await saveSchoolLogoInDb(base64String);
+          if (res && res.logo) {
+            setSchoolLogo(res.logo);
+            localStorage.setItem('clearance_printer_school_logo', res.logo);
+          }
         } catch (err) {
           console.error("MySQL database branding write failed:", err);
         }

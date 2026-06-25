@@ -10,3 +10,6 @@ coverage/
 db_config.json
 .port
 exports/
+scratch/
+*.sql
+

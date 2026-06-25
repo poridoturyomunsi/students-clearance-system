@@ -1,4 +1,5 @@
 import React from 'react';
+import { getApiBaseUrl } from '../utils/api.ts';
 
 // Highly-polished SVG string representing the true St. Paul S.S. Nasuti official logo crest from the uploaded image
 const SVG_MARKUP = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100" fill="none" shape-rendering="geometricPrecision" text-rendering="geometricPrecision">
@@ -100,10 +101,21 @@ interface SchoolLogoProps {
 }
 
 export default function SchoolLogo({ className = 'w-7 h-7', logoBase64 }: SchoolLogoProps) {
-  const [imgSrc, setImgSrc] = React.useState<string>(logoBase64 || DEFAULT_SCHOOL_LOGO);
+  const [imgSrc, setImgSrc] = React.useState<string>(DEFAULT_SCHOOL_LOGO);
 
   React.useEffect(() => {
-    setImgSrc(logoBase64 || DEFAULT_SCHOOL_LOGO);
+    if (logoBase64) {
+      if (logoBase64.startsWith('data:') || logoBase64.startsWith('http')) {
+        setImgSrc(logoBase64);
+      } else if (logoBase64.startsWith('/')) {
+        const baseUrl = getApiBaseUrl();
+        setImgSrc(`${baseUrl}${logoBase64}`);
+      } else {
+        setImgSrc(logoBase64);
+      }
+    } else {
+      setImgSrc(DEFAULT_SCHOOL_LOGO);
+    }
   }, [logoBase64]);
 
   const handleError = () => {

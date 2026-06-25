@@ -118,6 +118,18 @@ async function writeAuditLog(action, details = null) {
   }
 }
 
+function getExportsDir() {
+  const fs = require('fs');
+  const path = require('path');
+  const dir = process.env.VERCEL
+    ? path.join('/tmp', 'exports')
+    : path.join(__dirname, '..', 'exports');
+  if (!fs.existsSync(dir)) {
+    fs.mkdirSync(dir, { recursive: true });
+  }
+  return dir;
+}
+
 function isSameConfig(c1, c2) {
   if (!c1 || !c2) return false;
   return c1.host === c2.host &&
@@ -642,7 +654,10 @@ app.use(async (req, res, next) => {
     '/api/ai/test-key'
   ];
   
-  const isPublic = publicPaths.includes(req.path) || req.path.match(/\/api\/students\/[^/]+\/photo/);
+  const isPublic = 
+    publicPaths.includes(req.path) || 
+    req.path.match(/\/api\/students\/[^/]+\/photo/) ||
+    (req.method === 'GET' && req.path === '/api/branding');
   
   if (!isPublic) {
     const authHeader = req.headers['authorization'];
@@ -666,6 +681,26 @@ app.use(async (req, res, next) => {
   ) {
     return next();
   }
+
+  // Lazy database initialization from environment variables (useful for serverless/Vercel)
+  if (!pool) {
+    const dbConfig = process.env.DATABASE_URL || (process.env.DB_HOST ? {
+      host: process.env.DB_HOST,
+      port: parseInt(process.env.DB_PORT || '3306', 10),
+      user: process.env.DB_USER,
+      password: process.env.DB_PASSWORD,
+      database: process.env.DB_DATABASE
+    } : null);
+
+    if (dbConfig) {
+      console.log('[API] Intercepted request. Initializing database pool lazily...');
+      const success = await initDb(dbConfig);
+      if (!success) {
+        return res.status(500).json({ error: 'Failed to initialize database pool from environment variables. Please verify connection credentials.' });
+      }
+    }
+  }
+
   if (!currentDbConfig) {
     return res.status(500).json({ error: 'Database connection is not configured. Please check host settings.' });
   }
@@ -675,7 +710,7 @@ app.use(async (req, res, next) => {
 
   const initialized = await ensureDbInitialized();
   if (!initialized) {
-    return res.status(500).json({ error: 'Database is offline or tables have not been initialized.' });
+    return res.status(500).json({ error: 'Database connection failed: The database is offline, unreachable, or tables could not be initialized. Please check credentials and server status.' });
   }
   next();
 });
@@ -1433,6 +1468,45 @@ app.post('/api/students/bulk-delete', async (req, res) => {
   }
 });
 
+// Helper to pre-resolve database logo path/url into base64 for PDF rendering engines
+async function getLogoAsBase64(logoVal) {
+  if (!logoVal) return null;
+  if (logoVal.startsWith('data:')) {
+    return logoVal;
+  }
+  
+  const fs = require('fs');
+  const path = require('path');
+  
+  // If it is a relative download path, extract the filename
+  if (logoVal.includes('/api/pdf/download/')) {
+    const parts = logoVal.split('/');
+    const filename = parts[parts.length - 1];
+    const filePath = path.join(getExportsDir(), filename);
+    if (fs.existsSync(filePath)) {
+      try {
+        const ext = path.extname(filePath).substring(1);
+        const mime = ext === 'svg' ? 'image/svg+xml' : `image/${ext}`;
+        const data = fs.readFileSync(filePath);
+        return `data:${mime};base64,${data.toString('base64')}`;
+      } catch (err) {
+        console.error('Failed to read logo file for base64 conversion:', err);
+      }
+    }
+  }
+  
+  // Fallback to fetch if it's a full http URL
+  if (logoVal.startsWith('http')) {
+    try {
+      return await getBase64ImageFromUrl(logoVal) || logoVal;
+    } catch (e) {
+      console.warn('Failed to pre-resolve http logo URL:', e);
+    }
+  }
+  
+  return null;
+}
+
 // GET school logo branding
 app.get('/api/branding', async (req, res) => {
   try {
@@ -1446,15 +1520,61 @@ app.get('/api/branding', async (req, res) => {
   }
 });
 
-// POST school logo branding
+// POST school logo branding (Saves logo to disk and saves path in DB)
 app.post('/api/branding', async (req, res) => {
   try {
     const { logo } = req.body;
+    let logoValue = logo;
+    
+    if (logo && logo.startsWith('data:image/')) {
+      const cloudName = process.env.CLOUDINARY_CLOUD_NAME;
+      const apiKey = process.env.CLOUDINARY_API_KEY;
+      const apiSecret = process.env.CLOUDINARY_API_SECRET;
+      
+      if (cloudName && apiKey && apiSecret) {
+        console.log('[Branding] Cloudinary configured. Uploading logo to Cloudinary...');
+        logoValue = await uploadToCloudinaryIfNeeded(logo, 'school_logo_branding');
+      } else {
+        const fs = require('fs');
+        const path = require('path');
+        
+        const exportDir = getExportsDir();
+        if (!fs.existsSync(exportDir)) {
+          fs.mkdirSync(exportDir, { recursive: true });
+        }
+        
+        // Delete old logo files matching school_logo_* to prevent disk bloat
+        try {
+          const files = fs.readdirSync(exportDir);
+          for (const file of files) {
+            if (file.startsWith('school_logo_')) {
+              fs.unlinkSync(path.join(exportDir, file));
+            }
+          }
+        } catch (delErr) {
+          console.warn('Failed to clean up old logos:', delErr);
+        }
+        
+        // Extract data format and write to file
+        const matches = logo.match(/^data:image\/([a-zA-Z0-9+]+);base64,(.+)$/);
+        if (matches && matches.length === 3) {
+          const ext = matches[1] === 'svg+xml' ? 'svg' : matches[1];
+          const dataBuffer = Buffer.from(matches[2], 'base64');
+          const filename = `school_logo_${Date.now()}.${ext}`;
+          const filePath = path.join(exportDir, filename);
+          
+          fs.writeFileSync(filePath, dataBuffer);
+          logoValue = `/api/pdf/download/${filename}`;
+          console.log(`Saved new school logo to disk: ${filePath}`);
+        }
+      }
+    }
+    
     await pool.query(
       `INSERT INTO settings (key_name, val_value) VALUES (?, ?) ON DUPLICATE KEY UPDATE val_value = ?`,
-      ['school_logo', logo || null, logo || null]
+      ['school_logo', logoValue || null, logoValue || null]
     );
-    res.json({ success: true });
+    res.json({ success: true, logo: logoValue });
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
@@ -1810,7 +1930,7 @@ app.post('/api/export/csv', async (req, res) => {
   
   try {
     const students = req.body.students || [];
-    const exportDir = path.join(__dirname, '..', 'exports');
+    const exportDir = getExportsDir();
     if (!fs.existsSync(exportDir)) {
       fs.mkdirSync(exportDir, { recursive: true });
     }
@@ -1873,7 +1993,7 @@ app.post('/api/export/excel', async (req, res) => {
   
   try {
     const students = req.body.students || [];
-    const exportDir = path.join(__dirname, '..', 'exports');
+    const exportDir = getExportsDir();
     if (!fs.existsSync(exportDir)) {
       fs.mkdirSync(exportDir, { recursive: true });
     }
@@ -2100,10 +2220,10 @@ app.post('/api/pdf/generate', async (req, res) => {
         const studentMap = new Map(Array.isArray(students) ? students.map(s => [s.id, { ...s, isCleared: !!s.isCleared }]) : []);
         const orderedStudents = finalStudentIds.map(id => studentMap.get(id)).filter(Boolean);
 
-        // Pre-resolve school logo if it's a URL
+        // Pre-resolve school logo (URL, path, or base64)
         let activeLogo = schoolLogoBase64;
-        if (activeLogo && activeLogo.startsWith('http')) {
-          activeLogo = await getBase64ImageFromUrl(activeLogo) || activeLogo;
+        if (activeLogo) {
+          activeLogo = await getLogoAsBase64(activeLogo) || activeLogo;
         }
 
         // Pre-resolve student photos if they are URLs
@@ -2137,7 +2257,7 @@ app.post('/api/pdf/generate', async (req, res) => {
         
         const fs = require('fs');
         const path = require('path');
-        const exportDir = path.join(__dirname, '..', 'exports');
+        const exportDir = getExportsDir();
         if (!fs.existsSync(exportDir)) {
           fs.mkdirSync(exportDir, { recursive: true });
         }
@@ -2192,7 +2312,7 @@ app.get('/api/pdf/download/:filename', (req, res) => {
   const fs = require('fs');
   const path = require('path');
   const filename = req.params.filename;
-  const filePath = path.join(__dirname, '..', 'exports', filename);
+  const filePath = path.join(getExportsDir(), filename);
   
   if (!fs.existsSync(filePath)) {
     return res.status(404).json({ error: 'PDF file not found' });
@@ -3236,8 +3356,8 @@ app.post('/api/pdf/generate-reports', async (req, res) => {
           }
         }
 
-        if (settings.school_logo && settings.school_logo.startsWith('http')) {
-          settings.school_logo = await getBase64ImageFromUrl(settings.school_logo) || settings.school_logo;
+        if (settings.school_logo) {
+          settings.school_logo = await getLogoAsBase64(settings.school_logo) || settings.school_logo;
         }
 
         if (settings.school_stamp && settings.school_stamp.startsWith('http')) {
@@ -3509,7 +3629,7 @@ app.post('/api/pdf/generate-reports', async (req, res) => {
 
         const fs = require('fs');
         const path = require('path');
-        const exportDir = path.join(__dirname, '..', 'exports');
+        const exportDir = getExportsDir();
         if (!fs.existsSync(exportDir)) {
           fs.mkdirSync(exportDir, { recursive: true });
         }
@@ -4263,6 +4383,7 @@ async function stopServer() {
 }
 
 module.exports = {
+  app,
   startServer,
   stopServer,
   initDb

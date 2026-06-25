@@ -1,4 +1,5 @@
 import React, { useEffect, useState } from 'react';
+import { AlertCircle } from 'lucide-react';
 import { fetchStudentsFromDb, fetchClassesFromDb, fetchStreamsFromDb } from '../../utils/api.ts';
 
 interface StudentsModuleProps {
@@ -7,6 +8,7 @@ interface StudentsModuleProps {
 
 export default function StudentsModule({ onOpenStudent }: StudentsModuleProps) {
   const [students, setStudents] = useState<any[]>([]);
+  const [error, setError] = useState<string | null>(null);
   const [page, setPage] = useState<number>(1);
   const [limit, setLimit] = useState<number>(50);
   const [total, setTotal] = useState<number>(0);
@@ -27,14 +29,16 @@ export default function StudentsModule({ onOpenStudent }: StudentsModuleProps) {
 
   const loadPage = async (p: number, l: number, s: string) => {
     setLoading(true);
+    setError(null);
     try {
       const res = await fetchStudentsFromDb({ page: p, limit: l, search: s, gradeClass: classFilter !== 'All' ? classFilter : undefined, stream: streamFilter !== 'All' ? streamFilter : undefined, gender: genderFilter !== 'All' ? genderFilter : undefined, boardingStatus: boardingFilter !== 'All' ? boardingFilter : undefined, isCleared: clearanceFilter !== 'All' ? (clearanceFilter === 'Cleared' ? 'Cleared' : 'Not Cleared') : undefined, sortBy: 'gradeClass' });
       const fetched = res.data || [];
       setStudents(sortStudents(fetched));
       setTotal(res.total || 0);
       setPage(res.page || p);
-    } catch (err) {
+    } catch (err: any) {
       console.error('Failed to load students page:', err);
+      setError(err?.message || 'Database connection failed. Please ensure the host server is running.');
       setStudents([]);
     } finally {
       setLoading(false);
@@ -79,8 +83,9 @@ export default function StudentsModule({ onOpenStudent }: StudentsModuleProps) {
           }
         }
         setStreamCounts(sCounts);
-      } catch (err) {
+      } catch (err: any) {
         console.error('Failed to load classes/streams:', err);
+        setError(err?.message || 'Database connection failed. Please ensure the host server is running.');
       }
     };
     loadMeta();
@@ -101,8 +106,9 @@ export default function StudentsModule({ onOpenStudent }: StudentsModuleProps) {
           try {
             const res = await fetchStudentsFromDb({ gradeClass: cn, stream: sn, limit: groupPreviewLimit });
             map[key] = { students: res.data || [], total: res.total || 0 };
-          } catch (e) {
+          } catch (e: any) {
             map[key] = { students: [], total: 0 };
+            setError(e?.message || 'Database connection failed. Please ensure the host server is running.');
           }
         }
       }
@@ -159,6 +165,12 @@ export default function StudentsModule({ onOpenStudent }: StudentsModuleProps) {
 
   return (
     <div>
+      {error && (
+        <div className="bg-rose-500/10 border border-rose-500/25 p-4 rounded-xl flex items-center gap-3 text-xs text-rose-400 mb-4 font-semibold">
+          <AlertCircle className="w-5 h-5 shrink-0" />
+          <span>{error}</span>
+        </div>
+      )}
       <div className="flex items-center justify-between mb-4">
         <div>
           <h4 className="text-xl font-black">Students</h4>

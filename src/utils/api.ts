@@ -4,11 +4,30 @@ import { Student } from '../types.ts';
 // Default API base URL:
 // - In Electron (renderer) we keep localhost:3000 for the bundled backend.
 // - In browser/dev server use a relative path so Vite proxy or same-origin works.
-let apiBaseUrl =
-  import.meta.env.VITE_API_URL ||
-  (typeof window !== 'undefined' && (window as any).electron
-    ? 'http://localhost:3000'
-    : '');
+let apiBaseUrl = import.meta.env.VITE_API_URL || '';
+
+if (typeof window !== 'undefined' && (window as any).electron) {
+  try {
+    const configStr = (window as any).electron.readDataSync('db_config');
+    if (configStr) {
+      const config = JSON.parse(configStr);
+      if (config.mode === 'client' && config.serverUrl) {
+        apiBaseUrl = config.serverUrl;
+      } else if (config.serverUrl) {
+        apiBaseUrl = config.serverUrl;
+      } else if (config.serverIp) {
+        apiBaseUrl = `http://${config.serverIp}:${config.serverPort || 3000}`;
+      } else {
+        apiBaseUrl = 'http://localhost:3000';
+      }
+    } else {
+      apiBaseUrl = 'http://localhost:3000';
+    }
+  } catch (e) {
+    console.warn("Failed to load database config synchronously, falling back to localhost...", e);
+    apiBaseUrl = 'http://localhost:3000';
+  }
+}
 
 export function setApiBaseUrl(url: string) {
   apiBaseUrl = url.trim().replace(/\/$/, ''); // strip trailing slash
