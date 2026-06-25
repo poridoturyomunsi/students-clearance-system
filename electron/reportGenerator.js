@@ -411,7 +411,16 @@ async function compileReportsPdf({
     // Table Section
     let currentY = 90;
     let uceResultStatus = '';
+    const marksCount = isUACE 
+      ? uaceMarks.filter(m => m.student_id === student.id).length 
+      : olevelMarks.filter(m => m.student_id === student.id).length;
+    
     let rowHeight = isUACE ? 7.0 : 6.8;
+    if (marksCount > 9) {
+      rowHeight = isUACE ? 5.8 : 5.6;
+    } else if (marksCount > 7) {
+      rowHeight = isUACE ? 6.4 : 6.0;
+    }
 
     if (isUACE) {
       doc.setFont('helvetica', 'bold');
@@ -787,7 +796,6 @@ async function compileReportsPdf({
     const tableHeaderHeight = isUACE ? 7 : 11;
     
     // Determine the actual number of rows drawn (including padding)
-    const marksCount = isUACE ? uaceMarks.filter(m => m.student_id === student.id).length : olevelMarks.filter(m => m.student_id === student.id).length;
     const tableRowsHeight = Math.max(isUACE ? 5 : 8, marksCount) * rowHeight;
     const cardW = 58;
     const cardH = 22;
@@ -944,8 +952,8 @@ async function compileReportsPdf({
     doc.setTextColor(15, 23, 42);
     doc.text(getHeadTeacherComment(stat.average), 18, commentsY + 25);
 
-    // Signatures & Verification Row
-    let sigY = commentsY + 28 + spacingGap;
+    // Signatures & Verification Row (clamp maximum sigY to 264 to guarantee it stays inside bottom border)
+    let sigY = Math.min(264, commentsY + 28 + spacingGap);
     
     // Helper helper for drawing a signature block
     const drawSignatureBlock = (title, name, signatureData, centerX) => {
@@ -954,7 +962,7 @@ async function compileReportsPdf({
         try {
           const isSvg = signatureData.includes('svg+xml');
           const format = isSvg ? 'SVG' : 'PNG';
-          doc.addImage(signatureData, format, centerX - 15, sigY + 1, 30, 11);
+          doc.addImage(signatureData, format, centerX - 12, sigY + 0.5, 24, 8);
         } catch (e) {
           console.warn(`Could not draw signature for ${title}:`, e);
         }
@@ -963,20 +971,20 @@ async function compileReportsPdf({
       // 2. Signature Line
       doc.setDrawColor(203, 213, 225); // Slate 300
       doc.setLineWidth(0.45);
-      doc.line(centerX - 20, sigY + 13, centerX + 20, sigY + 13);
+      doc.line(centerX - 20, sigY + 9, centerX + 20, sigY + 9);
 
       // 3. Staff Full Name
       doc.setFont('helvetica', 'normal');
       doc.setFontSize(8);
       doc.setTextColor(15, 23, 42); // Slate 900
       const displayName = (name && name !== 'N/A') ? name : '___________________';
-      doc.text(displayName, centerX, sigY + 17.5, { align: 'center' });
+      doc.text(displayName, centerX, sigY + 13.5, { align: 'center' });
 
       // 4. Position Title
       doc.setFont('helvetica', 'bold');
       doc.setFontSize(8);
       doc.setTextColor(11, 30, 91); // Premium Navy
-      doc.text(title, centerX, sigY + 22.5, { align: 'center' });
+      doc.text(title, centerX, sigY + 17.5, { align: 'center' });
     };
 
     // Class Teacher
@@ -1008,7 +1016,7 @@ async function compileReportsPdf({
     if (stampBase64) {
       try {
         const isSvg = stampBase64.includes('svg+xml');
-        doc.addImage(stampBase64, isSvg ? 'SVG' : 'PNG', 153, sigY + 2, 20, 20);
+        doc.addImage(stampBase64, isSvg ? 'SVG' : 'PNG', 155, sigY - 2, 16, 16);
       } catch (e) {
         console.warn("Could not draw school stamp:", e);
       }
