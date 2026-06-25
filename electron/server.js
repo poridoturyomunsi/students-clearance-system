@@ -99,17 +99,25 @@ async function uploadToCloudinaryIfNeeded(photoBase64, publicId) {
       api_secret: apiSecret
     });
     console.log(`[Cloudinary] Uploading image for public ID ${publicId}...`);
-    const result = await cloudinary.uploader.upload(photoBase64, {
+    
+    // Set up a 2.5-second upload timeout limit
+    const uploadPromise = cloudinary.uploader.upload(photoBase64, {
       public_id: publicId,
       folder: 'school_management_system',
       resource_type: 'image',
       overwrite: true,
       invalidate: true
     });
+    
+    const timeoutPromise = new Promise((_, reject) =>
+      setTimeout(() => reject(new Error('Cloudinary upload timed out (exceeded 2.5s)')), 2500)
+    );
+    
+    const result = await Promise.race([uploadPromise, timeoutPromise]);
     console.log('[Cloudinary] Upload successful. URL:', result.secure_url);
     return result.secure_url;
   } catch (err) {
-    console.error('[Cloudinary] Upload failed:', err.message);
+    console.error('[Cloudinary] Upload failed or timed out:', err.message);
     return photoBase64;
   }
 }
@@ -1429,13 +1437,17 @@ app.get('/api/stats', async (req, res) => {
 app.post('/api/students/bulk', async (req, res) => {
   const connection = await pool.getConnection();
   try {
-    await connection.beginTransaction();
     const students = req.body.students || [];
     
+    // Upload student photos to Cloudinary before starting the database transaction
     for (const s of students) {
       try {
         s.photo = await uploadToCloudinaryIfNeeded(s.photo, `student_${s.id}_photo`);
       } catch (e) {}
+    }
+
+    await connection.beginTransaction();
+    for (const s of students) {
       await connection.query(
         `INSERT INTO students (id, adminNo, name, gender, gradeClass, boardingStatus, isCleared, gateClearanceDate, mealsClearanceDate, remarks, photo, printStatus, parentName, parentContact) 
          VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?) 
@@ -3751,7 +3763,6 @@ app.get('/api/teachers', async (req, res) => {
 app.post('/api/teachers', async (req, res) => {
   const connection = await pool.getConnection();
   try {
-    await connection.beginTransaction();
     let { username, password, name, gender, subjects, classes, assignments, position, signature, photo, status } = req.body;
     if (!username || !password || !name) {
       return res.status(400).json({ error: 'Username, password, and name are required' });
@@ -3759,7 +3770,6 @@ app.post('/api/teachers', async (req, res) => {
 
     const [existing] = await connection.query('SELECT id FROM teachers WHERE username = ?', [username]);
     if (existing.length > 0) {
-      await connection.rollback();
       return res.status(400).json({ error: 'Username is already taken' });
     }
 
@@ -3768,6 +3778,8 @@ app.post('/api/teachers', async (req, res) => {
     try {
       photo = await uploadToCloudinaryIfNeeded(photo, `teacher_${id}_photo`);
     } catch (e) {}
+
+    await connection.beginTransaction();
     const crypto = require('crypto');
     const hash = crypto.createHash('sha256').update(password).digest('hex');
 
@@ -3818,19 +3830,19 @@ app.post('/api/teachers', async (req, res) => {
 app.put('/api/teachers/:id', async (req, res) => {
   const connection = await pool.getConnection();
   try {
-    await connection.beginTransaction();
     let { username, password, name, gender, subjects, classes, assignments, position, signature, photo, status } = req.body;
     const { id } = req.params;
 
     const [existing] = await connection.query('SELECT id FROM teachers WHERE username = ? AND id != ?', [username, id]);
-    
+    if (existing.length > 0) {
+      return res.status(400).json({ error: 'Username is already taken' });
+    }
+
     try {
       photo = await uploadToCloudinaryIfNeeded(photo, `teacher_${id}_photo`);
     } catch (e) {}
-    if (existing.length > 0) {
-      await connection.rollback();
-      return res.status(400).json({ error: 'Username is already taken' });
-    }
+
+    await connection.beginTransaction();
 
     const finalSubjects = assignments && Array.isArray(assignments) 
       ? Array.from(new Set(assignments.map(a => a.subject))) 
@@ -3889,12 +3901,12 @@ app.put('/api/teachers/:id', async (req, res) => {
 app.post('/api/teachers/import', async (req, res) => {
   const connection = await pool.getConnection();
   try {
-    await connection.beginTransaction();
     const { teachers } = req.body;
     if (!Array.isArray(teachers)) {
-      connection.release();
       return res.status(400).json({ error: 'Invalid payload: teachers must be an array' });
     }
+
+    await connection.beginTransaction();
 
     const success = [];
     const skipped = [];
