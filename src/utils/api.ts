@@ -674,7 +674,12 @@ export async function testAiConnection(apiKey?: string): Promise<{ success: bool
 export async function triggerFileDownload(url: string, filename: string): Promise<void> {
   if (typeof window !== 'undefined' && (window as any).electron?.saveFileBase64) {
     try {
-      const response = await fetch(url);
+      const token = typeof window !== 'undefined' ? localStorage.getItem('spss_token') : null;
+      const headers: Record<string, string> = {};
+      if (token) {
+        headers['Authorization'] = `Bearer ${token}`;
+      }
+      const response = await fetch(url, { headers });
       if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
       const buffer = await response.arrayBuffer();
       let binary = '';

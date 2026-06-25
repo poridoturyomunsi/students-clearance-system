@@ -657,6 +657,7 @@ app.use(async (req, res, next) => {
   const isPublic = 
     publicPaths.includes(req.path) || 
     req.path.match(/\/api\/students\/[^/]+\/photo/) ||
+    req.path.startsWith('/api/pdf/download/') ||
     (req.method === 'GET' && req.path === '/api/branding');
   
   if (!isPublic) {
