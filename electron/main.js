@@ -473,6 +473,30 @@ app.whenReady().then(async () => {
   splash.webContents.send('loading-progress', 3);
   
   mainWindow = await createWindow();
+
+  // Intercept all downloads in Electron to prompt Save As dialog
+  const { session } = require('electron');
+  session.defaultSession.on('will-download', (event, item, webContents) => {
+    const win = BrowserWindow.fromWebContents(webContents) || mainWindow || BrowserWindow.getFocusedWindow() || BrowserWindow.getAllWindows()[0];
+    const filename = item.getFilename();
+    const ext = path.extname(filename).replace('.', '');
+    const filters = [];
+    if (ext) {
+      filters.push({ name: `${ext.toUpperCase()} Files`, extensions: [ext] });
+    }
+
+    const savePath = dialog.showSaveDialogSync(win, {
+      title: 'Save File',
+      defaultPath: filename,
+      filters: filters
+    });
+
+    if (savePath) {
+      item.setSavePath(savePath);
+    } else {
+      event.preventDefault();
+    }
+  });
   
   // Listen for React to signal it's ready
   ipcMain.once('app-ready', () => {

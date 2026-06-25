@@ -5,7 +5,7 @@ import AdminStudentAccountsTab from './AdminStudentAccountsTab.tsx';
 import { SCHOOL_CLASSES } from '../data.ts';
 import { 
   fetchTeachers, createTeacher, updateTeacher, deleteTeacher, 
-  promoteStudents, generateReportCards,
+  promoteStudents, generateReportCards, triggerFileDownload,
   fetchSettings, saveSettings, fetchStudentsFromDb, fetchStatsFromDb,
   fetchClassTeachers, saveClassTeacher, fetchPdfTaskStatus, getApiBaseUrl,
   fetchAllWorksheets, searchStudentsWithMarks, importTeachers
@@ -220,7 +220,7 @@ export default function AdminPortalExtensions({ schoolLogo, onLogoRefresh, authS
             done = true;
             setPrintProgress({ current: statusRes.total, total: statusRes.total });
             alert(`Report cards compiled successfully!`);
-            window.open(`${getApiBaseUrl()}/api/pdf/download/${statusRes.filename}`, '_blank');
+            await triggerFileDownload(`${getApiBaseUrl()}/api/pdf/download/${statusRes.filename}`, statusRes.filename!);
           } else if (statusRes.status === 'failed') {
             throw new Error(statusRes.error || 'PDF compilation failed.');
           }
@@ -690,7 +690,7 @@ export default function AdminPortalExtensions({ schoolLogo, onLogoRefresh, authS
               done = true;
               setReportProgress({ current: statusRes.total, total: statusRes.total });
               alert(`Successfully compiled report cards for ${statusRes.total} students!`);
-              window.open(`${getApiBaseUrl()}/api/pdf/download/${statusRes.filename}`, '_blank');
+              await triggerFileDownload(`${getApiBaseUrl()}/api/pdf/download/${statusRes.filename}`, statusRes.filename!);
             } else if (statusRes.status === 'failed') {
               throw new Error(statusRes.error || 'Server PDF report generation failed.');
             }

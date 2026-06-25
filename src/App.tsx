@@ -122,7 +122,8 @@ import {
   fetchStudentFromDb,
   fetchStatsFromDb,
   fetchClassTeachers,
-  generateReportCards
+  generateReportCards,
+  triggerFileDownload
 } from './utils/api.ts';
 
 // Top-level helper so it's available before App renders
@@ -287,12 +288,7 @@ function AppContent() {
               
               if (t.status === 'processing') {
                 const downloadUrl = `${getApiBaseUrl()}/api/pdf/download/${res.filename}`;
-                const link = document.createElement('a');
-                link.href = downloadUrl;
-                link.download = res.filename!;
-                document.body.appendChild(link);
-                link.click();
-                document.body.removeChild(link);
+                triggerFileDownload(downloadUrl, res.filename!);
 
                 if (t.type === 'pdf') {
                   setStudents(prevStudents => Array.isArray(prevStudents) ? prevStudents.map(s => {
@@ -2610,7 +2606,7 @@ function AppContent() {
             done = true;
             setReportProgress({ current: statusRes.total, total: statusRes.total });
             const downloadUrl = `${getApiBaseUrl()}/api/pdf/download/${statusRes.filename}`;
-            window.open(downloadUrl, '_blank');
+            await triggerFileDownload(downloadUrl, statusRes.filename!);
           } else if (statusRes.status === 'failed') {
             throw new Error(statusRes.error || 'Compilation failed.');
           }
@@ -5419,6 +5415,12 @@ function AppContent() {
                               <a
                                 href={`${getApiBaseUrl()}/api/pdf/download/${hItem.pdf_path}`}
                                 download={hItem.pdf_path}
+                                onClick={(e) => {
+                                  if (typeof window !== 'undefined' && (window as any).electron?.saveFileBase64) {
+                                    e.preventDefault();
+                                    triggerFileDownload(`${getApiBaseUrl()}/api/pdf/download/${hItem.pdf_path}`, hItem.pdf_path);
+                                  }
+                                }}
                                 className="inline-flex items-center gap-1.5 px-3 py-1 bg-indigo-950/60 hover:bg-indigo-900/80 text-indigo-300 hover:text-white border border-indigo-900/50 rounded-md text-[9px] font-bold uppercase transition-all pointer-events-auto cursor-pointer"
                               >
                                 <Download className="w-3 h-3" /> Re-Download
@@ -6604,6 +6606,12 @@ function AppContent() {
                           <a
                             href={`${getApiBaseUrl()}/api/pdf/download/${task.filename}`}
                             download={task.filename}
+                            onClick={(e) => {
+                              if (typeof window !== 'undefined' && (window as any).electron?.saveFileBase64) {
+                                e.preventDefault();
+                                triggerFileDownload(`${getApiBaseUrl()}/api/pdf/download/${task.filename}`, task.filename!);
+                              }
+                            }}
                             className="flex items-center gap-1 bg-indigo-600 hover:bg-indigo-500 text-white px-2 py-1 rounded font-medium transition-colors"
                           >
                             <Download className="w-3 h-3" /> Download

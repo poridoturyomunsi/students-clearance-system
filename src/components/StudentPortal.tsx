@@ -3,7 +3,7 @@ import { GraduationCap, LogOut, Download, CheckCircle2, XCircle, DollarSign, Cal
 import SchoolLogo from './SchoolLogo.tsx';
 import ClearanceCard from './ClearanceCard.tsx';
 import { Student } from '../types.ts';
-import { fetchIntegratedStudentData, generateReportCards, getApiBaseUrl, fetchPdfTaskStatus } from '../utils/api.ts';
+import { fetchIntegratedStudentData, generateReportCards, getApiBaseUrl, fetchPdfTaskStatus, triggerFileDownload } from '../utils/api.ts';
 
 interface StudentPortalProps {
   studentId: string;
@@ -129,7 +129,7 @@ export default function StudentPortal({ studentId, studentName, adminNo, student
       if (!response.ok) throw new Error('PDF failed');
       const res = await response.json();
       if (res.success && res.filename) {
-        window.open(`${getApiBaseUrl()}/api/pdf/download/${res.filename}`, '_blank');
+        await triggerFileDownload(`${getApiBaseUrl()}/api/pdf/download/${res.filename}`, res.filename);
       }
     } catch (err) {
       alert('Could not export clearance card: ' + err);
@@ -177,7 +177,7 @@ export default function StudentPortal({ studentId, studentName, adminNo, student
           } else if (statusRes.status === 'completed') {
             done = true;
             setReportProgress({ current: statusRes.total, total: statusRes.total });
-            window.open(`${getApiBaseUrl()}/api/pdf/download/${statusRes.filename}`, '_blank');
+            await triggerFileDownload(`${getApiBaseUrl()}/api/pdf/download/${statusRes.filename}`, statusRes.filename!);
           } else if (statusRes.status === 'failed') {
             throw new Error(statusRes.error || 'Server PDF report generation failed.');
           }

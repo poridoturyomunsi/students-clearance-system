@@ -10,7 +10,8 @@ import {
   saveStudentsBulkInDb,
   generatePdfOnServer,
   fetchPdfTaskStatus,
-  getApiBaseUrl
+  getApiBaseUrl,
+  triggerFileDownload
 } from '../../utils/api.ts';
 
 const DEFAULT_ADD_FORM = {
@@ -390,7 +391,7 @@ export default function ClearanceModule() {
         setPrintProgress({ current: statusRes.progress, total: statusRes.total });
         if (statusRes.status === 'completed') {
           done = true;
-          window.open(`${baseUrl}/api/pdf/download/${statusRes.filename}?preview=true`, '_blank');
+          await triggerFileDownload(`${baseUrl}/api/pdf/download/${statusRes.filename}`, statusRes.filename!);
         } else if (statusRes.status === 'failed') {
           throw new Error(statusRes.error || 'PDF generation failed.');
         }

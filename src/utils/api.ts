@@ -671,4 +671,41 @@ export async function testAiConnection(apiKey?: string): Promise<{ success: bool
   });
 }
 
+export async function triggerFileDownload(url: string, filename: string): Promise<void> {
+  if (typeof window !== 'undefined' && (window as any).electron?.saveFileBase64) {
+    try {
+      const response = await fetch(url);
+      if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
+      const buffer = await response.arrayBuffer();
+      let binary = '';
+      const bytes = new Uint8Array(buffer);
+      const len = bytes.byteLength;
+      for (let i = 0; i < len; i++) {
+        binary += String.fromCharCode(bytes[i]);
+      }
+      const base64Data = window.btoa(binary);
+      const ext = filename.split('.').pop() || 'pdf';
+      const result = await (window as any).electron.saveFileBase64(filename, base64Data, [
+        { name: `${ext.toUpperCase()} Documents`, extensions: [ext] }
+      ]);
+      if (result.success) {
+        alert(`File saved successfully to:\n${result.filePath}`);
+      } else if (result.error !== 'Cancelled') {
+        alert(`Failed to save file: ${result.error}`);
+      }
+    } catch (e: any) {
+      console.error('Failed to save file in Electron:', e);
+      alert(`Failed to save file: ${e.message}`);
+    }
+  } else {
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = filename;
+    link.target = '_self';
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+  }
+}
+
 
