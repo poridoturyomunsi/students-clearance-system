@@ -13,6 +13,12 @@ export default function TeachersModule() {
     return pos === 'headteacher';
   };
 
+  const hasSignature = (position?: string) => {
+    if (!position) return false;
+    const pos = position.toLowerCase().replace(/\s+/g, '');
+    return pos === 'classteacher' || pos === 'dos' || pos === 'directorofstudies' || pos === 'headteacher';
+  };
+
   const [teachers, setTeachers] = useState<Teacher[]>([]);
   const [classTeachers, setClassTeachers] = useState<any[]>([]);
   const [loading, setLoading] = useState(false);
@@ -105,6 +111,7 @@ export default function TeachersModule() {
           classes: payloadClasses,
           position: formData.position,
           photo: formData.photo,
+          signature: formData.signature,
           status: formData.status
         });
         setSuccess('Teacher created successfully');
@@ -446,6 +453,52 @@ export default function TeachersModule() {
                   </div>
                 </div>
 
+                {/* Signature Upload Row (Visible if Position has signature) */}
+                {hasSignature(formData.position) && (
+                  <div className="col-span-2 flex items-center gap-4 bg-slate-900/60 p-3 rounded-lg border border-slate-850 animate-fade-in">
+                    <div className="h-20 w-40 rounded bg-white overflow-hidden flex items-center justify-center shrink-0 border border-slate-300 p-1">
+                      {formData.signature ? (
+                        <img src={formData.signature} alt="Signature Preview" className="h-full object-contain" />
+                      ) : (
+                        <span className="text-[10px] text-slate-400 font-bold uppercase">No Signature</span>
+                      )}
+                    </div>
+                    <div className="space-y-1">
+                      <label className="block text-xs font-bold text-slate-400 uppercase tracking-wider">Digital Signature Image</label>
+                      <div className="flex gap-2">
+                        <label className="px-3 py-1.5 bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-bold rounded cursor-pointer transition flex items-center gap-1.5">
+                          <Upload className="w-3.5 h-3.5" /> Upload Signature
+                          <input
+                            type="file"
+                            accept="image/*"
+                            onChange={(e) => {
+                              const file = e.target.files?.[0];
+                              if (file) {
+                                const reader = new FileReader();
+                                reader.onload = () => {
+                                  setFormData(prev => ({ ...prev, signature: reader.result as string }));
+                                };
+                                reader.readAsDataURL(file);
+                              }
+                            }}
+                            className="hidden"
+                          />
+                        </label>
+                        {formData.signature && (
+                          <button
+                            type="button"
+                            onClick={() => setFormData(prev => ({ ...prev, signature: '' }))}
+                            className="px-3 py-1.5 bg-rose-950/40 hover:bg-rose-900/40 text-rose-400 text-xs font-bold rounded border border-rose-900/30 transition"
+                          >
+                            Remove
+                          </button>
+                        )}
+                      </div>
+                      <p className="text-[10px] text-slate-500">PNG with transparent background is recommended.</p>
+                    </div>
+                  </div>
+                )}
+
                 <div className="flex flex-col gap-1">
                   <label className="text-[10px] text-slate-450 font-bold uppercase tracking-wider">Full Name</label>
                   <input
@@ -488,10 +541,12 @@ export default function TeachersModule() {
                     onChange={(e) => setFormData({ ...formData, position: e.target.value })}
                     className="bg-slate-900 border border-slate-800 rounded p-2 text-sm text-slate-200 w-full"
                   >
-                    <option>Teacher</option>
-                    <option>Head of Department</option>
-                    <option>Deputy Head</option>
-                    <option>Headteacher</option>
+                    <option value="Teacher">Teacher</option>
+                    <option value="Class Teacher">Class Teacher</option>
+                    <option value="DOS">DOS</option>
+                    <option value="Headteacher">Headteacher</option>
+                    <option value="Head of Department">Head of Department</option>
+                    <option value="Deputy Head">Deputy Head</option>
                   </select>
                 </div>
 
@@ -642,6 +697,11 @@ export default function TeachersModule() {
                         )}
                         {!isHeadteacher(teacher.position) && teacher.classes && teacher.classes.length > 0 && (
                           <p className="text-[11px] text-violet-400 font-medium">Classes: {teacher.classes.join(', ')}</p>
+                        )}
+                        {teacher.signature && (
+                          <div className="inline-flex items-center gap-1 text-[9px] font-bold text-emerald-400 bg-emerald-950/20 border border-emerald-900/20 px-1.5 py-0.5 rounded mt-1.5 w-max">
+                            ✍️ Signature Uploaded
+                          </div>
                         )}
                       </div>
                     </div>

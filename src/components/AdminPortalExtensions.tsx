@@ -33,6 +33,12 @@ export default function AdminPortalExtensions({ schoolLogo, onLogoRefresh, authS
     return pos === 'headteacher';
   };
 
+  const hasSignature = (position?: string) => {
+    if (!position) return false;
+    const pos = position.toLowerCase().replace(/\s+/g, '');
+    return pos === 'classteacher' || pos === 'dos' || pos === 'directorofstudies' || pos === 'headteacher';
+  };
+
   const [activeSubTab, setActiveSubTab] = useState<'teachers' | 'reports' | 'promotions' | 'emis' | 'studentsearch' | 'studentaccounts'>('teachers');
   
   // Teachers Management State
@@ -1037,6 +1043,11 @@ export default function AdminPortalExtensions({ schoolLogo, onLogoRefresh, authS
                                 Class Teacher: {t.classTeacherFor.join(', ')}
                               </div>
                             )}
+                            {t.signature && (
+                              <div className="inline-flex items-center gap-1 text-[8.5px] font-bold text-slate-400 bg-slate-900/50 px-1 py-0.5 rounded border border-slate-800 mt-1">
+                                ✍️ Signature Uploaded
+                              </div>
+                            )}
                             <div className="text-[9px] text-slate-500 lowercase mt-0.5">
                               {!isHeadteacher(t.position) && <>id: {t.id} • </>}gender: {t.gender || 'Male'}
                             </div>
@@ -1284,45 +1295,50 @@ export default function AdminPortalExtensions({ schoolLogo, onLogoRefresh, authS
                       className="bg-slate-955 border border-slate-850 rounded-lg p-2.5 text-xs text-slate-200 focus:outline-none focus:border-indigo-500 cursor-pointer"
                     >
                       <option value="Teacher">Teacher</option>
-                      <option value="Director of Studies">Director of Studies</option>
-                      <option value="Head Teacher">Head Teacher</option>
+                      <option value="Class Teacher">Class Teacher</option>
+                      <option value="DOS">DOS</option>
+                      <option value="Headteacher">Headteacher</option>
+                      <option value="Head of Department">Head of Department</option>
+                      <option value="Deputy Head">Deputy Head</option>
                     </select>
                   </div>
 
-                  <div className="flex flex-col gap-1.5">
-                    <label className="text-[10px] text-slate-400 font-bold uppercase">Digital Signature Image</label>
-                    <input
-                      type="file"
-                      accept="image/*"
-                      onChange={(e) => {
-                        const file = e.target.files?.[0];
-                        if (file) {
-                          const reader = new FileReader();
-                          reader.onload = () => {
-                            setTeacherForm(prev => ({ ...prev, signature: reader.result as string }));
-                          };
-                          reader.readAsDataURL(file);
-                        }
-                      }}
-                      className="text-xs text-slate-400 file:mr-3 file:py-1.5 file:px-3 file:rounded-md file:border-0 file:text-[10px] file:font-bold file:uppercase file:bg-slate-800 file:text-slate-350 hover:file:bg-slate-700 cursor-pointer animate-fade-in"
-                    />
-                    {teacherForm.signature && (
-                      <div className="flex items-center gap-3 bg-slate-950 p-2 rounded-lg border border-slate-850 mt-1">
-                        <img
-                          src={teacherForm.signature}
-                          alt="Signature Preview"
-                          className="h-10 object-contain bg-white rounded p-1"
-                        />
-                        <button
-                          type="button"
-                          onClick={() => setTeacherForm(prev => ({ ...prev, signature: '' }))}
-                          className="text-[10px] text-red-400 hover:text-red-300 font-bold uppercase cursor-pointer"
-                        >
-                          Clear Signature
-                        </button>
-                      </div>
-                    )}
-                  </div>
+                  {hasSignature(teacherForm.position) && (
+                    <div className="flex flex-col gap-1.5 animate-fade-in">
+                      <label className="text-[10px] text-slate-400 font-bold uppercase">Digital Signature Image</label>
+                      <input
+                        type="file"
+                        accept="image/*"
+                        onChange={(e) => {
+                          const file = e.target.files?.[0];
+                          if (file) {
+                            const reader = new FileReader();
+                            reader.onload = () => {
+                              setTeacherForm(prev => ({ ...prev, signature: reader.result as string }));
+                            };
+                            reader.readAsDataURL(file);
+                          }
+                        }}
+                        className="text-xs text-slate-400 file:mr-3 file:py-1.5 file:px-3 file:rounded-md file:border-0 file:text-[10px] file:font-bold file:uppercase file:bg-slate-800 file:text-slate-350 hover:file:bg-slate-700 cursor-pointer"
+                      />
+                      {teacherForm.signature && (
+                        <div className="flex items-center gap-3 bg-slate-950 p-2 rounded-lg border border-slate-850 mt-1">
+                          <img
+                            src={teacherForm.signature}
+                            alt="Signature Preview"
+                            className="h-10 object-contain bg-white rounded p-1"
+                          />
+                          <button
+                            type="button"
+                            onClick={() => setTeacherForm(prev => ({ ...prev, signature: '' }))}
+                            className="text-[10px] text-red-400 hover:text-red-300 font-bold uppercase cursor-pointer"
+                          >
+                            Clear Signature
+                          </button>
+                        </div>
+                      )}
+                    </div>
+                  )}
 
                   {!isHeadteacher(teacherForm.position) && (
                     <div className="space-y-2.5 border-t border-slate-800 pt-3">

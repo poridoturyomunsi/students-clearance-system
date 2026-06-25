@@ -3367,10 +3367,10 @@ app.post('/api/pdf/generate-reports', async (req, res) => {
         });
 
         // Fetch Director of Studies and Head Teacher info dynamically
-        const [dosRows] = await pool.query("SELECT name, signature FROM teachers WHERE position = 'Director of Studies' LIMIT 1");
+        const [dosRows] = await pool.query("SELECT name, signature FROM teachers WHERE position = 'Director of Studies' OR position = 'DOS' LIMIT 1");
         const dosTeacher = dosRows[0] || null;
 
-        const [htRows] = await pool.query("SELECT name, signature FROM teachers WHERE position = 'Head Teacher' LIMIT 1");
+        const [htRows] = await pool.query("SELECT name, signature FROM teachers WHERE position = 'Head Teacher' OR position = 'Headteacher' LIMIT 1");
         const htTeacher = htRows[0] || null;
 
         // Pre-resolve student photos in parallel (batches of 30)
