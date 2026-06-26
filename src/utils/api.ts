@@ -58,11 +58,11 @@ async function apiCall(path: string, options: RequestInit = {}) {
     if (cached) return cached;
   }
 
-  // 5-second request timeout mechanism
+  // 30-second request timeout mechanism (increased from 5s for debugging)
   const controller = new AbortController();
   const timeoutId = setTimeout(() => {
     controller.abort();
-  }, 5000);
+  }, 30000);
 
   const config = {
     ...options,
@@ -97,7 +97,7 @@ async function apiCall(path: string, options: RequestInit = {}) {
     clearTimeout(timeoutId);
     let finalErr = err;
     if (err.name === 'AbortError') {
-      finalErr = new Error('Database/API request timed out (server did not respond within 5 seconds).');
+      finalErr = new Error('Database/API request timed out (server did not respond within 30 seconds).');
     }
     console.error(`API Call failed on ${url}:`, finalErr);
     throw finalErr;

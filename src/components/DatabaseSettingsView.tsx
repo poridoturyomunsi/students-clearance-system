@@ -486,81 +486,89 @@ export default function DatabaseSettingsView({
             <Settings className="w-4 h-4 text-cyan-400" /> Operational Mode
           </h3>
 
-          <div className="flex flex-col gap-1.5 mb-4">
-            <div className="grid grid-cols-2 gap-2 p-1 bg-slate-900 rounded-lg border border-slate-800">
-              <button
-                type="button"
-                disabled={isCloudProduction}
-                onClick={() => setConfig(prev => ({ ...prev, mode: 'network' }))}
-                className={`py-2 rounded-md text-xs font-bold uppercase tracking-wider flex items-center justify-center gap-1.5 transition-all cursor-pointer ${
-                  config.mode === 'network' || config.mode === 'host'
-                    ? 'bg-cyan-600 text-slate-950 shadow'
-                    : 'text-slate-400 hover:text-slate-200'
-                } ${isCloudProduction ? 'opacity-50 cursor-not-allowed' : ''}`}
-              >
-                <Server className="w-3.5 h-3.5" />
-                Network DB (Host)
-              </button>
-              <button
-                type="button"
-                disabled={isCloudProduction}
-                onClick={() => setConfig(prev => ({ ...prev, mode: 'client' }))}
-                className={`py-2 rounded-md text-xs font-bold uppercase tracking-wider flex items-center justify-center gap-1.5 transition-all cursor-pointer ${
-                  config.mode === 'client'
-                    ? 'bg-cyan-600 text-slate-950 shadow'
-                    : 'text-slate-400 hover:text-slate-200'
-                } ${isCloudProduction ? 'opacity-50 cursor-not-allowed' : ''}`}
-              >
-                <Wifi className="w-3.5 h-3.5" />
-                Network Client (Device)
-              </button>
+          {isCloudProduction ? (
+            <div className="p-3 bg-slate-900 border border-slate-800 rounded-lg text-xs font-bold uppercase tracking-wider text-cyan-400 flex items-center gap-1.5">
+              <Globe className="w-4 h-4" /> Cloud Production Database (Active)
             </div>
-            <p className="text-[9.5px] text-slate-500 leading-normal mt-0.5 font-medium">
-              {config.mode === 'network' || config.mode === 'host'
-                ? 'Network Database Mode (Server/Host) runs the local API server and connects directly to the shared network MySQL database server. Other PCs can connect to this machine.'
-                : 'Network Client Mode (Client Device) connects to an existing Host API server URL running on another computer in the network.'}
-            </p>
-          </div>
-
-          <hr className="border-slate-800 my-2" />
-
-          <h3 className="text-xs font-black uppercase text-slate-300 tracking-wider flex items-center gap-1.5">
-            <Globe className="w-4 h-4 text-cyan-400" /> Network Settings
-          </h3>
-
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-            <div className="flex flex-col gap-1.5">
-              <label className="text-[9px] text-slate-500 font-bold uppercase tracking-wider">
-                Server IP Address
-              </label>
-              <input
-                type="text"
-                disabled={isCloudProduction}
-                value={config.serverIp || ''}
-                onChange={(e) => handleConfigChange('serverIp', e.target.value)}
-                placeholder="e.g. 192.168.0.155"
-                className="bg-slate-900 border border-slate-800 rounded-lg p-2.5 text-xs text-slate-200 focus:outline-none focus:border-cyan-500 font-medium disabled:opacity-60 disabled:cursor-not-allowed"
-              />
-              <p className="text-[8px] text-slate-500 mt-0.5">Computer IP hosting the system</p>
+          ) : (
+            <div className="flex flex-col gap-1.5 mb-4">
+              <div className="grid grid-cols-2 gap-2 p-1 bg-slate-900 rounded-lg border border-slate-800">
+                <button
+                  type="button"
+                  onClick={() => setConfig(prev => ({ ...prev, mode: 'network' }))}
+                  className={`py-2 rounded-md text-xs font-bold uppercase tracking-wider flex items-center justify-center gap-1.5 transition-all cursor-pointer ${
+                    config.mode === 'network' || config.mode === 'host'
+                      ? 'bg-cyan-600 text-slate-950 shadow'
+                      : 'text-slate-400 hover:text-slate-200'
+                  }`}
+                >
+                  <Server className="w-3.5 h-3.5" />
+                  Network DB (Host)
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setConfig(prev => ({ ...prev, mode: 'client' }))}
+                  className={`py-2 rounded-md text-xs font-bold uppercase tracking-wider flex items-center justify-center gap-1.5 transition-all cursor-pointer ${
+                    config.mode === 'client'
+                      ? 'bg-cyan-600 text-slate-950 shadow'
+                      : 'text-slate-400 hover:text-slate-200'
+                  }`}
+                >
+                  <Wifi className="w-3.5 h-3.5" />
+                  Network Client (Device)
+                </button>
+              </div>
+              <p className="text-[9.5px] text-slate-500 leading-normal mt-0.5 font-medium">
+                {config.mode === 'network' || config.mode === 'host'
+                  ? 'Network Database Mode (Server/Host) runs the local API server and connects directly to the shared network MySQL database server. Other PCs can connect to this machine.'
+                  : 'Network Client Mode (Client Device) connects to an existing Host API server URL running on another computer in the network.'}
+              </p>
             </div>
+          )}
 
-            <div className="flex flex-col gap-1.5">
-              <label className="text-[9px] text-slate-500 font-bold uppercase tracking-wider">
-                Server Port
-              </label>
-              <input
-                type="number"
-                disabled={isCloudProduction}
-                value={config.serverPort || 3000}
-                onChange={(e) => handleConfigChange('serverPort', e.target.value)}
-                placeholder="3000"
-                className="bg-slate-900 border border-slate-800 rounded-lg p-2.5 text-xs text-slate-200 focus:outline-none focus:border-cyan-500 font-medium disabled:opacity-60 disabled:cursor-not-allowed"
-              />
-              <p className="text-[8px] text-slate-500 mt-0.5">Application server port</p>
-            </div>
-          </div>
+          {!isCloudProduction && (
+            <>
+              <hr className="border-slate-800 my-2" />
 
-          {(config.mode === 'network' || config.mode === 'host') && (
+              <h3 className="text-xs font-black uppercase text-slate-300 tracking-wider flex items-center gap-1.5">
+                <Globe className="w-4 h-4 text-cyan-400" /> Network Settings
+              </h3>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div className="flex flex-col gap-1.5">
+                  <label className="text-[9px] text-slate-500 font-bold uppercase tracking-wider">
+                    Server IP Address
+                  </label>
+                  <input
+                    type="text"
+                    disabled={isCloudProduction}
+                    value={config.serverIp || ''}
+                    onChange={(e) => handleConfigChange('serverIp', e.target.value)}
+                    placeholder="e.g. 192.168.0.155"
+                    className="bg-slate-900 border border-slate-800 rounded-lg p-2.5 text-xs text-slate-200 focus:outline-none focus:border-cyan-500 font-medium disabled:opacity-60 disabled:cursor-not-allowed"
+                  />
+                  <p className="text-[8px] text-slate-500 mt-0.5">Computer IP hosting the system</p>
+                </div>
+
+                <div className="flex flex-col gap-1.5">
+                  <label className="text-[9px] text-slate-500 font-bold uppercase tracking-wider">
+                    Server Port
+                  </label>
+                  <input
+                    type="number"
+                    disabled={isCloudProduction}
+                    value={config.serverPort || 3000}
+                    onChange={(e) => handleConfigChange('serverPort', e.target.value)}
+                    placeholder="3000"
+                    className="bg-slate-900 border border-slate-800 rounded-lg p-2.5 text-xs text-slate-200 focus:outline-none focus:border-cyan-500 font-medium disabled:opacity-60 disabled:cursor-not-allowed"
+                  />
+                  <p className="text-[8px] text-slate-500 mt-0.5">Application server port</p>
+                </div>
+              </div>
+            </>
+          )}
+
+          {(config.mode === 'network' || config.mode === 'host' || isCloudProduction) && (
             <>
               <hr className="border-slate-800 my-2" />
 

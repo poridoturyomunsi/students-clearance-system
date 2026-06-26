@@ -10,7 +10,7 @@ import {
   fetchClassTeachers, saveClassTeacher, fetchPdfTaskStatus, getApiBaseUrl,
   fetchAllWorksheets, searchStudentsWithMarks, importTeachers
 } from '../utils/api.ts';
-import { compressStudentPhoto } from '../utils/imageProcessor.ts';
+import { compressStudentPhoto, compressSignatureImage } from '../utils/imageProcessor.ts';
 import * as XLSX from 'xlsx';
 
 
@@ -1313,8 +1313,10 @@ export default function AdminPortalExtensions({ schoolLogo, onLogoRefresh, authS
                           const file = e.target.files?.[0];
                           if (file) {
                             const reader = new FileReader();
-                            reader.onload = () => {
-                              setTeacherForm(prev => ({ ...prev, signature: reader.result as string }));
+                            reader.onload = async () => {
+                              const base64 = reader.result as string;
+                              const compressed = await compressSignatureImage(base64);
+                              setTeacherForm(prev => ({ ...prev, signature: compressed }));
                             };
                             reader.readAsDataURL(file);
                           }

@@ -1277,5 +1277,45 @@ export function compressStudentPhoto(base64Str: string, maxWidth: number = 300, 
   });
 }
 
+/**
+ * Compress and optimize a digital signature image, preserving PNG format and transparency.
+ */
+export function compressSignatureImage(base64Str: string, maxWidth: number = 600, maxHeight: number = 300): Promise<string> {
+  return new Promise((resolve) => {
+    if (!base64Str) return resolve('');
+    const img = new Image();
+    img.crossOrigin = 'anonymous';
+    img.onload = () => {
+      let width = img.width;
+      let height = img.height;
+
+      if (width > height) {
+        if (width > maxWidth) {
+          height = Math.round((height * maxWidth) / width);
+          width = maxWidth;
+        }
+      } else {
+        if (height > maxHeight) {
+          width = Math.round((width * maxHeight) / height);
+          height = maxHeight;
+        }
+      }
+
+      const canvas = document.createElement('canvas');
+      canvas.width = width;
+      canvas.height = height;
+      const ctx = canvas.getContext('2d');
+      if (!ctx) return resolve(base64Str);
+
+      ctx.clearRect(0, 0, width, height); // Keep transparency
+      ctx.drawImage(img, 0, 0, width, height);
+      const compressedData = canvas.toDataURL('image/png'); // Preserve transparent PNG
+      resolve(compressedData);
+    };
+    img.onerror = () => resolve(base64Str);
+    img.src = base64Str;
+  });
+}
+
 
 

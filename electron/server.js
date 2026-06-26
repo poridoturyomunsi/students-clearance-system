@@ -33,6 +33,26 @@ function normalizeDbConfig(rawConfig) {
   };
 }
 
+function parseConnectionUri(uri) {
+  if (typeof uri !== 'string') return null;
+  const url = require('url');
+  try {
+    const parsed = url.parse(uri);
+    const auth = parsed.auth ? parsed.auth.split(':') : [];
+    const user = auth[0] || '';
+    const password = auth[1] || '';
+    const database = parsed.pathname ? parsed.pathname.replace(/^\//, '') : '';
+    const hostParts = parsed.host ? parsed.host.split(':') : [];
+    const host = hostParts[0] || '';
+    const port = parseInt(hostParts[1], 10) || 3306;
+    return { host, port, user, password, database };
+  } catch (e) {
+    console.error('Failed to parse connection URI:', e.message);
+    return null;
+  }
+}
+
+
 // In-memory caching variables
 let classesCache = null;
 let streamsCache = null;
@@ -556,7 +576,18 @@ async function ensureDbInitialized() {
 }
 
 async function initDb(config) {
-  if (pool && isSameConfig(currentDbConfig, config)) {
+  console.log('[initDb] config received:', config);
+  const connectionUri = process.env.DATABASE_URL || (typeof config === 'string' ? config : null);
+
+  let targetConfig = config;
+  if (connectionUri) {
+    const parsed = parseConnectionUri(connectionUri);
+    if (parsed) {
+      targetConfig = parsed;
+    }
+  }
+
+  if (pool && isSameConfig(currentDbConfig, targetConfig)) {
     console.log('Database configuration is unchanged. Reusing existing connection pool.');
     ensureDbInitialized().catch(err => {
       console.warn('Lazy migration attempt failed during reuse:', err.message);
@@ -573,14 +604,12 @@ async function initDb(config) {
     pool = null;
   }
 
-  currentDbConfig = config;
+  currentDbConfig = targetConfig;
   dbInitialized = false;
   // Invalidate caches on DB config changes
   classesCache = null;
   streamsCache = null;
   settingsCache = {};
-  
-  const connectionUri = process.env.DATABASE_URL || (typeof config === 'string' ? config : null);
 
   if (!connectionUri && (!config || !config.host)) {
     console.log('Database configuration is missing. Express server is active but database pool is uninitialized.');
@@ -690,13 +719,14 @@ app.use(async (req, res, next) => {
   }
 
   // 2. Database connectivity checks
-  if (
-    req.path.startsWith('/api/config-status') ||
-    req.path.startsWith('/api/test-db-connection') ||
-    req.path.startsWith('/api/save-db-config')
-  ) {
-    return next();
-  }
+  const connectionBypassPaths = [
+    '/api/config-status',
+    '/api/database-status',
+    '/api/test-db-connection',
+    '/api/save-db-config'
+  ];
+  
+  const bypassDbCheck = connectionBypassPaths.includes(req.path);
 
   // Lazy database initialization from environment variables (useful for serverless/Vercel)
   if (!pool) {
@@ -711,10 +741,14 @@ app.use(async (req, res, next) => {
     if (dbConfig) {
       console.log('[API] Intercepted request. Initializing database pool lazily...');
       const success = await initDb(dbConfig);
-      if (!success) {
+      if (!success && !bypassDbCheck) {
         return res.status(500).json({ error: 'Failed to initialize database pool from environment variables. Please verify connection credentials.' });
       }
     }
+  }
+
+  if (bypassDbCheck) {
+    return next();
   }
 
   if (!currentDbConfig) {
@@ -754,6 +788,22 @@ app.get('/api/config-status', async (req, res) => {
 // GET database configuration
 app.get('/api/database-config', async (req, res) => {
   try {
+    const isCloudProd = process.env.NODE_ENV === 'production' || !!process.env.VERCEL;
+    if (isCloudProd) {
+      return res.json({
+        success: true,
+        config: {
+          mode: 'cloud',
+          serverIp: '',
+          serverPort: 3000,
+          databaseHost: currentDbConfig?.host || '',
+          databasePort: currentDbConfig?.port || 3306,
+          databaseName: currentDbConfig?.database || '',
+          databaseUsername: currentDbConfig?.user || '',
+          databasePassword: '●●●●●●●●'
+        }
+      });
+    }
     const [rows] = await pool.query('SELECT val_value FROM settings WHERE key_name = ?', ['database_config']);
     if (rows.length > 0 && rows[0].val_value) {
       const config = JSON.parse(rows[0].val_value);
@@ -814,10 +864,11 @@ app.post('/api/test-db-connection', async (req, res) => {
 
 // POST save database config (via HTTP API)
 app.post('/api/save-db-config', async (req, res) => {
-  if (process.env.DATABASE_URL || process.env.DB_HOST) {
+  const isCloudProd = process.env.NODE_ENV === 'production' || !!process.env.VERCEL;
+  if (isCloudProd || process.env.DATABASE_URL || process.env.DB_HOST || process.env.MYSQL_URL) {
     return res.status(403).json({
       success: false,
-      error: 'Database configuration is locked via Environment Variables in Cloud Production mode.'
+      error: 'Database configuration is locked in Cloud Production mode.'
     });
   }
   const config = req.body;
@@ -907,16 +958,21 @@ app.get('/api/database-status', async (req, res) => {
       }
     }
     
-    const fs = require('fs');
-    const path = require('path');
-    const dirPath = path.join(process.env.APPDATA || '', 'students-clearance-cards');
-    const filePath = path.join(dirPath, 'db_config.json');
+    const isCloudProd = process.env.NODE_ENV === 'production' || !!process.env.VERCEL;
     let mode = 'network';
-    if (fs.existsSync(filePath)) {
-      try {
-        const fileData = JSON.parse(fs.readFileSync(filePath, 'utf8'));
-        mode = fileData.mode || 'network';
-      } catch (e) {}
+    if (isCloudProd) {
+      mode = 'cloud';
+    } else {
+      const fs = require('fs');
+      const path = require('path');
+      const dirPath = path.join(process.env.APPDATA || '', 'students-clearance-cards');
+      const filePath = path.join(dirPath, 'db_config.json');
+      if (fs.existsSync(filePath)) {
+        try {
+          const fileData = JSON.parse(fs.readFileSync(filePath, 'utf8'));
+          mode = fileData.mode || 'network';
+        } catch (e) {}
+      }
     }
 
     res.json({
@@ -3761,25 +3817,48 @@ app.get('/api/teachers', async (req, res) => {
 
 // POST create teacher
 app.post('/api/teachers', async (req, res) => {
-  const connection = await pool.getConnection();
+  const tStart = Date.now();
+  console.log(`[SAVE_TEACHER][POST] Started request at ${tStart}`);
+  let connection;
   try {
+    connection = await pool.getConnection();
+    console.log(`[SAVE_TEACHER][POST] Connection acquired in ${Date.now() - tStart} ms`);
+    
     let { username, password, name, gender, subjects, classes, assignments, position, signature, photo, status } = req.body;
     if (!username || !password || !name) {
+      console.log(`[SAVE_TEACHER][POST] Validation failed: missing username, password, or name`);
       return res.status(400).json({ error: 'Username, password, and name are required' });
     }
 
+    const tExistStart = Date.now();
     const [existing] = await connection.query('SELECT id FROM teachers WHERE username = ?', [username]);
+    console.log(`[SAVE_TEACHER][POST] Checked existing username in ${Date.now() - tExistStart} ms`);
     if (existing.length > 0) {
+      console.log(`[SAVE_TEACHER][POST] Username is already taken: ${username}`);
       return res.status(400).json({ error: 'Username is already taken' });
     }
 
     const id = 'T-' + Date.now();
     
+    // Parallel Cloudinary Uploads for Photo and Signature
+    const tUploadStart = Date.now();
     try {
-      photo = await uploadToCloudinaryIfNeeded(photo, `teacher_${id}_photo`);
-    } catch (e) {}
+      console.log(`[SAVE_TEACHER][POST] Base64 Photo length: ${photo ? photo.length : 0}, Signature length: ${signature ? signature.length : 0}`);
+      const [uploadedPhoto, uploadedSignature] = await Promise.all([
+        uploadToCloudinaryIfNeeded(photo, `teacher_${id}_photo`),
+        uploadToCloudinaryIfNeeded(signature, `teacher_${id}_signature`)
+      ]);
+      photo = uploadedPhoto;
+      signature = uploadedSignature;
+      console.log(`[SAVE_TEACHER][POST] Image uploads finished in ${Date.now() - tUploadStart} ms`);
+    } catch (e) {
+      console.error(`[SAVE_TEACHER][POST] Image uploads failed in ${Date.now() - tUploadStart} ms:`, e.message);
+    }
 
+    const tTxStart = Date.now();
     await connection.beginTransaction();
+    console.log(`[SAVE_TEACHER][POST] Transaction started in ${Date.now() - tTxStart} ms`);
+    
     const crypto = require('crypto');
     const hash = crypto.createHash('sha256').update(password).digest('hex');
 
@@ -3790,10 +3869,12 @@ app.post('/api/teachers', async (req, res) => {
       ? Array.from(new Set(assignments.map(a => a.grade_class))) 
       : (classes || []);
 
+    const tInsertStart = Date.now();
     await connection.query(
       'INSERT INTO teachers (id, username, password_hash, name, gender, subjects, classes, position, signature, photo, status) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
       [id, username, hash, name, gender || null, JSON.stringify(finalSubjects), JSON.stringify(finalClasses), position || 'Teacher', signature || null, photo || null, status || 'Active']
     );
+    console.log(`[SAVE_TEACHER][POST] Inserted teacher record in ${Date.now() - tInsertStart} ms`);
 
     const actualAssignments = assignments && Array.isArray(assignments)
       ? assignments
@@ -3809,40 +3890,71 @@ app.post('/api/teachers', async (req, res) => {
       }
     }
 
+    const tAssignStart = Date.now();
     for (const a of actualAssignments) {
       await connection.query(
         'INSERT INTO teacher_assignments (teacher_id, subject, grade_class) VALUES (?, ?, ?)',
         [id, a.subject, a.grade_class]
       );
     }
+    console.log(`[SAVE_TEACHER][POST] Inserted assignments in ${Date.now() - tAssignStart} ms`);
 
+    const tCommitStart = Date.now();
     await connection.commit();
+    console.log(`[SAVE_TEACHER][POST] Committed transaction in ${Date.now() - tCommitStart} ms`);
+    console.log(`[SAVE_TEACHER][POST] Request completed successfully in ${Date.now() - tStart} ms`);
     res.json({ success: true, id });
   } catch (err) {
-    await connection.rollback();
+    console.error(`[SAVE_TEACHER][POST] Error occurred:`, err.message);
+    if (connection) {
+      await connection.rollback().catch(() => {});
+    }
     res.status(500).json({ error: err.message });
   } finally {
-    connection.release();
+    if (connection) {
+      connection.release();
+    }
   }
 });
 
 // PUT update teacher
 app.put('/api/teachers/:id', async (req, res) => {
-  const connection = await pool.getConnection();
+  const tStart = Date.now();
+  console.log(`[SAVE_TEACHER][PUT] Started request for ID: ${req.params.id} at ${tStart}`);
+  let connection;
   try {
+    connection = await pool.getConnection();
+    console.log(`[SAVE_TEACHER][PUT] Connection acquired in ${Date.now() - tStart} ms`);
+    
     let { username, password, name, gender, subjects, classes, assignments, position, signature, photo, status } = req.body;
     const { id } = req.params;
 
+    const tExistStart = Date.now();
     const [existing] = await connection.query('SELECT id FROM teachers WHERE username = ? AND id != ?', [username, id]);
+    console.log(`[SAVE_TEACHER][PUT] Checked existing username in ${Date.now() - tExistStart} ms`);
     if (existing.length > 0) {
+      console.log(`[SAVE_TEACHER][PUT] Username is already taken: ${username}`);
       return res.status(400).json({ error: 'Username is already taken' });
     }
 
+    // Parallel Cloudinary Uploads for Photo and Signature
+    const tUploadStart = Date.now();
     try {
-      photo = await uploadToCloudinaryIfNeeded(photo, `teacher_${id}_photo`);
-    } catch (e) {}
+      console.log(`[SAVE_TEACHER][PUT] Base64 Photo length: ${photo ? photo.length : 0}, Signature length: ${signature ? signature.length : 0}`);
+      const [uploadedPhoto, uploadedSignature] = await Promise.all([
+        uploadToCloudinaryIfNeeded(photo, `teacher_${id}_photo`),
+        uploadToCloudinaryIfNeeded(signature, `teacher_${id}_signature`)
+      ]);
+      photo = uploadedPhoto;
+      signature = uploadedSignature;
+      console.log(`[SAVE_TEACHER][PUT] Image uploads finished in ${Date.now() - tUploadStart} ms`);
+    } catch (e) {
+      console.error(`[SAVE_TEACHER][PUT] Image uploads failed in ${Date.now() - tUploadStart} ms:`, e.message);
+    }
 
+    const tTxStart = Date.now();
     await connection.beginTransaction();
+    console.log(`[SAVE_TEACHER][PUT] Transaction started in ${Date.now() - tTxStart} ms`);
 
     const finalSubjects = assignments && Array.isArray(assignments) 
       ? Array.from(new Set(assignments.map(a => a.subject))) 
@@ -3851,6 +3963,7 @@ app.put('/api/teachers/:id', async (req, res) => {
       ? Array.from(new Set(assignments.map(a => a.grade_class))) 
       : (classes || []);
 
+    const tUpdateStart = Date.now();
     if (password) {
       const crypto = require('crypto');
       const hash = crypto.createHash('sha256').update(password).digest('hex');
@@ -3864,6 +3977,7 @@ app.put('/api/teachers/:id', async (req, res) => {
         [username, name, gender || null, JSON.stringify(finalSubjects), JSON.stringify(finalClasses), position || 'Teacher', signature || null, photo || null, status || 'Active', id]
       );
     }
+    console.log(`[SAVE_TEACHER][PUT] Updated teacher record in ${Date.now() - tUpdateStart} ms`);
 
     const actualAssignments = assignments && Array.isArray(assignments)
       ? assignments
@@ -3879,6 +3993,7 @@ app.put('/api/teachers/:id', async (req, res) => {
       }
     }
 
+    const tAssignStart = Date.now();
     await connection.query('DELETE FROM teacher_assignments WHERE teacher_id = ?', [id]);
     for (const a of actualAssignments) {
       await connection.query(
@@ -3886,14 +4001,23 @@ app.put('/api/teachers/:id', async (req, res) => {
         [id, a.subject, a.grade_class]
       );
     }
+    console.log(`[SAVE_TEACHER][PUT] Updated assignments in ${Date.now() - tAssignStart} ms`);
 
+    const tCommitStart = Date.now();
     await connection.commit();
+    console.log(`[SAVE_TEACHER][PUT] Committed transaction in ${Date.now() - tCommitStart} ms`);
+    console.log(`[SAVE_TEACHER][PUT] Request completed successfully in ${Date.now() - tStart} ms`);
     res.json({ success: true });
   } catch (err) {
-    await connection.rollback();
+    console.error(`[SAVE_TEACHER][PUT] Error occurred:`, err.message);
+    if (connection) {
+      await connection.rollback().catch(() => {});
+    }
     res.status(500).json({ error: err.message });
   } finally {
-    connection.release();
+    if (connection) {
+      connection.release();
+    }
   }
 });
 
@@ -4449,6 +4573,8 @@ if (require.main === module) {
   const fs = require('fs');
   const path = require('path');
   
+  const isCloudProd = process.env.NODE_ENV === 'production' || !!process.env.VERCEL;
+  
   let dbConfig = null;
   if (process.env.DATABASE_URL) {
     dbConfig = process.env.DATABASE_URL;
@@ -4470,9 +4596,10 @@ if (require.main === module) {
       password: process.env.DB_PASSWORD || '',
       database: process.env.DB_DATABASE || process.env.DB_NAME || 'school_system'
     };
-  } else {
+  } else if (!isCloudProd) {
+    // Local development fallback
     dbConfig = {
-      host: '192.168.0.155',
+      host: 'localhost',
       port: 3306,
       user: 'root',
       password: '',
@@ -4501,6 +4628,8 @@ if (require.main === module) {
         }
       }
     }
+  } else {
+    console.error('[Cloud-Mode] No cloud database credentials found in environment variables!');
   }
 
   const startPort = process.env.PORT ? parseInt(process.env.PORT, 10) : 3000;

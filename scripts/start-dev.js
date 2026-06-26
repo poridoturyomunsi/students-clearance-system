@@ -152,7 +152,7 @@ async function testDatabaseConnection() {
     console.log('[Start-Dev] Backend server started successfully. Starting Vite frontend...');
 
     // 3. Start Vite dev server
-    const viteProcess = spawn('npx', ['vite'], {
+    const viteProcess = spawn('npx', ['vite', '--force'], {
       cwd: path.join(__dirname, '..'),
       stdio: 'inherit',
       shell: true

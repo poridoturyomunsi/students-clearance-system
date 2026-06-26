@@ -358,14 +358,16 @@ export default function AdminSettingsView({
               <div className="bg-slate-900/60 p-3 rounded-xl border border-slate-850">
                 <span className="text-[8.5px] text-slate-500 font-bold uppercase tracking-wider block mb-1">Database Mode</span>
                 <span className="text-indigo-400 font-sans uppercase font-black">
-                  {dbConfig?.mode === 'host' || dbConfig?.mode === 'network' ? 'Network (Host)' : 'Client (Remote API)'}
+                  {dbConfig?.mode === 'cloud' ? 'Cloud Production' : (dbConfig?.mode === 'host' || dbConfig?.mode === 'network' ? 'Network (Host)' : 'Client (Remote API)')}
                 </span>
               </div>
               <div className="bg-slate-900/60 p-3 rounded-xl border border-slate-850">
                 <span className="text-[8.5px] text-slate-500 font-bold uppercase tracking-wider block mb-1">Server URL</span>
-                <span className="text-slate-200">{dbConfig?.serverUrl || 'http://192.168.0.155:3000'}</span>
+                <span className="text-slate-200">
+                  {dbConfig?.mode === 'cloud' ? (window.location.origin) : (dbConfig?.serverUrl || 'http://localhost:3000')}
+                </span>
               </div>
-              {(dbConfig?.mode === 'host' || dbConfig?.mode === 'network') && dbConfig?.db && (
+              {(dbConfig?.mode === 'host' || dbConfig?.mode === 'network' || dbConfig?.mode === 'cloud') && dbConfig?.db && (
                 <>
                   <div className="bg-slate-900/60 p-3 rounded-xl border border-slate-850">
                     <span className="text-[8.5px] text-slate-500 font-bold uppercase tracking-wider block mb-1">MySQL Host / Port</span>

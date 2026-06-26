@@ -4,7 +4,7 @@ import { Teacher } from '../../types.ts';
 import { fetchTeachers, createTeacher, updateTeacher, deleteTeacher, fetchClassTeachers, saveClassTeacher, fetchSettings, importTeachers } from '../../utils/api.ts';
 import { SCHOOL_CLASSES } from '../../data.ts';
 import * as XLSX from 'xlsx';
-import { compressStudentPhoto } from '../../utils/imageProcessor.ts';
+import { compressStudentPhoto, compressSignatureImage } from '../../utils/imageProcessor.ts';
 
 export default function TeachersModule() {
   const isHeadteacher = (position?: string) => {
@@ -475,8 +475,10 @@ export default function TeachersModule() {
                               const file = e.target.files?.[0];
                               if (file) {
                                 const reader = new FileReader();
-                                reader.onload = () => {
-                                  setFormData(prev => ({ ...prev, signature: reader.result as string }));
+                                reader.onload = async () => {
+                                  const base64 = reader.result as string;
+                                  const compressed = await compressSignatureImage(base64);
+                                  setFormData(prev => ({ ...prev, signature: compressed }));
                                 };
                                 reader.readAsDataURL(file);
                               }
