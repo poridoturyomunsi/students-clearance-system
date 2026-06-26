@@ -1,3 +1,6 @@
+try {
+  require('dotenv').config();
+} catch (e) {}
 const { spawn } = require('child_process');
 const path = require('path');
 const fs = require('fs');

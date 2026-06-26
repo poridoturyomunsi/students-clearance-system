@@ -702,17 +702,25 @@ async function initDb(config) {
       console.log(`Database pool instantiated for MySQL at ${config.host}:${config.port || 3306}`);
     }
     
-    ensureDbInitialized()
-      .then(success => {
-        if (success) {
-          console.log('Database migrations completed successfully on startup.');
-        } else {
-          console.log('Database migrations deferred (database may be offline). Will retry lazily.');
-        }
-      })
-      .catch(err => {
-        console.log('Database migrations deferred (database may be offline). Will retry lazily:', err.message);
-      });
+    if (process.env.VERCEL) {
+      try {
+        await ensureDbInitialized();
+      } catch (err) {
+        console.error('ensureDbInitialized error on Vercel:', err);
+      }
+    } else {
+      ensureDbInitialized()
+        .then(success => {
+          if (success) {
+            console.log('Database migrations completed successfully on startup.');
+          } else {
+            console.log('Database migrations deferred (database may be offline). Will retry lazily.');
+          }
+        })
+        .catch(err => {
+          console.log('Database migrations deferred (database may be offline). Will retry lazily:', err.message);
+        });
+    }
 
     return true;
   } catch (err) {

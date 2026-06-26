@@ -340,45 +340,26 @@ export default function AdminSettingsView({
           </form>
 
           {/* Database Info Card */}
-          <div className="bg-slate-950 border border-slate-850 p-6 rounded-2xl shadow-lg space-y-4">
+          <div className="bg-slate-955 border border-slate-850 p-6 rounded-2xl shadow-lg space-y-4">
             <div className="flex justify-between items-center">
               <h3 className="text-xs font-black uppercase text-slate-300 tracking-wider flex items-center gap-1.5">
                 <Database className="w-4 h-4 text-indigo-400" /> Database Connection Information
               </h3>
-              <button
-                type="button"
-                onClick={handleOpenDbSettings}
-                className="p-1.5 bg-slate-900 border border-slate-800 text-slate-400 hover:text-slate-200 rounded-lg text-xs cursor-pointer flex items-center gap-1.5 transition-colors font-bold uppercase tracking-wider text-[9px]"
-              >
-                <Settings className="w-3.5 h-3.5" /> Configure DB
-              </button>
             </div>
 
             <div className="grid grid-cols-2 gap-4 text-[10.5px] font-mono font-semibold text-slate-400">
               <div className="bg-slate-900/60 p-3 rounded-xl border border-slate-850">
                 <span className="text-[8.5px] text-slate-500 font-bold uppercase tracking-wider block mb-1">Database Mode</span>
                 <span className="text-indigo-400 font-sans uppercase font-black">
-                  {dbConfig?.mode === 'cloud' ? 'Cloud Production' : (dbConfig?.mode === 'host' || dbConfig?.mode === 'network' ? 'Network (Host)' : 'Client (Remote API)')}
+                  Cloud Production
                 </span>
               </div>
               <div className="bg-slate-900/60 p-3 rounded-xl border border-slate-850">
                 <span className="text-[8.5px] text-slate-500 font-bold uppercase tracking-wider block mb-1">Server URL</span>
                 <span className="text-slate-200">
-                  {dbConfig?.mode === 'cloud' ? (window.location.origin) : (dbConfig?.serverUrl || 'http://localhost:3000')}
+                  {window.location.origin}
                 </span>
               </div>
-              {(dbConfig?.mode === 'host' || dbConfig?.mode === 'network' || dbConfig?.mode === 'cloud') && dbConfig?.db && (
-                <>
-                  <div className="bg-slate-900/60 p-3 rounded-xl border border-slate-850">
-                    <span className="text-[8.5px] text-slate-500 font-bold uppercase tracking-wider block mb-1">MySQL Host / Port</span>
-                    <span className="text-slate-200">{dbConfig.db.host}:{dbConfig.db.port || 3306}</span>
-                  </div>
-                  <div className="bg-slate-900/60 p-3 rounded-xl border border-slate-850">
-                    <span className="text-[8.5px] text-slate-500 font-bold uppercase tracking-wider block mb-1">MySQL Database</span>
-                    <span className="text-slate-200">{dbConfig.db.database}</span>
-                  </div>
-                </>
-              )}
             </div>
           </div>
 

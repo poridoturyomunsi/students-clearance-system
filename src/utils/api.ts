@@ -111,6 +111,7 @@ export async function fetchStudentsFromDb(params?: {
   name?: string;
   adminNo?: string;
   gradeClass?: string;
+  level?: string;
   stream?: string;
   gender?: string;
   isCleared?: string;
@@ -359,8 +360,10 @@ export async function fetchTeacherMarks(params: {
   subject: string;
   term: string;
   year: number;
+  paper?: number;
 }): Promise<any[]> {
-  return await apiCall(`/api/teacher/marks?gradeClass=${encodeURIComponent(params.gradeClass)}&subject=${encodeURIComponent(params.subject)}&term=${encodeURIComponent(params.term)}&year=${params.year}`);
+  const paperParam = params.paper !== undefined ? `&paper=${params.paper}` : '';
+  return await apiCall(`/api/teacher/marks?gradeClass=${encodeURIComponent(params.gradeClass)}&subject=${encodeURIComponent(params.subject)}&term=${encodeURIComponent(params.term)}&year=${params.year}${paperParam}`);
 }
 
 export async function saveTeacherMarks(payload: any): Promise<any> {

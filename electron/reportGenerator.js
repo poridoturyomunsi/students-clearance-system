@@ -17,25 +17,55 @@ function getOLevelComment(mark) {
 }
 
 function getUACEPrincipalGrade(score) {
-  if (score >= 70) return { grade: 'A', points: 6 };
-  if (score >= 60) return { grade: 'B', points: 5 };
-  if (score >= 50) return { grade: 'C', points: 4 };
-  if (score >= 45) return { grade: 'D', points: 3 };
-  if (score >= 40) return { grade: 'E', points: 2 };
-  if (score >= 35) return { grade: 'O', points: 1 };
-  return { grade: 'F', points: 0 };
+  const s = Math.round(score || 0);
+  if (s >= 80) return { grade: 'D1', points: 6 };
+  if (s >= 75) return { grade: 'D2', points: 5 };
+  if (s >= 66) return { grade: 'C3', points: 4 };
+  if (s >= 60) return { grade: 'C4', points: 3 };
+  if (s >= 55) return { grade: 'C5', points: 2 };
+  if (s >= 50) return { grade: 'C6', points: 1 };
+  if (s >= 45) return { grade: 'P7', points: 0 };
+  if (s >= 35) return { grade: 'P8', points: 0 };
+  return { grade: 'F9', points: 0 };
 }
 
 function getUACESubGPGrade(score) {
-  if (score >= 80) return { grade: 'D1', points: 1 };
-  if (score >= 70) return { grade: 'D2', points: 1 };
-  if (score >= 60) return { grade: 'C3', points: 1 };
-  if (score >= 55) return { grade: 'C4', points: 1 };
-  if (score >= 50) return { grade: 'C5', points: 1 };
-  if (score >= 45) return { grade: 'C6', points: 1 };
-  if (score >= 40) return { grade: 'P7', points: 1 };
-  if (score >= 35) return { grade: 'P8', points: 1 };
-  return { grade: 'F9', points: 0 };
+  return getUACEPrincipalGrade(score);
+}
+
+function calculateUACEPoints(marks) {
+  const subjects = {};
+  marks.forEach(m => {
+    if (!subjects[m.subject]) {
+      subjects[m.subject] = {
+        type: m.subject_type,
+        scores: []
+      };
+    }
+    subjects[m.subject].scores.push(parseFloat(m.score || 0));
+  });
+
+  let principalPoints = 0;
+  let subsidiaryPoints = 0;
+  Object.values(subjects).forEach(sub => {
+    const avgScore = sub.scores.reduce((a, b) => a + b, 0) / sub.scores.length;
+    if (sub.type === 'General Paper' || sub.type === 'Subsidiary') {
+      if (avgScore >= 35) {
+        subsidiaryPoints += 1;
+      }
+    } else {
+      let pts = 0;
+      if (avgScore >= 70) pts = 6;
+      else if (avgScore >= 60) pts = 5;
+      else if (avgScore >= 50) pts = 4;
+      else if (avgScore >= 45) pts = 3;
+      else if (avgScore >= 40) pts = 2;
+      else if (avgScore >= 35) pts = 1;
+      principalPoints += pts;
+    }
+  });
+
+  return { principalPoints, subsidiaryPoints, totalPoints: principalPoints + subsidiaryPoints };
 }
 
 function getGeneralComment(average) {
@@ -60,6 +90,22 @@ function getHeadTeacherComment(average) {
   if (average >= 60) return 'A solid performance. There is still room for improvement to attain higher grades.';
   if (average >= 45) return 'A pass grade, but more focus is required to strengthen weak areas.';
   return 'Disappointing results. Must double his/her efforts next term to avoid stagnation.';
+}
+
+function getUACEClassTeacherComment(points) {
+  if (points >= 15) return 'An excellent student. Displays high academic potential and exemplary discipline.';
+  if (points >= 10) return 'A very promising student. Shows steady dedication and regular class participation.';
+  if (points >= 5) return 'Good progress made. Quite attentive in class, but needs more focus.';
+  if (points >= 2) return 'Fair performance. Needs to avoid distractions and concentrate on weak areas.';
+  return 'Weak performance. Must work much harder next term to pass.';
+}
+
+function getUACEHeadTeacherComment(points) {
+  if (points >= 15) return 'Exemplary academic standard! Keep up this wonderful spirit to secure your future.';
+  if (points >= 10) return 'A highly commendable result. Keep striving for the highest grades.';
+  if (points >= 5) return 'A solid pass. With more effort, you can perform much better next term.';
+  if (points >= 2) return 'A pass, but you must work harder to improve your points next term.';
+  return 'Disappointing results. You must double your efforts next term to avoid stagnation.';
 }
 
 function drawSafeWatermark(doc, logoBase64, x, y, w, h, opacity = 0.05) {
@@ -234,15 +280,10 @@ async function compileReportsPdf({
 
     if (isUACE) {
       const marks = uaceMarks.filter(m => m.student_id === student.id);
+      const uacePtsObj = calculateUACEPoints(marks);
+      uacePoints = uacePtsObj.totalPoints;
       marks.forEach(m => {
         const score = parseFloat(m.score || 0);
-        let pts = 0;
-        if (m.subject_type === 'Principal') {
-          pts = getUACEPrincipalGrade(score).points;
-        } else {
-          pts = getUACESubGPGrade(score).points;
-        }
-        uacePoints += pts;
         totalMarks += score;
         subjectCount++;
       });
@@ -377,53 +418,20 @@ async function compileReportsPdf({
 
     // School Name & Branding (Center of header)
     doc.setFont('helvetica', 'bold');
-    doc.setFontSize(15);
+    doc.setFontSize(18);
     doc.setTextColor(11, 30, 91); // Navy Blue
-    doc.text('ST. PAUL SENIOR SECONDARY SCHOOL', 105, 22, { align: 'center' });
+    doc.text('ST. PAUL SS NASUTI', 105, 22, { align: 'center' });
+
+    doc.setFont('helvetica', 'normal');
+    doc.setFontSize(7.5);
+    doc.setTextColor(71, 85, 105); // Slate 500
+    doc.text('P.O. BOX 078, IGANGA (U) | TEL: 0479 977 570 / 0786 522 303', 105, 27.5, { align: 'center' });
+    doc.text('EMAIL: stpaulssnasuti@gmail.com', 105, 31.5, { align: 'center' });
 
     doc.setFont('helvetica', 'italic');
     doc.setFontSize(8.5);
-    doc.setTextColor(220, 38, 38); // Motto Red
-    doc.text('"God is Our Guide"', 105, 27, { align: 'center' });
-
-    doc.setFont('helvetica', 'normal');
-    doc.setFontSize(8);
-    doc.setTextColor(71, 85, 105); // Slate 500
-    doc.text('P.O. Box 678, Nasuti–Iganga, Uganda', 105, 32, { align: 'center' });
-    doc.text('Tel: 0776 246 610 | Email: info@stpaulnasuti.ac.ug', 105, 36.5, { align: 'center' });
-
-    // Banner Title
-    doc.setFillColor(11, 30, 91); // Primary Navy Blue
-    doc.roundedRect(15, 48, 180, 7, 1.5, 1.5, 'F');
-    
-    doc.setFont('helvetica', 'bold');
-    doc.setFontSize(9);
-    doc.setTextColor(255, 255, 255);
-    const reportTitle = isUACE ? 'UACE ACADEMIC ASSESSMENT REPORT CARD' : 'O-LEVEL COMPETENCY-BASED ASSESSMENT REPORT CARD';
-    doc.text(reportTitle, 105, 53, { align: 'center' });
-
-    // Student Info Block
-    let infoY = 58;
-    doc.setFillColor(248, 250, 252); // Light Slate
-    doc.setDrawColor(226, 232, 240); // Soft border
-    doc.setLineWidth(0.3);
-    doc.roundedRect(15, infoY, 180, 28, 2, 2, 'FD');
-
-    doc.setFont('helvetica', 'bold');
-    doc.setFontSize(8.5);
-    doc.setTextColor(71, 85, 105);
-
-    // Left Column labels
-    doc.text('Student Name:', 18, infoY + 6);
-    doc.text('Reg No:', 18, infoY + 12.5);
-    doc.text('Class/Stream:', 18, infoY + 19);
-    doc.text(isUACE ? 'UACE Combo:' : 'Class Teacher:', 18, infoY + 25.5);
-
-    // Right Column labels
-    doc.text('Gender:', 110, infoY + 6);
-    doc.text('Term / Year:', 110, infoY + 12.5);
-    doc.text('Boarding Status:', 110, infoY + 19);
-    doc.text(isUACE ? 'Class Teacher:' : 'Date Generated:', 110, infoY + 25.5);
+    doc.setTextColor(212, 160, 23); // Motto Gold
+    doc.text('God is my Guide', 105, 37.5, { align: 'center' });
 
     const classTeacherObj = classTeachers[student.gradeClass] || null;
     let classTeacherName = 'N/A';
@@ -435,20 +443,82 @@ async function compileReportsPdf({
       }
     }
 
-    // Left Column values
-    doc.setFont('helvetica', 'bold');
-    doc.setTextColor(15, 23, 42); // Slate 900
-    doc.text(student.name.toUpperCase(), 45, infoY + 6);
-    doc.text(student.adminNo, 45, infoY + 12.5);
-    doc.text(student.gradeClass, 45, infoY + 19);
-    doc.text(isUACE ? (student.uace_combination || 'N/A') : classTeacherName, 45, infoY + 25.5);
+    if (isUACE) {
+      // Modern clean title for UACE
+      doc.setFont('helvetica', 'bold');
+      doc.setFontSize(10.5);
+      doc.setTextColor(11, 30, 91);
+      doc.text("A'LEVEL END OF TERM REPORT CARD", 105, 48, { align: 'center' });
 
-    // Right Column values
-    doc.text(student.gender || 'Male', 138, infoY + 6);
-    const termText = (term === '1' || term === '2' || term === '3') ? 'Term ' + term : term;
-    doc.text(`${termText} / ${year}`, 138, infoY + 12.5);
-    doc.text(student.boardingStatus || 'Day Scholar', 138, infoY + 19);
-    doc.text(isUACE ? classTeacherName : new Date().toLocaleDateString('en-GB'), 138, infoY + 25.5);
+      // Clean gold horizontal lines / diamond separator
+      doc.setDrawColor(212, 160, 23);
+      doc.setLineWidth(0.3);
+      doc.line(15, 52, 195, 52);
+
+      // Student info row matching sample exactly
+      doc.setFont('helvetica', 'bold');
+      doc.setFontSize(8.5);
+      doc.setTextColor(71, 85, 105);
+      doc.text('Name:', 15, 59);
+      doc.text('Class:', 15, 65);
+      doc.text('Year:', 115, 65);
+      doc.text('Term:', 160, 65);
+
+      doc.setFont('helvetica', 'bold');
+      doc.setTextColor(15, 23, 42); // Dark slate
+      doc.text(student.name.toUpperCase(), 30, 59);
+      doc.text(`${student.gradeClass} (Senior Five)`, 30, 65);
+      doc.text(String(year), 127, 65);
+      
+      const termRoman = (term === '1' || term === 'I') ? 'I' : (term === '2' || term === 'II') ? 'II' : 'III';
+      doc.text(termRoman, 172, 65);
+    } else {
+      // O-Level original title bar and rounded rectangle block
+      doc.setFillColor(11, 30, 91); // Primary Navy Blue
+      doc.roundedRect(15, 48, 180, 7, 1.5, 1.5, 'F');
+      
+      doc.setFont('helvetica', 'bold');
+      doc.setFontSize(9);
+      doc.setTextColor(255, 255, 255);
+      doc.text('O-LEVEL COMPETENCY-BASED ASSESSMENT REPORT CARD', 105, 53, { align: 'center' });
+
+      let infoY = 58;
+      doc.setFillColor(248, 250, 252); // Light Slate
+      doc.setDrawColor(226, 232, 240); // Soft border
+      doc.setLineWidth(0.3);
+      doc.roundedRect(15, infoY, 180, 28, 2, 2, 'FD');
+
+      doc.setFont('helvetica', 'bold');
+      doc.setFontSize(8.5);
+      doc.setTextColor(71, 85, 105);
+
+      // Left Column labels
+      doc.text('Student Name:', 18, infoY + 6);
+      doc.text('Reg No:', 18, infoY + 12.5);
+      doc.text('Class/Stream:', 18, infoY + 19);
+      doc.text('Class Teacher:', 18, infoY + 25.5);
+
+      // Right Column labels
+      doc.text('Gender:', 110, infoY + 6);
+      doc.text('Term / Year:', 110, infoY + 12.5);
+      doc.text('Boarding Status:', 110, infoY + 19);
+      doc.text('Date Generated:', 110, infoY + 25.5);
+
+      // Left Column values
+      doc.setFont('helvetica', 'bold');
+      doc.setTextColor(15, 23, 42); // Slate 900
+      doc.text(student.name.toUpperCase(), 45, infoY + 6);
+      doc.text(student.adminNo, 45, infoY + 12.5);
+      doc.text(student.gradeClass, 45, infoY + 19);
+      doc.text(classTeacherName, 45, infoY + 25.5);
+
+      // Right Column values
+      doc.text(student.gender || 'Male', 138, infoY + 6);
+      const termText = (term === '1' || term === '2' || term === '3') ? 'Term ' + term : term;
+      doc.text(`${termText} / ${year}`, 138, infoY + 12.5);
+      doc.text(student.boardingStatus || 'Day Scholar', 138, infoY + 19);
+      doc.text(new Date().toLocaleDateString('en-GB'), 138, infoY + 25.5);
+    }
 
     // Table Section
     let currentY = 90;
@@ -478,107 +548,202 @@ async function compileReportsPdf({
       doc.rect(15, tableY + 3.5, 180, 3.5, 'F'); // flat bottom
       
       doc.setFont('helvetica', 'bold');
-      doc.setFontSize(8);
+      doc.setFontSize(7.5);
       doc.setTextColor(255, 255, 255);
 
-      doc.text('Subject Name', 18, tableY + 4.8);
-      doc.text('Subject Type', 90, tableY + 4.8, { align: 'center' });
-      doc.text('Score (/100)', 117.5, tableY + 4.8, { align: 'center' });
-      doc.text('Grade', 140, tableY + 4.8, { align: 'center' });
-      doc.text('Points', 160, tableY + 4.8, { align: 'center' });
-      doc.text('Initials', 182.5, tableY + 4.8, { align: 'center' });
+      // Columns: SUBJECT (44), P (6), BOT (14), MOT (14), EOT (14), TOTAL (16), GRADE (12), FINAL GRADE (16), COMMENT (34), INIT (10)
+      doc.text('SUBJECT', 18, tableY + 4.8);
+      doc.text('P', 62, tableY + 4.8, { align: 'center' });
+      doc.text('BOT (100%)', 72, tableY + 4.8, { align: 'center' });
+      doc.text('MOT (100%)', 86, tableY + 4.8, { align: 'center' });
+      doc.text('EOT (100%)', 100, tableY + 4.8, { align: 'center' });
+      doc.text('TOTAL', 115, tableY + 4.8, { align: 'center' });
+      doc.text('GRADE', 129, tableY + 4.8, { align: 'center' });
+      doc.text('FINAL GRADE', 143, tableY + 4.8, { align: 'center' });
+      doc.text('COMMENT', 168, tableY + 4.8, { align: 'center' });
+      doc.text('INIT', 190, tableY + 4.8, { align: 'center' });
 
-      // Draw header white dividers
+      // Draw vertical lines in header
       doc.setDrawColor(255, 255, 255);
       doc.setLineWidth(0.15);
-      doc.line(75, tableY, 75, tableY + 7);
-      doc.line(105, tableY, 105, tableY + 7);
-      doc.line(130, tableY, 130, tableY + 7);
-      doc.line(150, tableY, 150, tableY + 7);
-      doc.line(170, tableY, 170, tableY + 7);
+      doc.line(59, tableY, 59, tableY + 7);
+      doc.line(65, tableY, 65, tableY + 7);
+      doc.line(79, tableY, 79, tableY + 7);
+      doc.line(93, tableY, 93, tableY + 7);
+      doc.line(107, tableY, 107, tableY + 7);
+      doc.line(123, tableY, 123, tableY + 7);
+      doc.line(135, tableY, 135, tableY + 7);
+      doc.line(151, tableY, 151, tableY + 7);
+      doc.line(185, tableY, 185, tableY + 7);
 
       const sMarks = uaceMarks.filter(m => m.student_id === student.id);
-      let curY = tableY + 7;
-
-      sMarks.forEach((m, mIdx) => {
-        const score = parseFloat(m.score || 0);
-        const isGP = m.subject_type === 'General Paper';
-        const isSub = m.subject_type === 'Subsidiary';
-        const grInfo = (isGP || isSub) ? getUACESubGPGrade(score) : getUACEPrincipalGrade(score);
-
-        // Zebra stripes
-        if (mIdx % 2 === 1) {
-          doc.setFillColor(248, 250, 252);
-          doc.rect(15, curY, 180, rowHeight, 'F');
+      
+      // Group marks by subject
+      const subjectGroups = [];
+      sMarks.forEach(m => {
+        let group = subjectGroups.find(g => g.subject === m.subject);
+        if (!group) {
+          group = {
+            subject: m.subject,
+            type: m.subject_type,
+            papers: []
+          };
+          subjectGroups.push(group);
         }
-        
-        // Soft border
-        doc.setDrawColor(226, 232, 240);
-        doc.setLineWidth(0.2);
-        doc.rect(15, curY, 180, rowHeight, 'D');
-
-        // Draw vertical dividers
-        doc.line(75, curY, 75, curY + rowHeight);
-        doc.line(105, curY, 105, curY + rowHeight);
-        doc.line(130, curY, 130, curY + rowHeight);
-        doc.line(150, curY, 150, curY + rowHeight);
-        doc.line(170, curY, 170, curY + rowHeight);
-
-        // Draw values
-        doc.setFont('helvetica', 'bold');
-        doc.setFontSize(8);
-        doc.setTextColor(15, 23, 42); // Dark Slate
-        doc.text(m.subject, 18, curY + 4.5);
-
-        doc.setFont('helvetica', 'normal');
-        doc.text(m.subject_type, 90, curY + 4.5, { align: 'center' });
-        doc.text(score.toFixed(1), 117.5, curY + 4.5, { align: 'center' });
-        
-        // Points
-        doc.text(String(grInfo.points), 160, curY + 4.5, { align: 'center' });
-        
-        // Initials
-        let initials = 'N/A';
-        try {
-          const teacherName = teachersMap[m.teacher_id];
-          initials = teacherName ? getInitials(teacherName) : 'N/A';
-        } catch (e) {
-          console.error("Failed to compute initials:", e);
-        }
-        doc.text(initials, 182.5, curY + 4.5, { align: 'center' });
-
-        // Grade badge
-        const badgeColor = GRADE_COLORS[grInfo.grade] || [100, 116, 139];
-        doc.setFillColor(badgeColor[0], badgeColor[1], badgeColor[2]);
-        doc.roundedRect(140 - 4.5, curY + 1, 9, 4.5, 1, 1, 'F');
-        
-        doc.setFont('helvetica', 'bold');
-        doc.setFontSize(7.5);
-        doc.setTextColor(255, 255, 255);
-        doc.text(grInfo.grade, 140, curY + 4.3, { align: 'center' });
-
-        curY += rowHeight;
+        group.papers.push(m);
       });
 
-      // Pad to at least 5 rows
-      const minRows = 5;
-      for (let r = sMarks.length; r < minRows; r++) {
-        if (r % 2 === 1) {
-          doc.setFillColor(248, 250, 252);
-          doc.rect(15, curY, 180, rowHeight, 'F');
+      // Sort subject groups
+      subjectGroups.sort((a, b) => {
+        if (a.type === 'General Paper' && b.type !== 'General Paper') return -1;
+        if (b.type === 'General Paper' && a.type !== 'General Paper') return 1;
+        if (a.type === 'Subsidiary' && b.type !== 'Subsidiary') return 1;
+        if (b.type === 'Subsidiary' && a.type !== 'Subsidiary') return -1;
+        return a.subject.localeCompare(b.subject);
+      });
+
+      // Sort papers in each group
+      subjectGroups.forEach(g => {
+        g.papers.sort((a, b) => (a.paper || 1) - (b.paper || 1));
+      });
+
+      let curY = tableY + 7;
+      let totalPaperRowsDrawn = 0;
+
+      subjectGroups.forEach((g) => {
+        const numPapers = g.papers.length;
+        const groupHeight = rowHeight * numPapers;
+
+        // Calculate subject final grade, points, comment, and initials
+        let sumScore = 0;
+        let validPapersCount = 0;
+        g.papers.forEach(p => {
+          if (p.score !== null && p.score !== undefined) {
+            sumScore += parseFloat(p.score);
+            validPapersCount++;
+          }
+        });
+
+        const avgScore = validPapersCount > 0 ? Math.round(sumScore / validPapersCount) : 0;
+        let finalGrade = '-';
+        let finalComment = '-';
+
+        if (validPapersCount > 0) {
+          if (g.type === 'General Paper' || g.type === 'Subsidiary') {
+            finalGrade = avgScore >= 35 ? 'SP' : 'SF';
+            finalComment = avgScore >= 35 ? 'Good results' : 'Aim higher next term';
+          } else {
+            // Principal
+            if (avgScore >= 70) { finalGrade = 'A'; finalComment = 'Excellent'; }
+            else if (avgScore >= 60) { finalGrade = 'B'; finalComment = 'Very Good results'; }
+            else if (avgScore >= 50) { finalGrade = 'C'; finalComment = 'Good performance'; }
+            else if (avgScore >= 45) { finalGrade = 'D'; finalComment = 'Fair'; }
+            else if (avgScore >= 40) { finalGrade = 'E'; finalComment = 'Pass'; }
+            else if (avgScore >= 35) { finalGrade = 'O'; finalComment = 'Subsidiary Pass'; }
+            else { finalGrade = 'F'; finalComment = 'Fail'; }
+          }
         }
+
+        // Collect unique teacher initials
+        const teacherInitialsSet = new Set();
+        g.papers.forEach(p => {
+          if (p.teacher_id) {
+            const name = teachersMap[p.teacher_id];
+            if (name) {
+              const initials = getInitials(name);
+              if (initials && initials !== 'N/A') {
+                teacherInitialsSet.add(initials);
+              }
+            }
+          }
+        });
+        const combinedInitials = teacherInitialsSet.size > 0 ? Array.from(teacherInitialsSet).join('/') : '-';
+
+        // Draw zebra background for the entire group
+        if (totalPaperRowsDrawn % 2 === 1) {
+          doc.setFillColor(248, 250, 252);
+          doc.rect(15, curY, 180, groupHeight, 'F');
+        }
+
+        // Draw border for the entire group
         doc.setDrawColor(226, 232, 240);
-        doc.rect(15, curY, 180, rowHeight, 'D');
+        doc.setLineWidth(0.2);
+        doc.rect(15, curY, 180, groupHeight, 'D');
 
-        doc.line(75, curY, 75, curY + rowHeight);
-        doc.line(105, curY, 105, curY + rowHeight);
-        doc.line(130, curY, 130, curY + rowHeight);
-        doc.line(150, curY, 150, curY + rowHeight);
-        doc.line(170, curY, 170, curY + rowHeight);
+        // Draw papers rows
+        g.papers.forEach((p, pIdx) => {
+          const paperY = curY + (pIdx * rowHeight);
 
-        curY += rowHeight;
-      }
-      
+          // Draw horizontal line between papers inside the group (excluding last paper)
+          if (pIdx > 0) {
+            doc.setDrawColor(226, 232, 240);
+            doc.setLineWidth(0.15);
+            doc.line(59, paperY, 135, paperY);
+          }
+
+          // Draw paper level details
+          doc.setFont('helvetica', 'normal');
+          doc.setFontSize(7.5);
+          doc.setTextColor(15, 23, 42);
+
+          // Paper number
+          doc.text(String(p.paper || 1), 62, paperY + rowHeight - 2, { align: 'center' });
+
+          // BOT, MOT, EOT
+          const botStr = p.bot !== null && p.bot !== undefined ? String(Math.round(p.bot)) : '-';
+          const motStr = p.mot !== null && p.mot !== undefined ? String(Math.round(p.mot)) : '-';
+          const eotStr = p.eot !== null && p.eot !== undefined ? String(Math.round(p.eot)) : '-';
+
+          doc.text(botStr, 72, paperY + rowHeight - 2, { align: 'center' });
+          doc.text(motStr, 86, paperY + rowHeight - 2, { align: 'center' });
+          doc.text(eotStr, 100, paperY + rowHeight - 2, { align: 'center' });
+
+          // Total Score
+          const totalScoreStr = p.score !== null && p.score !== undefined ? `${Math.round(p.score)}/100` : '-/100';
+          doc.text(totalScoreStr, 115, paperY + rowHeight - 2, { align: 'center' });
+
+          // Paper Grade (D1-F9 scale)
+          const paperGrade = p.score !== null && p.score !== undefined ? getUACEPrincipalGrade(p.score).grade : '-';
+          doc.setFont('helvetica', 'bold');
+          doc.text(paperGrade, 129, paperY + rowHeight - 2, { align: 'center' });
+        });
+
+        // Draw spanned values in the middle of the group height
+        const verticalCenterY = curY + (groupHeight / 2) + 2;
+        doc.setFont('helvetica', 'bold');
+        doc.setFontSize(7.5);
+        doc.setTextColor(11, 30, 91); // Navy Blue
+
+        // Subject Name
+        doc.text(g.subject.toUpperCase(), 18, verticalCenterY);
+
+        // Final Grade (spanned)
+        doc.text(finalGrade, 143, verticalCenterY, { align: 'center' });
+
+        // Comment (spanned)
+        doc.setFont('helvetica', 'normal');
+        doc.text(finalComment, 168, verticalCenterY, { align: 'center' });
+
+        // Initials (spanned)
+        doc.text(combinedInitials, 190, verticalCenterY, { align: 'center' });
+
+        curY += groupHeight;
+        totalPaperRowsDrawn += numPapers;
+      });
+
+      // Draw all vertical column lines from tableY to curY
+      doc.setDrawColor(226, 232, 240);
+      doc.setLineWidth(0.25);
+      doc.line(59, tableY + 7, 59, curY);
+      doc.line(65, tableY + 7, 65, curY);
+      doc.line(79, tableY + 7, 79, curY);
+      doc.line(93, tableY + 7, 93, curY);
+      doc.line(107, tableY + 7, 107, curY);
+      doc.line(123, tableY + 7, 123, curY);
+      doc.line(135, tableY + 7, 135, curY);
+      doc.line(151, tableY + 7, 151, curY);
+      doc.line(185, tableY + 7, 185, curY);
+
       currentY = curY;
     } else {
       // Compute UCE Result Status
@@ -882,51 +1047,284 @@ async function compileReportsPdf({
     // Summary Cards Row
     let summaryY = currentY + spacingGap;
 
-    // CARD 1: Academic Summary
-    doc.setFillColor(248, 250, 252); // Light Slate
-    doc.setDrawColor(226, 232, 240);
-    doc.setLineWidth(0.3);
-    doc.roundedRect(15, summaryY, cardW, cardH, 1.5, 1.5, 'FD');
-
-    doc.setFont('helvetica', 'bold');
-    doc.setFontSize(7.5);
-    doc.setTextColor(11, 30, 91); // Navy Blue
-    doc.text('ACADEMIC SUMMARY', 18, summaryY + 5);
-
-    doc.setFont('helvetica', 'normal');
-    doc.setFontSize(7);
-    doc.setTextColor(15, 23, 42);
-    doc.text(`Average Score:  ${stat.average.toFixed(1)}%`, 18, summaryY + 9.5);
-    doc.text(`Position in Class:  ${stat.position} of ${stat.classTotal}`, 18, summaryY + 13);
-    doc.text(`Total Subjects Offered:  ${stat.subjectCount}`, 18, summaryY + 16.5);
-    doc.text(`Overall Grade:  ${getOLevelGrade(stat.average).grade}`, 18, summaryY + 20);
-
-    // CARD 2: Performance Rank / RESULTS STATUS
-    doc.setFillColor(248, 250, 252);
-    doc.roundedRect(15 + cardW + gap, summaryY, cardW, cardH, 1.5, 1.5, 'FD');
-
-    doc.setFont('helvetica', 'bold');
-    doc.setFontSize(7.5);
-    doc.setTextColor(11, 30, 91);
-    
     if (isUACE) {
-      doc.text('UACE COMB POINTS', 15 + cardW + gap + 3, summaryY + 5);
+      // 1. Calculate UACE points
+      const uacePtsObj = calculateUACEPoints(uaceMarks.filter(m => m.student_id === student.id));
+
+      // 2. Draw Points Summary Row (spans 180mm)
+      doc.setFillColor(248, 250, 252);
+      doc.setDrawColor(226, 232, 240);
+      doc.setLineWidth(0.3);
+      doc.roundedRect(15, summaryY, 180, 12, 1.5, 1.5, 'FD');
+
+      // Left blue title column
+      doc.setFillColor(11, 30, 91);
+      doc.roundedRect(15, summaryY, 40, 12, 1, 1, 'F');
+      doc.rect(15 + 39, summaryY, 1, 12, 'F'); // cover corner round
+      
       doc.setFont('helvetica', 'bold');
-      doc.setFontSize(8.5);
-      doc.setTextColor(212, 160, 23); // Gold
-      doc.text(`${stat.uacePoints} / 20 Points`, 15 + cardW + gap + 3, summaryY + 11);
+      doc.setFontSize(8);
+      doc.setTextColor(255, 255, 255);
+      doc.text('POINTS SUMMARY', 35, summaryY + 7.5, { align: 'center' });
+
+      // Dividers between points boxes
+      doc.setDrawColor(226, 232, 240);
+      doc.line(55 + 46, summaryY, 55 + 46, summaryY + 12);
+      doc.line(55 + 92, summaryY, 55 + 92, summaryY + 12);
+
+      // Render points details
+      doc.setTextColor(11, 30, 91);
+      doc.setFontSize(7.5);
+
+      // Principal Points Box
+      doc.text('PRINCIPAL POINTS', 78, summaryY + 4.5, { align: 'center' });
+      doc.setFont('helvetica', 'bold');
+      doc.setFontSize(11);
+      doc.text(String(uacePtsObj.principalPoints), 78, summaryY + 10.2, { align: 'center' });
+
+      // Subsidiary Points Box
+      doc.setFont('helvetica', 'bold');
+      doc.setFontSize(7.5);
+      doc.text('SUBSIDIARY POINTS', 124, summaryY + 4.5, { align: 'center' });
+      doc.setFont('helvetica', 'bold');
+      doc.setFontSize(11);
+      doc.text(String(uacePtsObj.subsidiaryPoints), 124, summaryY + 10.2, { align: 'center' });
+
+      // Total Points Box
+      doc.setFont('helvetica', 'bold');
+      doc.setFontSize(7.5);
+      doc.text('TOTAL POINTS', 171, summaryY + 4.5, { align: 'center' });
+      doc.setFont('helvetica', 'bold');
+      doc.setFontSize(11);
+      doc.text(String(uacePtsObj.totalPoints), 171, summaryY + 10.2, { align: 'center' });
+
+      let commentsY = summaryY + 12 + spacingGap;
+
+      // 3. Draw Split Comments & Signatures Box (height 30mm)
+      doc.setFillColor(255, 255, 255);
+      doc.setDrawColor(226, 232, 240);
+      doc.setLineWidth(0.3);
+      doc.roundedRect(15, commentsY, 180, 30, 1.5, 1.5, 'FD');
+
+      // Center divider vertical line
+      doc.line(105, commentsY, 105, commentsY + 30);
+
+      // Class Teacher column
+      doc.setFont('helvetica', 'bold');
+      doc.setFontSize(7.5);
+      doc.setTextColor(11, 30, 91);
+      doc.text("CLASS TEACHER'S COMMENT:", 18, commentsY + 4.5);
+
+      doc.setFont('helvetica', 'normal');
+      doc.setFontSize(7.5);
+      doc.setTextColor(15, 23, 42);
+      const ctComment = getUACEClassTeacherComment(uacePtsObj.totalPoints);
+      doc.text(ctComment, 18, commentsY + 9, { maxWidth: 82 });
+
+      // Class Teacher Signature
+      doc.setFont('helvetica', 'bold');
+      doc.setFontSize(7);
+      doc.setTextColor(11, 30, 91);
+      doc.text("CLASS TEACHER'S SIGNATURE:", 18, commentsY + 23);
+
+      const classTeacherObj2 = classTeachers[student.gradeClass] || null;
+      let ctName = '';
+      let ctSignature = null;
+      if (classTeacherObj2) {
+        if (typeof classTeacherObj2 === 'object') {
+          ctName = classTeacherObj2.name || '';
+          ctSignature = classTeacherObj2.signature || null;
+        } else if (typeof classTeacherObj2 === 'string') {
+          ctName = classTeacherObj2;
+        }
+      }
+      if (ctName === 'N/A' || !ctName) ctName = '';
+
+      if (ctSignature) {
+        try {
+          const isSvg = ctSignature.includes('svg+xml');
+          const format = isSvg ? 'SVG' : 'PNG';
+          doc.addImage(ctSignature, format, 65, commentsY + 16, 24, 7);
+        } catch (e) {
+          console.warn(`Could not draw Class Teacher signature:`, e);
+        }
+      }
+      doc.setDrawColor(203, 213, 225);
+      doc.setLineWidth(0.45);
+      doc.line(60, commentsY + 23.5, 95, commentsY + 23.5);
       
       doc.setFont('helvetica', 'normal');
+      doc.setFontSize(7.5);
+      doc.setTextColor(15, 23, 42);
+      doc.text(ctName || '___________________', 77.5, commentsY + 27.5, { align: 'center' });
+
+      // Head Teacher column
+      doc.setFont('helvetica', 'bold');
+      doc.setFontSize(7.5);
+      doc.setTextColor(11, 30, 91);
+      doc.text("HEAD TEACHER'S COMMENT:", 108, commentsY + 4.5);
+
+      doc.setFont('helvetica', 'normal');
+      doc.setFontSize(7.5);
+      doc.setTextColor(15, 23, 42);
+      const htComment = getUACEHeadTeacherComment(uacePtsObj.totalPoints);
+      doc.text(htComment, 108, commentsY + 9, { maxWidth: 58 });
+
+      // Head Teacher Signature
+      doc.setFont('helvetica', 'bold');
+      doc.setFontSize(7);
+      doc.setTextColor(11, 30, 91);
+      doc.text("HEAD TEACHER'S SIGNATURE:", 108, commentsY + 23);
+
+      const htName = (htTeacher && htTeacher.name) ? htTeacher.name : 'Dr. Bernard Ochola';
+      const htSignature = (htTeacher && htTeacher.signature) ? htTeacher.signature : null;
+
+      if (htSignature) {
+        try {
+          const isSvg = htSignature.includes('svg+xml');
+          const format = isSvg ? 'SVG' : 'PNG';
+          doc.addImage(htSignature, format, 150, commentsY + 16, 24, 7);
+        } catch (e) {
+          console.warn(`Could not draw Head Teacher signature:`, e);
+        }
+      }
+      doc.setDrawColor(203, 213, 225);
+      doc.setLineWidth(0.45);
+      doc.line(145, commentsY + 23.5, 180, commentsY + 23.5);
+
+      doc.setFont('helvetica', 'normal');
+      doc.setFontSize(7.5);
+      doc.setTextColor(15, 23, 42);
+      doc.text(htName || 'Dr. Bernard Ochola', 162.5, commentsY + 27.5, { align: 'center' });
+
+      // School Stamp inside Head Teacher's comments block
+      const stampX = 168;
+      const stampY = commentsY + 3;
+      doc.setDrawColor(203, 213, 225);
+      doc.setLineWidth(0.3);
+      doc.rect(stampX, stampY, 24, 24, 'D');
+      doc.circle(stampX + 12, stampY + 12, 11, 'D');
+
+      doc.setFont('helvetica', 'bold');
+      doc.setFontSize(5);
+      doc.setTextColor(148, 163, 184);
+      doc.text('SCHOOL STAMP', stampX + 12, stampY + 13.5, { align: 'center' });
+
+      if (stampBase64) {
+        try {
+          const isSvg = stampBase64.includes('svg+xml');
+          doc.addImage(stampBase64, isSvg ? 'SVG' : 'PNG', stampX + 2, stampY + 2, 20, 20);
+        } catch (e) {
+          console.warn("Could not draw school stamp in UACE block:", e);
+        }
+      }
+
+      // 4. Draw U.A.C.E Grading System reference table
+      const gradingY = commentsY + 30 + spacingGap;
+      
+      doc.setFont('helvetica', 'bold');
+      doc.setFontSize(8);
+      doc.setTextColor(11, 30, 91);
+      doc.text('U.A.C.E GRADING SYSTEM', 105, gradingY, { align: 'center' });
+
+      const gridY = gradingY + 2;
+      const colWidths = [22, 14, 14, 14, 14, 14, 14, 14, 14, 14]; // 22 + 9 * 14 = 148mm
+      
+      doc.setFillColor(248, 250, 252);
+      doc.setDrawColor(203, 213, 225);
+      doc.setLineWidth(0.2);
+      doc.rect(15, gridY, 148, 12, 'FD');
+
+      doc.line(15, gridY + 4, 163, gridY + 4);
+      doc.line(15, gridY + 8, 163, gridY + 8);
+
+      let nextX = 15;
+      colWidths.forEach((w) => {
+        nextX += w;
+        doc.line(nextX, gridY, nextX, gridY + 12);
+      });
+
       doc.setFontSize(6.5);
-      doc.setTextColor(100, 116, 139);
-      doc.text('Based on official principal and', 15 + cardW + gap + 3, summaryY + 16);
-      doc.text('subsidiary grade weightings.', 15 + cardW + gap + 3, summaryY + 19.5);
+      doc.setTextColor(15, 23, 42);
+      
+      doc.setFont('helvetica', 'bold');
+      doc.text('MARKS', 15 + 11, gridY + 3, { align: 'center' });
+      doc.text('GRADE', 15 + 11, gridY + 7, { align: 'center' });
+      doc.text('POINTS', 15 + 11, gridY + 11, { align: 'center' });
+
+      const marksVals = ['80+', '75-79', '66-74', '60-65', '55-59', '50-54', '45-49', '35-44', '0-34'];
+      const gradeVals = ['D1', 'D2', 'C3', 'C4', 'C5', 'C6', 'P7', 'P8', 'F9'];
+      const pointsVals = ['6', '5', '4', '3', '2', '1', '0', '0', '0'];
+
+      doc.setFont('helvetica', 'normal');
+      let curColX = 15 + 22;
+      for (let i = 0; i < 9; i++) {
+        const cx = curColX + 7;
+        doc.text(marksVals[i], cx, gridY + 3, { align: 'center' });
+        doc.setFont('helvetica', 'bold');
+        doc.text(gradeVals[i], cx, gridY + 7, { align: 'center' });
+        doc.setFont('helvetica', 'normal');
+        doc.text(pointsVals[i], cx, gridY + 11, { align: 'center' });
+        curColX += 14;
+      }
+
+      doc.setFont('helvetica', 'bold');
+      doc.setFontSize(7.5);
+      doc.setTextColor(11, 30, 91);
+      doc.text('SP = Subsidiary Pass', 167, gridY + 4.5);
+      doc.text('SF = Subsidiary Fail', 167, gridY + 8.5);
+
+      currentY = gridY + 12;
+
+      // 5. Next Term Begins and Stamp Warning Banner at bottom
+      const nextTermY = currentY + spacingGap;
+      doc.setFont('helvetica', 'bold');
+      doc.setFontSize(8);
+      doc.setTextColor(11, 30, 91);
+      
+      const nextTermDateStr = settings.next_term_begins || '26th May, 2025';
+      doc.text(`NEXT TERM BEGINS ON: ${nextTermDateStr.toUpperCase()}`, 15, nextTermY + 3);
+
+      const warningBarY = nextTermY + 6;
+      doc.setFillColor(11, 30, 91);
+      doc.roundedRect(15, warningBarY, 180, 6, 1, 1, 'F');
+      
+      doc.setFont('helvetica', 'bold');
+      doc.setFontSize(7);
+      doc.setTextColor(255, 255, 255);
+      doc.text('THIS REPORT CARD SHOULD NOT BE HONOURED WITHOUT AN OFFICIAL SCHOOL STAMP.', 105, warningBarY + 4.2, { align: 'center' });
+
     } else {
+      // CARD 1: Academic Summary
+      doc.setFillColor(248, 250, 252); // Light Slate
+      doc.setDrawColor(226, 232, 240);
+      doc.setLineWidth(0.3);
+      doc.roundedRect(15, summaryY, cardW, cardH, 1.5, 1.5, 'FD');
+
+      doc.setFont('helvetica', 'bold');
+      doc.setFontSize(7.5);
+      doc.setTextColor(11, 30, 91); // Navy Blue
+      doc.text('ACADEMIC SUMMARY', 18, summaryY + 5);
+
+      doc.setFont('helvetica', 'normal');
+      doc.setFontSize(7);
+      doc.setTextColor(15, 23, 42);
+      doc.text(`Average Score:  ${stat.average.toFixed(1)}%`, 18, summaryY + 9.5);
+      doc.text(`Position in Class:  ${stat.position} of ${stat.classTotal}`, 18, summaryY + 13);
+      doc.text(`Total Subjects Offered:  ${stat.subjectCount}`, 18, summaryY + 16.5);
+      doc.text(`Overall Grade:  ${getOLevelGrade(stat.average).grade}`, 18, summaryY + 20);
+
+      // CARD 2: Performance Rank / RESULTS STATUS
+      doc.setFillColor(248, 250, 252);
+      doc.roundedRect(15 + cardW + gap, summaryY, cardW, cardH, 1.5, 1.5, 'FD');
+
+      doc.setFont('helvetica', 'bold');
+      doc.setFontSize(7.5);
+      doc.setTextColor(11, 30, 91);
       doc.text('RESULTS STATUS', 15 + cardW + gap + 3, summaryY + 5);
       doc.setFont('helvetica', 'bold');
       doc.setFontSize(6.5);
       doc.setTextColor(15, 23, 42);
-      
       doc.text(uceResultStatus, 15 + cardW + gap + 3, summaryY + 10, { maxWidth: cardW - 6 });
       
       doc.setFont('helvetica', 'italic');
@@ -934,137 +1332,132 @@ async function compileReportsPdf({
       doc.setTextColor(100, 116, 139);
       doc.text('Note: School-assessed projects', 15 + cardW + gap + 3, summaryY + 17.5);
       doc.text('are reflected separately.', 15 + cardW + gap + 3, summaryY + 20.5);
-    }
 
-    // CARD 3: Grade Key / Descriptor Guide
-    doc.setFillColor(248, 250, 252);
-    doc.roundedRect(15 + 2 * (cardW + gap), summaryY, cardW, cardH, 1.5, 1.5, 'FD');
+      // CARD 3: Grade Key / Descriptor Guide
+      doc.setFillColor(248, 250, 252);
+      doc.roundedRect(15 + 2 * (cardW + gap), summaryY, cardW, cardH, 1.5, 1.5, 'FD');
 
-    doc.setFont('helvetica', 'bold');
-    doc.setFontSize(7.5);
-    doc.setTextColor(11, 30, 91);
-    doc.text('GRADE SCALE KEY', 15 + 2 * (cardW + gap) + 3, summaryY + 5);
+      doc.setFont('helvetica', 'bold');
+      doc.setFontSize(7.5);
+      doc.setTextColor(11, 30, 91);
+      doc.text('GRADE SCALE KEY', 15 + 2 * (cardW + gap) + 3, summaryY + 5);
 
-    doc.setFont('helvetica', 'normal');
-    doc.setFontSize(6);
-    doc.setTextColor(71, 85, 105);
-    if (isUACE) {
-      doc.text('Principal: A=6, B=5, C=4, D=3, E=2, O=1, F=0', 15 + 2 * (cardW + gap) + 3, summaryY + 10);
-      doc.text('Subsidiary: D1-P8 = 1 Point, F9 = 0 Points', 15 + 2 * (cardW + gap) + 3, summaryY + 14);
-      doc.text('Combinations: Maximum 20 Points', 15 + 2 * (cardW + gap) + 3, summaryY + 18);
-    } else {
+      doc.setFont('helvetica', 'normal');
+      doc.setFontSize(6);
+      doc.setTextColor(71, 85, 105);
       doc.text('A: Exceptional (>= 80%)', 15 + 2 * (cardW + gap) + 3, summaryY + 9.5);
       doc.text('B: Outstanding (70 - 79%)  | C: Satisfactory (60 - 69%)', 15 + 2 * (cardW + gap) + 3, summaryY + 13.5);
       doc.text('D: Basic (50 - 59%)             | E: Elementary (< 50%)', 15 + 2 * (cardW + gap) + 3, summaryY + 17.5);
-    }
 
-    // Comments Row
-    let commentsY = summaryY + cardH + spacingGap;
-    
-    // Class Teacher's Comment Box
-    doc.setFillColor(255, 255, 255);
-    doc.setDrawColor(226, 232, 240);
-    doc.setLineWidth(0.3);
-    doc.roundedRect(15, commentsY, 180, 12, 1.5, 1.5, 'FD');
+      // Comments Row
+      let commentsY = summaryY + cardH + spacingGap;
+      
+      // Class Teacher's Comment Box
+      doc.setFillColor(255, 255, 255);
+      doc.setDrawColor(226, 232, 240);
+      doc.setLineWidth(0.3);
+      doc.roundedRect(15, commentsY, 180, 12, 1.5, 1.5, 'FD');
 
-    doc.setFont('helvetica', 'bold');
-    doc.setFontSize(7.5);
-    doc.setTextColor(11, 30, 91);
-    doc.text("Class Teacher's Remarks:", 18, commentsY + 4.5);
-    
-    doc.setFont('helvetica', 'normal');
-    doc.setFontSize(7.5);
-    doc.setTextColor(15, 23, 42);
-    doc.text(getClassTeacherComment(stat.average), 18, commentsY + 9);
+      doc.setFont('helvetica', 'bold');
+      doc.setFontSize(7.5);
+      doc.setTextColor(11, 30, 91);
+      doc.text("Class Teacher's Remarks:", 18, commentsY + 4.5);
+      
+      doc.setFont('helvetica', 'normal');
+      doc.setFontSize(7.5);
+      doc.setTextColor(15, 23, 42);
+      doc.text(getClassTeacherComment(stat.average), 18, commentsY + 9);
 
-    // Head Teacher's Comment Box
-    doc.setFillColor(255, 255, 255);
-    doc.roundedRect(15, commentsY + 16, 180, 12, 1.5, 1.5, 'FD');
+      // Head Teacher's Comment Box
+      doc.setFillColor(255, 255, 255);
+      doc.roundedRect(15, commentsY + 16, 180, 12, 1.5, 1.5, 'FD');
 
-    doc.setFont('helvetica', 'bold');
-    doc.setFontSize(7.5);
-    doc.setTextColor(11, 30, 91);
-    doc.text("Head Teacher's Remarks:", 18, commentsY + 20.5);
+      doc.setFont('helvetica', 'bold');
+      doc.setFontSize(7.5);
+      doc.setTextColor(11, 30, 91);
+      doc.text("Head Teacher's Remarks:", 18, commentsY + 20.5);
 
-    doc.setFont('helvetica', 'normal');
-    doc.setFontSize(7.5);
-    doc.setTextColor(15, 23, 42);
-    doc.text(getHeadTeacherComment(stat.average), 18, commentsY + 25);
+      doc.setFont('helvetica', 'normal');
+      doc.setFontSize(7.5);
+      doc.setTextColor(15, 23, 42);
+      doc.text(getHeadTeacherComment(stat.average), 18, commentsY + 25);
 
-    // Signatures & Verification Row (clamp maximum sigY to 264 to guarantee it stays inside bottom border)
-    let sigY = Math.min(264, commentsY + 28 + spacingGap);
-    
-    // Helper helper for drawing a signature block
-    const drawSignatureBlock = (title, name, signatureData, centerX) => {
-      // 1. Digital Signature Image (if exists)
-      if (signatureData) {
+      // Signatures & Verification Row (clamp maximum sigY to 264 to guarantee it stays inside bottom border)
+      let sigY = Math.min(264, commentsY + 28 + spacingGap);
+      
+      // Helper helper for drawing a signature block
+      const drawSignatureBlock = (title, name, signatureData, centerX) => {
+        // 1. Digital Signature Image (if exists)
+        if (signatureData) {
+          try {
+            const isSvg = signatureData.includes('svg+xml');
+            const format = isSvg ? 'SVG' : 'PNG';
+            doc.addImage(signatureData, format, centerX - 12, sigY + 0.5, 24, 8);
+          } catch (e) {
+            console.warn(`Could not draw signature for ${title}:`, e);
+          }
+        }
+
+        // 2. Signature Line
+        doc.setDrawColor(203, 213, 225); // Slate 300
+        doc.setLineWidth(0.45);
+        doc.line(centerX - 20, sigY + 9, centerX + 20, sigY + 9);
+
+        // 3. Staff Full Name
+        doc.setFont('helvetica', 'normal');
+        doc.setFontSize(8);
+        doc.setTextColor(15, 23, 42); // Slate 900
+        const displayName = (name && name !== 'N/A') ? name : '___________________';
+        doc.text(displayName, centerX, sigY + 13.5, { align: 'center' });
+
+        // 4. Position Title
+        doc.setFont('helvetica', 'bold');
+        doc.setFontSize(8);
+        doc.setTextColor(11, 30, 91); // Premium Navy
+        doc.text(title, centerX, sigY + 17.5, { align: 'center' });
+      };
+
+      // Class Teacher
+      const classTeacherObj2 = classTeachers[student.gradeClass] || null;
+      let ctName = '';
+      let ctSignature = null;
+      if (classTeacherObj2) {
+        if (typeof classTeacherObj2 === 'object') {
+          ctName = classTeacherObj2.name || '';
+          ctSignature = classTeacherObj2.signature || null;
+        } else if (typeof classTeacherObj2 === 'string') {
+          ctName = classTeacherObj2;
+        }
+      }
+      if (ctName === 'N/A' || !ctName) ctName = '';
+      drawSignatureBlock('Class Teacher', ctName, ctSignature, 45);
+
+      // Director of Studies (DOS)
+      const dosName = (dosTeacher && dosTeacher.name) ? dosTeacher.name : 'Mr. Peter Kato';
+      const dosSignature = (dosTeacher && dosTeacher.signature) ? dosTeacher.signature : null;
+      drawSignatureBlock('Director of Studies (DOS)', dosName, dosSignature, 105);
+
+      // Head Teacher
+      const htName = (htTeacher && htTeacher.name) ? htTeacher.name : 'Dr. Bernard Ochola';
+      const htSignature = (htTeacher && htTeacher.signature) ? htTeacher.signature : null;
+      drawSignatureBlock('Head Teacher', htName, htSignature, 165);
+
+      // Stamp overlay (placed over Head Teacher area)
+      if (stampBase64) {
         try {
-          const isSvg = signatureData.includes('svg+xml');
-          const format = isSvg ? 'SVG' : 'PNG';
-          doc.addImage(signatureData, format, centerX - 12, sigY + 0.5, 24, 8);
+          const isSvg = stampBase64.includes('svg+xml');
+          doc.addImage(stampBase64, isSvg ? 'SVG' : 'PNG', 155, sigY - 2, 16, 16);
         } catch (e) {
-          console.warn(`Could not draw signature for ${title}:`, e);
+          console.warn("Could not draw school stamp:", e);
         }
       }
 
-      // 2. Signature Line
-      doc.setDrawColor(203, 213, 225); // Slate 300
-      doc.setLineWidth(0.45);
-      doc.line(centerX - 20, sigY + 9, centerX + 20, sigY + 9);
-
-      // 3. Staff Full Name
-      doc.setFont('helvetica', 'normal');
-      doc.setFontSize(8);
-      doc.setTextColor(15, 23, 42); // Slate 900
-      const displayName = (name && name !== 'N/A') ? name : '___________________';
-      doc.text(displayName, centerX, sigY + 13.5, { align: 'center' });
-
-      // 4. Position Title
+      // Stamp Warning Footer
       doc.setFont('helvetica', 'bold');
-      doc.setFontSize(8);
-      doc.setTextColor(11, 30, 91); // Premium Navy
-      doc.text(title, centerX, sigY + 17.5, { align: 'center' });
-    };
-
-    // Class Teacher
-    const classTeacherObj2 = classTeachers[student.gradeClass] || null;
-    let ctName = '';
-    let ctSignature = null;
-    if (classTeacherObj2) {
-      if (typeof classTeacherObj2 === 'object') {
-        ctName = classTeacherObj2.name || '';
-        ctSignature = classTeacherObj2.signature || null;
-      } else if (typeof classTeacherObj2 === 'string') {
-        ctName = classTeacherObj2;
-      }
+      doc.setFontSize(7.5);
+      doc.setTextColor(220, 38, 38); // Motto Red
+      doc.text('INVALID WITHOUT OFFICIAL STAMP', 105, 283, { align: 'center' });
     }
-    if (ctName === 'N/A' || !ctName) ctName = '';
-    drawSignatureBlock('Class Teacher', ctName, ctSignature, 45);
-
-    // Director of Studies (DOS)
-    const dosName = (dosTeacher && dosTeacher.name) ? dosTeacher.name : 'Mr. Peter Kato';
-    const dosSignature = (dosTeacher && dosTeacher.signature) ? dosTeacher.signature : null;
-    drawSignatureBlock('Director of Studies (DOS)', dosName, dosSignature, 105);
-
-    // Head Teacher
-    const htName = (htTeacher && htTeacher.name) ? htTeacher.name : 'Dr. Bernard Ochola';
-    const htSignature = (htTeacher && htTeacher.signature) ? htTeacher.signature : null;
-    drawSignatureBlock('Head Teacher', htName, htSignature, 165);
-
-    // Stamp overlay (placed over Head Teacher area)
-    if (stampBase64) {
-      try {
-        const isSvg = stampBase64.includes('svg+xml');
-        doc.addImage(stampBase64, isSvg ? 'SVG' : 'PNG', 155, sigY - 2, 16, 16);
-      } catch (e) {
-        console.warn("Could not draw school stamp:", e);
-      }
-    }
-    // Stamp Warning Footer
-    doc.setFont('helvetica', 'bold');
-    doc.setFontSize(7.5);
-    doc.setTextColor(220, 38, 38); // Motto Red
-    doc.text('INVALID WITHOUT OFFICIAL STAMP', 105, 283, { align: 'center' });
 
     if (onProgress) {
       onProgress(sIdx + 1, students.length);

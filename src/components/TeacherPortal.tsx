@@ -53,6 +53,7 @@ export default function TeacherPortal({
 
   const [term, setTerm] = useState('2');
   const [year, setYear] = useState(2026);
+  const [selectedPaper, setSelectedPaper] = useState<number>(1);
 
   const [students, setStudents] = useState<any[]>([]);
   const [marksMap, setMarksMap] = useState<Record<string, any>>({});
@@ -192,7 +193,8 @@ export default function TeacherPortal({
         gradeClass: combinedClass,
         subject: activeSubject,
         term,
-        year
+        year,
+        paper: selectedPaper
       }) : [];
 
       const map: Record<string, any> = {};
@@ -212,6 +214,10 @@ export default function TeacherPortal({
                 student_id: s.id,
                 subject: activeSubject,
                 subject_type: defaultType,
+                paper: selectedPaper,
+                bot: null,
+                mot: null,
+                eot: null,
                 score: null,
                 grade: null,
                 points: null,
@@ -253,7 +259,7 @@ export default function TeacherPortal({
       setStudents([]);
       setMarksMap({});
     }
-  }, [selectedSubjects, activeSubject, selectedClassVal, selectedStreamVal, term, year]);
+  }, [selectedSubjects, activeSubject, selectedClassVal, selectedStreamVal, term, year, selectedPaper]);
 
   // Auto-clear success and error message banners
   useEffect(() => {
@@ -262,6 +268,12 @@ export default function TeacherPortal({
       return () => clearTimeout(timer);
     }
   }, [successMessage]);
+
+  useEffect(() => {
+    if (activeSubject === 'General Paper' || (activeSubject && activeSubject.toLowerCase().includes('subsidiary')) || (activeSubject && activeSubject.toLowerCase().includes('ict'))) {
+      setSelectedPaper(1);
+    }
+  }, [activeSubject]);
 
   useEffect(() => {
     if (error) {
@@ -307,6 +319,10 @@ export default function TeacherPortal({
         // UACE Marks Columns
         let scoreColIdx = -1;
         let typeColIdx = -1;
+        let botColIdx = -1;
+        let motColIdx = -1;
+        let eotColIdx = -1;
+        let paperColIdx = -1;
 
         for (let r = 0; r < Math.min(10, sheetData.length); r++) {
           const row = sheetData[r];
@@ -349,9 +365,19 @@ export default function TeacherPortal({
             else if (s.includes('score') || s.includes('mark')) {
               scoreColIdx = idx;
             }
+            else if (s.includes('bot')) {
+              botColIdx = idx;
+            }
+            else if (s.includes('mot')) {
+              motColIdx = idx;
+            }
+            else if (s.includes('eot')) {
+              eotColIdx = idx;
+            }
             // Paper Type (UACE)
-            else if (s.includes('type') || s.includes('paper')) {
+            else if (s.includes('type') || s.includes('paper') || s === 'p') {
               typeColIdx = idx;
+              paperColIdx = idx;
             }
           });
         }
@@ -424,10 +450,42 @@ export default function TeacherPortal({
           const rowErrors: string[] = [];
 
           if (isUACE) {
+            let newBotVal = currentRecord.bot;
+            let newMotVal = currentRecord.mot;
+            let newEotVal = currentRecord.eot;
             let newScoreVal = currentRecord.score;
             let newTypeVal = currentRecord.subject_type;
+            let newPaperVal = currentRecord.paper || selectedPaper;
 
-            if (scoreColIdx !== -1 && row[scoreColIdx] !== undefined && row[scoreColIdx] !== null && row[scoreColIdx] !== '') {
+            const parseUACEVal = (colIdx: number, label: string) => {
+              if (colIdx !== -1 && row[colIdx] !== undefined && row[colIdx] !== null && row[colIdx] !== '') {
+                const val = parseFloat(row[colIdx]);
+                if (!isNaN(val) && val >= 0 && val <= 100) {
+                  return val;
+                } else {
+                  rowRejected = true;
+                  rowErrors.push(`${label} must be between 0 and 100`);
+                }
+              }
+              return null;
+            };
+
+            const botResult = parseUACEVal(botColIdx, 'BOT');
+            if (botResult !== null) { newBotVal = botResult; hasUpdates = true; }
+
+            const motResult = parseUACEVal(motColIdx, 'MOT');
+            if (motResult !== null) { newMotVal = motResult; hasUpdates = true; }
+
+            const eotResult = parseUACEVal(eotColIdx, 'EOT');
+            if (eotResult !== null) { newEotVal = eotResult; hasUpdates = true; }
+
+            if (botResult !== null || motResult !== null || eotResult !== null) {
+              const b = newBotVal !== null && newBotVal !== undefined ? parseFloat(newBotVal) : 0;
+              const m = newMotVal !== null && newMotVal !== undefined ? parseFloat(newMotVal) : 0;
+              const e = newEotVal !== null && newEotVal !== undefined ? parseFloat(newEotVal) : 0;
+              newScoreVal = Math.round(b * 0.3 + m * 0.3 + e * 0.4);
+              hasUpdates = true;
+            } else if (scoreColIdx !== -1 && row[scoreColIdx] !== undefined && row[scoreColIdx] !== null && row[scoreColIdx] !== '') {
               const val = parseFloat(row[scoreColIdx]);
               if (!isNaN(val) && val >= 0 && val <= 100) {
                 newScoreVal = val;
@@ -435,6 +493,14 @@ export default function TeacherPortal({
               } else {
                 rowRejected = true;
                 rowErrors.push('Score must be between 0 and 100');
+              }
+            }
+
+            if (paperColIdx !== -1 && row[paperColIdx] !== undefined && row[paperColIdx] !== null && row[paperColIdx] !== '') {
+              const val = parseInt(row[paperColIdx], 10);
+              if (!isNaN(val) && val >= 1 && val <= 3) {
+                newPaperVal = val;
+                hasUpdates = true;
               }
             }
 
@@ -453,8 +519,12 @@ export default function TeacherPortal({
             }
 
             if (!rowRejected && hasUpdates) {
+              currentRecord.bot = newBotVal;
+              currentRecord.mot = newMotVal;
+              currentRecord.eot = newEotVal;
               currentRecord.score = newScoreVal;
               currentRecord.subject_type = newTypeVal;
+              currentRecord.paper = newPaperVal;
 
               const scoreNum = parseFloat(newScoreVal) || 0;
               let grInfo = { grade: 'F', points: 0 };
@@ -577,6 +647,9 @@ export default function TeacherPortal({
     if (field === 'integration3') return 'AI3';
     if (field === 'exam_score') return 'Exam score';
     if (field === 'score') return 'Score';
+    if (field === 'bot') return 'BOT';
+    if (field === 'mot') return 'MOT';
+    if (field === 'eot') return 'EOT';
     return field;
   };
 
@@ -821,12 +894,21 @@ export default function TeacherPortal({
       const studentName = student ? student.name : 'Student';
 
       if (isUACE) {
-        const max = assessmentLimits?.uace?.score_max ?? 100;
-        const score = parseFloat(record.score);
-        if (isNaN(score) || score < 0 || score > max) {
-          setError(`Invalid score for "${studentName}". UACE score must be between 0 and ${max}.`);
-          return false;
-        }
+        const checkRange = (val: any, label: string) => {
+          if (val !== undefined && val !== null && val !== '') {
+            const num = parseFloat(val);
+            if (isNaN(num) || num < 0 || num > 100) {
+              return `${label} must be between 0 and 100.`;
+            }
+          }
+          return null;
+        };
+        let err = checkRange(record.bot, 'BOT');
+        if (err) { setError(`${err} (Student: "${studentName}")`); return false; }
+        err = checkRange(record.mot, 'MOT');
+        if (err) { setError(`${err} (Student: "${studentName}")`); return false; }
+        err = checkRange(record.eot, 'EOT');
+        if (err) { setError(`${err} (Student: "${studentName}")`); return false; }
       } else {
         const maxAI = 3; // Strictly capped at 3
         const maxExam = 100; // Strictly capped at 100
@@ -889,6 +971,7 @@ export default function TeacherPortal({
         year,
         teacherId,
         marksList,
+        paper: selectedPaper,
         status: targetStatus
       });
       setSuccessMessage(targetStatus === 'Approved' ? 'Marks submitted and locked successfully.' : 'Draft marks saved successfully.');
@@ -912,25 +995,19 @@ export default function TeacherPortal({
   }
 
   function getUACEPrincipalGrade(score: number) {
-    if (score >= 70) return { grade: 'A', points: 6 };
-    if (score >= 60) return { grade: 'B', points: 5 };
-    if (score >= 50) return { grade: 'C', points: 4 };
-    if (score >= 45) return { grade: 'D', points: 3 };
-    if (score >= 40) return { grade: 'E', points: 2 };
-    if (score >= 35) return { grade: 'O', points: 1 };
-    return { grade: 'F', points: 0 };
+    if (score >= 80) return { grade: 'D1', points: 6 };
+    if (score >= 75) return { grade: 'D2', points: 5 };
+    if (score >= 66) return { grade: 'C3', points: 4 };
+    if (score >= 60) return { grade: 'C4', points: 3 };
+    if (score >= 55) return { grade: 'C5', points: 2 };
+    if (score >= 50) return { grade: 'C6', points: 1 };
+    if (score >= 45) return { grade: 'P7', points: 0 };
+    if (score >= 35) return { grade: 'P8', points: 0 };
+    return { grade: 'F9', points: 0 };
   }
 
   function getUACESubGPGrade(score: number) {
-    if (score >= 80) return { grade: 'D1', points: 1 };
-    if (score >= 70) return { grade: 'D2', points: 1 };
-    if (score >= 60) return { grade: 'C3', points: 1 };
-    if (score >= 55) return { grade: 'C4', points: 1 };
-    if (score >= 50) return { grade: 'C5', points: 1 };
-    if (score >= 45) return { grade: 'C6', points: 1 };
-    if (score >= 40) return { grade: 'P7', points: 1 };
-    if (score >= 35) return { grade: 'P8', points: 1 };
-    return { grade: 'F9', points: 0 };
+    return getUACEPrincipalGrade(score);
   }
 
   return (
@@ -1326,6 +1403,22 @@ export default function TeacherPortal({
                         <option value="2028">2028</option>
                       </select>
                     </div>
+
+                    {isUACE && (
+                      <div className="w-full md:w-28">
+                        <label className="text-[10px] text-slate-400 font-bold uppercase tracking-wider block mb-1">Paper</label>
+                        <select
+                          value={selectedPaper}
+                          disabled={activeSubject === 'General Paper' || (activeSubject && activeSubject.toLowerCase().includes('subsidiary') || (activeSubject && activeSubject.toLowerCase().includes('ict')))}
+                          onChange={(e) => setSelectedPaper(parseInt(e.target.value))}
+                          className="w-full bg-slate-900 border border-slate-800 rounded-xl px-4 py-2.5 text-xs text-slate-200 font-bold focus:outline-none focus:border-indigo-500 disabled:opacity-55"
+                        >
+                          <option value="1">Paper 1</option>
+                          <option value="2">Paper 2</option>
+                          <option value="3">Paper 3</option>
+                        </select>
+                      </div>
+                    )}
                   </>
                 )}
               </>
@@ -1398,10 +1491,13 @@ export default function TeacherPortal({
                         <th className="p-4">Student Details</th>
                         {isUACE ? (
                           <>
-                            <th className="p-4 w-48 text-center">Paper Type</th>
-                            <th className="p-4 w-36 text-center">Score (0-100)</th>
-                            <th className="p-4 w-28 text-center">Grade</th>
-                            <th className="p-4 w-28 text-center">Points</th>
+                            <th className="p-4 w-44 text-center">Paper Type</th>
+                            <th className="p-4 w-28 text-center">BOT (0-100)</th>
+                            <th className="p-4 w-28 text-center">MOT (0-100)</th>
+                            <th className="p-4 w-28 text-center">EOT (0-100)</th>
+                            <th className="p-4 w-28 text-center">Total</th>
+                            <th className="p-4 w-24 text-center">Grade</th>
+                            <th className="p-4 w-24 text-center">Points</th>
                           </>
                         ) : (
                           <>
@@ -1506,18 +1602,55 @@ export default function TeacherPortal({
                                     min="0"
                                     max="100"
                                     disabled={isLocked}
-                                    value={record.score !== undefined && record.score !== null ? record.score : ''}
+                                    value={record.bot !== undefined && record.bot !== null ? record.bot : ''}
                                     onKeyDown={handleNumericKeyDown}
-                                    onPaste={(e) => handlePasteMark(e, 'score', 100)}
-                                    onChange={(e) => handleMarkChange(student.id, 'score', e.target.value, e.target)}
-                                    onBlur={(e) => handleMarkBlur(student.id, 'score', e.target.value)}
+                                    onPaste={(e) => handlePasteMark(e, 'bot', 100)}
+                                    onChange={(e) => handleMarkChange(student.id, 'bot', e.target.value, e.target)}
+                                    onBlur={(e) => handleMarkBlur(student.id, 'bot', e.target.value)}
                                     placeholder="0-100"
-                                    className={`w-24 mx-auto bg-slate-900 border rounded px-2 py-1.5 text-xs text-slate-200 font-bold text-center focus:outline-none focus:border-indigo-500 disabled:opacity-55 ${fieldErrors[student.id]?.score ? 'border-rose-500 ring-1 ring-rose-500' : 'border-slate-800'}`}
+                                    className={`w-20 mx-auto bg-slate-900 border rounded px-2 py-1.5 text-xs text-slate-200 font-bold text-center focus:outline-none focus:border-indigo-500 disabled:opacity-55 ${fieldErrors[student.id]?.bot ? 'border-rose-500 ring-1 ring-rose-500' : 'border-slate-800'}`}
                                   />
-                                  {fieldErrors[student.id]?.score ? (
-                                    <div className="text-rose-400 text-[11px] mt-1">{fieldErrors[student.id].score}</div>
+                                  {fieldErrors[student.id]?.bot ? (
+                                    <div className="text-rose-400 text-[10px] mt-1">{fieldErrors[student.id].bot}</div>
                                   ) : null}
                                 </td>
+                                <td className="p-4 text-center">
+                                  <input
+                                    type="number"
+                                    min="0"
+                                    max="100"
+                                    disabled={isLocked}
+                                    value={record.mot !== undefined && record.mot !== null ? record.mot : ''}
+                                    onKeyDown={handleNumericKeyDown}
+                                    onPaste={(e) => handlePasteMark(e, 'mot', 100)}
+                                    onChange={(e) => handleMarkChange(student.id, 'mot', e.target.value, e.target)}
+                                    onBlur={(e) => handleMarkBlur(student.id, 'mot', e.target.value)}
+                                    placeholder="0-100"
+                                    className={`w-20 mx-auto bg-slate-900 border rounded px-2 py-1.5 text-xs text-slate-200 font-bold text-center focus:outline-none focus:border-indigo-500 disabled:opacity-55 ${fieldErrors[student.id]?.mot ? 'border-rose-500 ring-1 ring-rose-500' : 'border-slate-800'}`}
+                                  />
+                                  {fieldErrors[student.id]?.mot ? (
+                                    <div className="text-rose-400 text-[10px] mt-1">{fieldErrors[student.id].mot}</div>
+                                  ) : null}
+                                </td>
+                                <td className="p-4 text-center">
+                                  <input
+                                    type="number"
+                                    min="0"
+                                    max="100"
+                                    disabled={isLocked}
+                                    value={record.eot !== undefined && record.eot !== null ? record.eot : ''}
+                                    onKeyDown={handleNumericKeyDown}
+                                    onPaste={(e) => handlePasteMark(e, 'eot', 100)}
+                                    onChange={(e) => handleMarkChange(student.id, 'eot', e.target.value, e.target)}
+                                    onBlur={(e) => handleMarkBlur(student.id, 'eot', e.target.value)}
+                                    placeholder="0-100"
+                                    className={`w-20 mx-auto bg-slate-900 border rounded px-2 py-1.5 text-xs text-slate-200 font-bold text-center focus:outline-none focus:border-indigo-500 disabled:opacity-55 ${fieldErrors[student.id]?.eot ? 'border-rose-500 ring-1 ring-rose-500' : 'border-slate-800'}`}
+                                  />
+                                  {fieldErrors[student.id]?.eot ? (
+                                    <div className="text-rose-400 text-[10px] mt-1">{fieldErrors[student.id].eot}</div>
+                                  ) : null}
+                                </td>
+                                <td className="p-4 text-center text-slate-300 font-bold font-mono">{record.score !== undefined && record.score !== null ? record.score : '-'}</td>
                                 <td className="p-4 text-center text-emerald-400 font-black font-mono">{record.grade || 'F'}</td>
                                 <td className="p-4 text-center text-indigo-400 font-black font-mono">{record.points || 0}</td>
                               </>

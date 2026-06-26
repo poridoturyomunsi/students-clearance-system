@@ -88,7 +88,6 @@ const StudentForcePasswordChange = lazy(() => import('./components/StudentForceP
 const TeacherPortal = lazy(() => import('./components/TeacherPortal.tsx'));
 const AdminPortalExtensions = lazy(() => import('./components/AdminPortalExtensions.tsx'));
 const AdminSettingsView = lazy(() => import('./components/AdminSettingsView.tsx'));
-const DatabaseSettingsView = lazy(() => import('./components/DatabaseSettingsView.tsx'));
 
 // Lazy-load feature modules
 const StudentsModule = lazy(() => import('./components/modules/StudentsModule.tsx'));
@@ -247,6 +246,17 @@ function AppContent() {
   // UI filters, sorting and view state used throughout the admin lists
   const [searchQuery, setSearchQuery] = useState<string>('');
   const [searchInputValue, setSearchInputValue] = useState<string>('');
+  const [filterLevel, setFilterLevel] = useState<string>('All');
+  const [lowerExpanded, setLowerExpanded] = useState<boolean>(true);
+  const [upperExpanded, setUpperExpanded] = useState<boolean>(true);
+  const [expandedClasses, setExpandedClasses] = useState<Record<string, boolean>>({
+    'S.1': false,
+    'S.2': false,
+    'S.3': false,
+    'S.4': false,
+    'S.5': false,
+    'S.6': false
+  });
   const [filterClass, setFilterClass] = useState<string>('All');
   const [filterStream, setFilterStream] = useState<string>('All');
   const [filterGender, setFilterGender] = useState<string>('All');
@@ -496,7 +506,14 @@ function AppContent() {
             db: statusRes.config || { host: '', port: 3306, database: '', user: '', password: '' },
             serverUrl: statusRes.config ? `http://${statusRes.config.host}:${statusRes.config.port}` : ''
           });
-          setDbConnectionError(!statusRes.connected);
+
+          const isDegradedMode = !!statusRes.degraded;
+          if (isDegradedMode) {
+            console.warn('[App Init] Database is unavailable; continuing in degraded local mode.');
+            setDbConnectionError(false);
+          } else {
+            setDbConnectionError(!statusRes.connected);
+          }
         }
 
         // 4. Fetch lightweight early dashboard statistics if authenticated
@@ -543,6 +560,7 @@ function AppContent() {
         page: shouldFetchAll ? 1 : currentPage,
         limit: shouldFetchAll ? -1 : pageSize,
         search: searchQuery,
+        level: filterLevel === 'All' ? undefined : filterLevel,
         gradeClass: viewMode === 'board' ? activeBoardClass : (filterClass === 'All' ? undefined : filterClass),
         stream: filterStream === 'All' ? undefined : filterStream,
         gender: filterGender === 'All' ? undefined : filterGender,
@@ -589,7 +607,7 @@ function AppContent() {
     } finally {
       setIsTableLoading(false);
     }
-  }, [dbConnectionError, viewMode, pageSize, currentPage, searchQuery, filterClass, filterStream, filterGender, filterClearance, filterBoarding, filterPhoto, printNewOnly, filterAcademicYear, sortBy, activeBoardClass]);
+  }, [dbConnectionError, viewMode, pageSize, currentPage, searchQuery, filterLevel, filterClass, filterStream, filterGender, filterClearance, filterBoarding, filterPhoto, printNewOnly, filterAcademicYear, sortBy, activeBoardClass]);
 
   const handleExportScopeCsv = async () => {
     try {
@@ -695,7 +713,7 @@ function AppContent() {
       loadStudentsFromServer();
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [authSession, dbConnectionError, searchQuery, filterClass, filterStream, filterGender, filterClearance, filterBoarding, filterAcademicYear, filterPhoto, printNewOnly, sortBy, currentPage, pageSize, viewMode, activeBoardClass]);
+  }, [authSession, dbConnectionError, searchQuery, filterLevel, filterClass, filterStream, filterGender, filterClearance, filterBoarding, filterAcademicYear, filterPhoto, printNewOnly, sortBy, currentPage, pageSize, viewMode, activeBoardClass]);
 
   // Dev shortcut: directly render TeacherPortal when visiting /_dev_teacher
   if (typeof window !== 'undefined' && window.location && window.location.pathname === '/_dev_teacher') {
@@ -1114,6 +1132,35 @@ function AppContent() {
     return ['All', ...orderStreams(Array.from(streams))];
   }, [students]);
 
+  const classesWithStreams = useMemo(() => {
+    const mapping: Record<string, string[]> = {
+      'S.1': ['A', 'B', 'C'],
+      'S.2': ['A', 'B', 'C'],
+      'S.3': ['A', 'B', 'C'],
+      'S.4': ['A', 'B', 'C'],
+      'S.5': ['Sciences', 'Arts'],
+      'S.6': ['Sciences', 'Arts']
+    };
+
+    students.forEach((s) => {
+      const { className, streamName } = parseClassAndStream(s.gradeClass);
+      if (className && streamName) {
+        if (!mapping[className]) {
+          mapping[className] = [];
+        }
+        if (!mapping[className].includes(streamName)) {
+          mapping[className].push(streamName);
+        }
+      }
+    });
+
+    Object.keys(mapping).forEach((c) => {
+      mapping[c] = orderStreams(mapping[c]);
+    });
+
+    return mapping;
+  }, [students]);
+
   const uniqueYears = ['All', '2024', '2025', '2026', '2027', '2028'];
 
   // --- FILTERED AND SORTED STUDENTS (Optimized case-insensitive sorting) ---
@@ -1133,6 +1180,14 @@ function AppContent() {
       );
 
       const { className, streamName } = parseClassAndStream(s.gradeClass);
+
+      let matchesLevel = true;
+      if (filterLevel === 'Lower') {
+        matchesLevel = ['S.1', 'S.2', 'S.3', 'S.4'].includes(className);
+      } else if (filterLevel === 'Upper') {
+        matchesLevel = ['S.5', 'S.6'].includes(className);
+      }
+
       const matchesClass = filterClass === 'All' || className === filterClass;
       const matchesStream = filterStream === 'All' || streamName === filterStream;
       const matchesGender = filterGender === 'All' || s.gender === filterGender;
@@ -1154,6 +1209,7 @@ function AppContent() {
 
       return (
         matchesQuery &&
+        matchesLevel &&
         matchesClass &&
         matchesStream &&
         matchesGender &&
@@ -1191,6 +1247,7 @@ function AppContent() {
   }, [
     students,
     searchQuery,
+    filterLevel,
     filterClass,
     filterStream,
     filterGender,
@@ -1396,6 +1453,11 @@ function AppContent() {
       : (activeLevel === 'selective' ? selectiveSelectedIds.length : 0);
     return {
       ...dbStats,
+      clearedCount: dbStats.cleared || 0,
+      balanceCount: dbStats.pending || 0,
+      photoCount: dbStats.withPhoto || 0,
+      lowerSecondaryTotal: dbStats.lowerSecondaryTotal || 0,
+      upperSecondaryTotal: dbStats.upperSecondaryTotal || 0,
       selectCount
     };
   }, [dbStats, selectedIds, selectiveSelectedIds, activeLevel]);
@@ -3069,6 +3131,45 @@ function AppContent() {
     }
   };
 
+  // --- SESSION RENDER GATEWAYS ---
+  if (!authSession) {
+    return (
+      <LoginGateway
+        onLogin={(session) => {
+          // Remove any legacy route caches and prevent restoring last-used pages
+          clearLegacyClearanceRouteCache();
+          try {
+            localStorage.removeItem('lastRoute');
+            localStorage.removeItem('lastPath');
+            localStorage.removeItem('lastVisited');
+            sessionStorage.removeItem('lastRoute');
+            sessionStorage.removeItem('lastPath');
+            sessionStorage.removeItem('lastVisited');
+          } catch (e) {
+            // ignore storage errors
+          }
+
+          // Persist session and ensure UI state resets to the Term 2 Student Clearance landing page
+          setAuthSession(session);
+          try { localStorage.setItem('spss_session', JSON.stringify(session)); } catch (e) { /* ignore */ }
+
+          // Force the clearance workspace and master database section as the landing view
+          setActiveModule && setActiveModule('clearance');
+          setActiveLevel && setActiveLevel('master');
+          setAdminActiveTab && setAdminActiveTab('cards');
+          setHasSetInitialModule && setHasSetInitialModule(true);
+
+          // Always navigate to the Term 2 Student Clearance landing page via client-side path replacement
+          if (typeof window !== 'undefined' && window.history && window.history.replaceState) {
+            window.history.replaceState({}, '', '/student-clearance');
+          }
+        }}
+        schoolLogo={schoolLogo}
+        dbConnectionError={dbConnectionError}
+      />
+    );
+  }
+
   if (isInitializing) {
     return (
       <div className="min-h-screen bg-slate-950 flex flex-col items-center justify-center p-6 text-slate-100 font-sans antialiased select-none">
@@ -3511,44 +3612,7 @@ function AppContent() {
       );
     }
 
-    // --- SESSION RENDER GATEWAYS ---
-  if (!authSession) {
-    return (
-      <LoginGateway
-        onLogin={(session) => {
-          // Remove any legacy route caches and prevent restoring last-used pages
-          clearLegacyClearanceRouteCache();
-          try {
-            localStorage.removeItem('lastRoute');
-            localStorage.removeItem('lastPath');
-            localStorage.removeItem('lastVisited');
-            sessionStorage.removeItem('lastRoute');
-            sessionStorage.removeItem('lastPath');
-            sessionStorage.removeItem('lastVisited');
-          } catch (e) {
-            // ignore storage errors
-          }
 
-          // Persist session and ensure UI state resets to the Term 2 Student Clearance landing page
-          setAuthSession(session);
-          try { localStorage.setItem('spss_session', JSON.stringify(session)); } catch (e) { /* ignore */ }
-
-          // Force the clearance workspace and master database section as the landing view
-          setActiveModule && setActiveModule('clearance');
-          setActiveLevel && setActiveLevel('master');
-          setAdminActiveTab && setAdminActiveTab('cards');
-          setHasSetInitialModule && setHasSetInitialModule(true);
-
-          // Always navigate to the Term 2 Student Clearance landing page via client-side path replacement
-          if (typeof window !== 'undefined' && window.history && window.history.replaceState) {
-            window.history.replaceState({}, '', '/student-clearance');
-          }
-        }}
-        schoolLogo={schoolLogo}
-        dbConnectionError={dbConnectionError}
-      />
-    );
-  }
 
   if (authSession.role === 'student') {
     if (authSession.user.needsPasswordChange) {
@@ -3670,13 +3734,7 @@ function AppContent() {
           >
             <Plus className="w-4 h-4" /> Add Student
           </button>
-          <button
-            onClick={handleOpenDbSettings}
-            className="flex-1 sm:flex-initial flex items-center justify-center gap-1.5 px-4 py-2 bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 font-bold text-xs uppercase tracking-wider rounded-lg shadow-sm transition-all duration-150 cursor-pointer"
-            title="Database Connection Settings"
-          >
-            <Settings className="w-4 h-4" /> DB Settings
-          </button>
+
           <button
             onClick={() => setShowBulkImporter(!showBulkImporter)}
             className="flex-1 sm:flex-initial flex items-center justify-center gap-1.5 px-4 py-2 bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 font-bold text-xs uppercase tracking-wider rounded-lg shadow-sm transition-all duration-150 cursor-pointer"
@@ -3754,12 +3812,7 @@ function AppContent() {
           >
             <Plus className="w-4 h-4" /> Add Student
           </button>
-          <button
-            onClick={() => { handleOpenDbSettings(); setShowMobileMenu(false); }}
-            className="w-full flex items-center justify-center gap-1.5 px-4 py-2.5 bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 font-bold text-xs uppercase tracking-wider rounded-lg shadow-sm transition-all"
-          >
-            <Settings className="w-4 h-4" /> DB Settings
-          </button>
+
           <button
             onClick={() => { setShowBulkImporter(!showBulkImporter); setShowMobileMenu(false); }}
             className="w-full flex items-center justify-center gap-1.5 px-4 py-2.5 bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 font-bold text-xs uppercase tracking-wider rounded-lg shadow-sm transition-all"
@@ -3848,16 +3901,7 @@ function AppContent() {
           >
             <Settings className="w-4 h-4" /> Profile & Settings
           </button>
-          <button
-            onClick={() => setAdminActiveTab('database')}
-            className={`flex-1 sm:flex-initial px-5 py-2.5 rounded-lg text-xs font-black uppercase tracking-wider flex items-center justify-center gap-2 transition-all duration-200 cursor-pointer whitespace-nowrap ${
-              adminActiveTab === 'database'
-                ? 'bg-gradient-to-r from-indigo-600 to-violet-600 text-white shadow-lg shadow-indigo-950/50 scale-[1.02]'
-                : 'text-slate-400 hover:text-slate-200 hover:bg-slate-850/50'
-            }`}
-          >
-            <Database className="w-4 h-4" /> Database Settings
-          </button>
+
           <button
             onClick={() => setAdminActiveTab('assistant')}
             className={`flex-1 sm:flex-initial px-5 py-2.5 rounded-lg text-xs font-black uppercase tracking-wider flex items-center justify-center gap-2 transition-all duration-200 cursor-pointer whitespace-nowrap ${
@@ -3963,7 +4007,7 @@ function AppContent() {
       </div>
 
       {/* METRICS BENTO GRID */}
-      <section className="no-print grid grid-cols-2 lg:grid-cols-5 gap-4 p-4 md:p-6 bg-slate-950 border-b border-slate-900 shrink-0 select-none">
+      <section className="no-print grid grid-cols-2 lg:grid-cols-7 gap-4 p-4 md:p-6 bg-slate-950 border-b border-slate-900 shrink-0 select-none">
         <div className="rounded-xl bg-slate-900 p-4 border border-slate-800/80 hover:border-slate-800 transition-all duration-150 shadow-sm">
           <div className="flex justify-between items-center text-slate-400 text-xs font-bold uppercase tracking-wider font-mono">
             <span>Roster Total</span>
@@ -3971,6 +4015,24 @@ function AppContent() {
           </div>
           <div className="text-2xl font-black mt-2 text-slate-100">{stats.total}</div>
           <p className="text-[10px] text-slate-500 mt-1 font-mono">Term 2 2026 Students Registered</p>
+        </div>
+
+        <div className="rounded-xl bg-slate-900 p-4 border border-slate-800/80 hover:border-slate-800 transition-all duration-150 shadow-sm">
+          <div className="flex justify-between items-center text-slate-400 text-xs font-bold uppercase tracking-wider font-mono">
+            <span>Lower Secondary</span>
+            <Users className="w-4 h-4 text-indigo-400" />
+          </div>
+          <div className="text-2xl font-black mt-2 text-slate-100">{stats.lowerSecondaryTotal}</div>
+          <p className="text-[10px] text-slate-500 mt-1 font-mono">S.1 – S.4 Students (U.C.E)</p>
+        </div>
+
+        <div className="rounded-xl bg-slate-900 p-4 border border-slate-800/80 hover:border-slate-800 transition-all duration-150 shadow-sm">
+          <div className="flex justify-between items-center text-slate-400 text-xs font-bold uppercase tracking-wider font-mono">
+            <span>Upper Secondary</span>
+            <Users className="w-4 h-4 text-violet-400" />
+          </div>
+          <div className="text-2xl font-black mt-2 text-slate-100">{stats.upperSecondaryTotal}</div>
+          <p className="text-[10px] text-slate-500 mt-1 font-mono">S.5 – S.6 Students (U.A.C.E)</p>
         </div>
 
         <div className="rounded-xl bg-slate-900 p-4 border border-slate-800/80 hover:border-slate-800 transition-all duration-150 shadow-sm">
@@ -4036,6 +4098,236 @@ function AppContent() {
         </main>
       ) : (
         <main className="no-print flex-1 flex flex-col lg:flex-row overflow-hidden md:h-0">
+          
+          {/* COLLAPSIBLE DIVISION SIDEBAR MENU */}
+          <aside className="w-64 bg-slate-950 border-r border-slate-850 p-4 flex flex-col gap-4 overflow-y-auto no-print shrink-0">
+            <div className="flex flex-col gap-2">
+              <span className="text-[10px] font-black uppercase text-indigo-400 tracking-wider">Education Levels</span>
+              
+              <button
+                onClick={() => {
+                  setFilterLevel('All');
+                  setFilterClass('All');
+                  setFilterStream('All');
+                }}
+                className={`w-full text-left px-3 py-2.5 rounded-lg text-xs font-black transition flex items-center justify-between border ${
+                  filterLevel === 'All' && filterClass === 'All'
+                    ? 'bg-gradient-to-r from-indigo-600 to-violet-600 border-indigo-500 text-white shadow-md'
+                    : 'bg-slate-900/50 border-slate-800 text-slate-350 hover:text-slate-100 hover:bg-slate-900'
+                }`}
+              >
+                <span>🏫 All Students</span>
+              </button>
+            </div>
+
+            <div className="flex flex-col gap-3">
+              {/* 1. LOWER SECONDARY SECTION */}
+              <div className="space-y-1">
+                <div className="flex items-center justify-between bg-slate-900/30 border border-slate-850/50 rounded-lg pr-1">
+                  <button
+                    onClick={() => {
+                      setFilterLevel('Lower');
+                      setFilterClass('All');
+                      setFilterStream('All');
+                    }}
+                    className={`flex-1 text-left px-3 py-2 rounded-l-lg text-xs font-bold transition flex items-center gap-1.5 ${
+                      filterLevel === 'Lower' && filterClass === 'All'
+                        ? 'text-indigo-400 font-extrabold'
+                        : 'text-slate-300 hover:text-slate-100'
+                    }`}
+                  >
+                    <span className="text-sm select-none">📁</span>
+                    <span className="truncate">Lower Secondary (U.C.E)</span>
+                  </button>
+                  <button
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      setLowerExpanded(!lowerExpanded);
+                    }}
+                    className="p-1 hover:bg-slate-800 rounded text-slate-500 hover:text-slate-300 cursor-pointer transition-colors"
+                  >
+                    <span className="text-[9px] font-bold block transition-transform duration-200" style={{ transform: lowerExpanded ? 'rotate(90deg)' : 'rotate(0deg)' }}>
+                      ▶
+                    </span>
+                  </button>
+                </div>
+
+                {lowerExpanded && (
+                  <div className="pl-4 space-y-1.5 mt-1 border-l border-slate-850 ml-5">
+                    {['S.1', 'S.2', 'S.3', 'S.4'].map((clsName) => {
+                      const isClsActive = filterClass === clsName;
+                      const isClsExpanded = expandedClasses[clsName];
+                      const streams = classesWithStreams[clsName] || [];
+
+                      return (
+                        <div key={clsName} className="space-y-1">
+                          <div className="flex items-center justify-between">
+                            <button
+                              onClick={() => {
+                                setFilterLevel('All');
+                                setFilterClass(clsName);
+                                setFilterStream('All');
+                              }}
+                              className={`flex-1 text-left px-2 py-1 rounded transition text-xs flex items-center gap-1.5 ${
+                                isClsActive && filterStream === 'All'
+                                  ? 'bg-indigo-600/20 text-indigo-400 font-bold border border-indigo-500/10'
+                                  : 'hover:bg-slate-900/40 text-slate-400 hover:text-slate-200'
+                              }`}
+                            >
+                              <span>├──</span>
+                              <span>{clsName}</span>
+                            </button>
+                            {streams.length > 0 && (
+                              <button
+                                onClick={() => {
+                                  setExpandedClasses((prev) => ({
+                                    ...prev,
+                                    [clsName]: !prev[clsName],
+                                  }));
+                                }}
+                                className="px-1 text-slate-650 hover:text-slate-400 text-[10px] cursor-pointer"
+                              >
+                                {isClsExpanded ? '▼' : '►'}
+                              </button>
+                            )}
+                          </div>
+
+                          {isClsExpanded && streams.length > 0 && (
+                            <div className="pl-6 space-y-1 border-l border-slate-850/60 ml-2">
+                              {streams.map((stream) => {
+                                const isStreamActive = isClsActive && filterStream === stream;
+                                return (
+                                  <button
+                                    key={stream}
+                                    onClick={() => {
+                                      setFilterLevel('All');
+                                      setFilterClass(clsName);
+                                      setFilterStream(stream);
+                                    }}
+                                    className={`w-full text-left px-2 py-0.5 rounded text-[10px] flex items-center gap-1.5 transition ${
+                                      isStreamActive
+                                        ? 'text-indigo-400 font-extrabold bg-indigo-950/20'
+                                        : 'text-slate-500 hover:text-slate-350'
+                                    }`}
+                                  >
+                                    <span>↳</span>
+                                    <span>{stream}</span>
+                                  </button>
+                                );
+                              })}
+                            </div>
+                          )}
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
+              </div>
+
+              {/* 2. UPPER SECONDARY SECTION */}
+              <div className="space-y-1">
+                <div className="flex items-center justify-between bg-slate-900/30 border border-slate-850/50 rounded-lg pr-1">
+                  <button
+                    onClick={() => {
+                      setFilterLevel('Upper');
+                      setFilterClass('All');
+                      setFilterStream('All');
+                    }}
+                    className={`flex-1 text-left px-3 py-2 rounded-l-lg text-xs font-bold transition flex items-center gap-1.5 ${
+                      filterLevel === 'Upper' && filterClass === 'All'
+                        ? 'text-indigo-400 font-extrabold'
+                        : 'text-slate-300 hover:text-slate-100'
+                    }`}
+                  >
+                    <span className="text-sm select-none">📁</span>
+                    <span className="truncate">Upper Secondary (A'Level)</span>
+                  </button>
+                  <button
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      setUpperExpanded(!upperExpanded);
+                    }}
+                    className="p-1 hover:bg-slate-800 rounded text-slate-500 hover:text-slate-300 cursor-pointer transition-colors"
+                  >
+                    <span className="text-[9px] font-bold block transition-transform duration-200" style={{ transform: upperExpanded ? 'rotate(90deg)' : 'rotate(0deg)' }}>
+                      ▶
+                    </span>
+                  </button>
+                </div>
+
+                {upperExpanded && (
+                  <div className="pl-4 space-y-1.5 mt-1 border-l border-slate-850 ml-5">
+                    {['S.5', 'S.6'].map((clsName) => {
+                      const isClsActive = filterClass === clsName;
+                      const isClsExpanded = expandedClasses[clsName];
+                      const streams = classesWithStreams[clsName] || [];
+
+                      return (
+                        <div key={clsName} className="space-y-1">
+                          <div className="flex items-center justify-between">
+                            <button
+                              onClick={() => {
+                                setFilterLevel('All');
+                                setFilterClass(clsName);
+                                setFilterStream('All');
+                              }}
+                              className={`flex-1 text-left px-2 py-1 rounded transition text-xs flex items-center gap-1.5 ${
+                                isClsActive && filterStream === 'All'
+                                  ? 'bg-indigo-600/20 text-indigo-400 font-bold border border-indigo-500/10'
+                                  : 'hover:bg-slate-900/40 text-slate-400 hover:text-slate-200'
+                              }`}
+                            >
+                              <span>├──</span>
+                              <span>{clsName}</span>
+                            </button>
+                            {streams.length > 0 && (
+                              <button
+                                onClick={() => {
+                                  setExpandedClasses((prev) => ({
+                                    ...prev,
+                                    [clsName]: !prev[clsName],
+                                  }));
+                                }}
+                                className="px-1 text-slate-650 hover:text-slate-400 text-[10px] cursor-pointer"
+                              >
+                                {isClsExpanded ? '▼' : '►'}
+                              </button>
+                            )}
+                          </div>
+
+                          {isClsExpanded && streams.length > 0 && (
+                            <div className="pl-6 space-y-1 border-l border-slate-850/60 ml-2">
+                              {streams.map((stream) => {
+                                const isStreamActive = isClsActive && filterStream === stream;
+                                return (
+                                  <button
+                                    key={stream}
+                                    onClick={() => {
+                                      setFilterLevel('All');
+                                      setFilterClass(clsName);
+                                      setFilterStream(stream);
+                                    }}
+                                    className={`w-full text-left px-2 py-0.5 rounded text-[10px] flex items-center gap-1.5 transition ${
+                                      isStreamActive
+                                        ? 'text-indigo-400 font-extrabold bg-indigo-950/20'
+                                        : 'text-slate-500 hover:text-slate-355'
+                                    }`}
+                                  >
+                                    <span>↳</span>
+                                    <span>{stream}</span>
+                                  </button>
+                                );
+                              })}
+                            </div>
+                          )}
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
+              </div>
+            </div>
+          </aside>
         
         {/* LEFT WORKSPACE PANEL: STUDENT TABLE & MANAGEMENT */}
         <section className="flex-1 flex flex-col overflow-y-auto p-4 md:p-6 border-r border-slate-800 gap-4">
@@ -6086,20 +6378,7 @@ function AppContent() {
         </div>
       )}
 
-      {adminActiveTab === 'database' && (
-        <div className="p-4 md:p-6 bg-slate-900 min-h-screen">
-          <Suspense fallback={<Loading message="Loading Database Settings..." />}>
-            <DatabaseSettingsView
-              onClose={() => setAdminActiveTab('cards')}
-              onConfigSaved={() => {
-                setTimeout(() => {
-                  window.location.reload();
-                }, 2000);
-              }}
-            />
-          </Suspense>
-        </div>
-      )}
+
 
       {adminActiveTab === 'controls' && (
         <div className="p-4 md:p-6 bg-slate-900 min-h-screen">
@@ -6247,37 +6526,6 @@ function AppContent() {
           }}
           onClose={() => setShowManualBgEditor(false)}
         />
-      )}
-
-      {showDbSettingsModal && (
-        <div className="no-print fixed inset-0 z-50 bg-slate-950/80 backdrop-blur-sm flex items-center justify-center p-4 overflow-y-auto">
-          <div className="bg-slate-900 border border-slate-800 rounded-xl w-full max-w-5xl p-6 shadow-2xl my-8">
-            <div className="flex justify-between items-center border-b border-slate-800 pb-4 mb-6">
-              <h3 className="text-sm font-black uppercase tracking-wider text-slate-200 flex items-center gap-2">
-                <Database className="w-5 h-5 text-cyan-400" />
-                <span>Database Configuration Settings</span>
-              </h3>
-              <button
-                onClick={() => setShowDbSettingsModal(false)}
-                className="text-slate-550 hover:text-slate-350 transition-colors cursor-pointer"
-              >
-                <XCircle className="w-5 h-5 text-slate-550 hover:text-slate-400" />
-              </button>
-            </div>
-
-            <div className="overflow-y-auto max-h-[70vh]">
-              <DatabaseSettingsView
-                onClose={() => setShowDbSettingsModal(false)}
-                onConfigSaved={() => {
-                  // Reload the page after configuration is saved
-                  setTimeout(() => {
-                    window.location.reload();
-                  }, 2000);
-                }}
-              />
-            </div>
-          </div>
-        </div>
       )}
 
       {isProcessingPhotosZip && (
