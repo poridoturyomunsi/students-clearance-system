@@ -1,7 +1,7 @@
 import React, { useEffect, useState, useRef } from 'react';
 import { Plus, Edit2, Trash2, Search, Save, X, AlertCircle, CheckCircle2, Upload, Download, FileSpreadsheet, Lock, Camera } from 'lucide-react';
 import { Teacher } from '../../types.ts';
-import { fetchTeachers, createTeacher, updateTeacher, deleteTeacher, fetchClassTeachers, saveClassTeacher, fetchSettings, importTeachers } from '../../utils/api.ts';
+import { fetchTeachers, createTeacher, updateTeacher, deleteTeacher, fetchClassTeachers, saveClassTeacher, fetchSettings, importTeachers, fetchTeacherSignature } from '../../utils/api.ts';
 import { SCHOOL_CLASSES } from '../../data.ts';
 import * as XLSX from 'xlsx';
 import { compressStudentPhoto, compressSignatureImage } from '../../utils/imageProcessor.ts';
@@ -700,7 +700,7 @@ export default function TeachersModule() {
                         {!isHeadteacher(teacher.position) && teacher.classes && teacher.classes.length > 0 && (
                           <p className="text-[11px] text-violet-400 font-medium">Classes: {teacher.classes.join(', ')}</p>
                         )}
-                        {teacher.signature && (
+                        {(teacher.hasSignature || teacher.signature) && (
                           <div className="inline-flex items-center gap-1 text-[9px] font-bold text-emerald-400 bg-emerald-950/20 border border-emerald-900/20 px-1.5 py-0.5 rounded mt-1.5 w-max">
                             ✍️ Signature Uploaded
                           </div>
@@ -709,7 +709,7 @@ export default function TeachersModule() {
                     </div>
                     <div className="flex gap-2 justify-end self-end sm:self-center">
                       <button
-                        onClick={() => {
+                        onClick={async () => {
                           setEditingTeacher(teacher);
                           setFormData({
                             username: teacher.username,
@@ -724,6 +724,18 @@ export default function TeachersModule() {
                             status: teacher.status || 'Active'
                           });
                           setShowForm(true);
+
+                          if (teacher.hasSignature && !teacher.signature) {
+                            try {
+                              const res = await fetchTeacherSignature(teacher.id);
+                              if (res && res.signature) {
+                                setFormData(prev => ({ ...prev, signature: res.signature }));
+                                setTeachers(prevTeachers => prevTeachers.map(t => t.id === teacher.id ? { ...t, signature: res.signature } : t));
+                              }
+                            } catch (e) {
+                              console.warn("Failed to load teacher signature lazily:", e);
+                            }
+                          }
                         }}
                         className="p-2 hover:bg-slate-800 rounded transition flex items-center justify-center border border-slate-800 hover:border-slate-700 bg-slate-900/50"
                         title="Edit teacher details"

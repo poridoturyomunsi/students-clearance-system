@@ -38,7 +38,7 @@ export function getApiBaseUrl() {
 }
 
 import { fetchWithPerf } from './fetchWithPerf';
-import { getCached, setCached } from './api_cache';
+import { getCached, setCached, simpleApiCache } from './api_cache';
 
 async function apiCall(path: string, options: RequestInit = {}) {
   const url = `${apiBaseUrl}${path}`;
@@ -50,9 +50,26 @@ async function apiCall(path: string, options: RequestInit = {}) {
     defaultHeaders['Authorization'] = `Bearer ${token}`;
   }
 
-  // Simple in-memory cache for small GET endpoints
   const method = (options && (options.method || 'GET')).toUpperCase();
-  const cacheablePaths = ['/api/classes', '/api/streams', '/api/stats', '/api/branding'];
+
+  // Clear cache on mutations to avoid stale data
+  if (method !== 'GET') {
+    try {
+      simpleApiCache.clear();
+    } catch (e) {}
+  }
+
+  // Simple in-memory cache for small GET endpoints
+  const cacheablePaths = [
+    '/api/classes',
+    '/api/streams',
+    '/api/stats',
+    '/api/branding',
+    '/api/teachers',
+    '/api/subjects',
+    '/api/class-teachers',
+    '/api/settings'
+  ];
   if (method === 'GET' && cacheablePaths.some(p => path.startsWith(p))) {
     const cached = getCached(url);
     if (cached) return cached;
@@ -222,7 +239,7 @@ export async function fetchSchoolLogoFromDb(): Promise<{ logo: string | null }> 
   return await apiCall('/api/branding');
 }
 
-export async function saveSchoolLogoInDb(logoBase64: string | null): Promise<{ success: boolean }> {
+export async function saveSchoolLogoInDb(logoBase64: string | null): Promise<{ success: boolean; logo?: string }> {
   return await apiCall('/api/branding', {
     method: 'POST',
     body: JSON.stringify({ logo: logoBase64 }),
@@ -423,6 +440,10 @@ export async function saveSettings(payload: any): Promise<any> {
 
 export async function fetchTeachers(): Promise<any[]> {
   return await apiCall('/api/teachers');
+}
+
+export async function fetchTeacherSignature(id: string): Promise<any> {
+  return await apiCall(`/api/teachers/${id}/signature`);
 }
 
 export async function createTeacher(payload: any): Promise<any> {

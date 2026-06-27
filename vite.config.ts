@@ -6,12 +6,18 @@ import fs from 'fs';
 
 export default defineConfig(() => {
   return {
-    base: './',
+    base: process.env.VERCEL ? '/' : './',
     plugins: [react(), tailwindcss()],
     resolve: {
       alias: {
         '@': path.resolve(__dirname, '.'),
+        'react': path.resolve(__dirname, 'node_modules/react'),
+        'react-dom': path.resolve(__dirname, 'node_modules/react-dom'),
+        'react/jsx-runtime': path.resolve(__dirname, 'node_modules/react/jsx-runtime'),
       },
+    },
+    optimizeDeps: {
+      include: ['react', 'react-dom'],
     },
     build: {
       outDir: 'build',

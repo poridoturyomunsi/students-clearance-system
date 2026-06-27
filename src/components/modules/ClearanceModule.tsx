@@ -454,7 +454,7 @@ export default function ClearanceModule() {
   return (
     <div className="p-4">
       <header className="mb-4">
-        <h1 className="text-2xl font-black uppercase">TERM 2 STUDENT CLEARANCE</h1>
+        <h1 className="text-2xl font-black uppercase">THE MIGHTY SYSTEM</h1>
         <div className="text-indigo-400 font-black text-sm mt-1">CLEARANCE CARDS WORKSPACE</div>
       </header>
 

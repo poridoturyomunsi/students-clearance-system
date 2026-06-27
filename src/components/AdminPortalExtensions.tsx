@@ -239,7 +239,7 @@ export default function AdminPortalExtensions({ schoolLogo, onLogoRefresh, authS
         }
       }
     } catch (err: any) {
-      alert('Compilation failed (Ensure all worksheets are approved first): ' + err.message);
+      alert('Compilation failed: ' + err.message);
     } finally {
       setPrintingSelected(false);
       setPrintProgress(null);
@@ -715,7 +715,7 @@ export default function AdminPortalExtensions({ schoolLogo, onLogoRefresh, authS
         }
       }
     } catch (err: any) {
-      alert('Compilation failed (Approved marks required for all subjects): ' + err.message);
+      alert('Compilation failed: ' + err.message);
     } finally {
       setCompilingReports(false);
       setReportProgress(null);

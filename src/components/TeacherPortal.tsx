@@ -941,7 +941,7 @@ export default function TeacherPortal({
     return true;
   };
 
-  const handleSave = async (targetStatus: 'Draft' | 'Approved' = 'Draft') => {
+  const handleSave = async (targetStatus: 'Draft' | 'Approved' = 'Approved') => {
     if ((!selectedSubjects || selectedSubjects.length === 0) || !selectedClassVal || !selectedStreamVal) {
       setError('Please select a subject, class, and stream first.');
       return;
@@ -963,7 +963,10 @@ export default function TeacherPortal({
         setSaving(false);
         return;
       }
-      const marksList = Object.values(marksMap);
+      
+      // Save all marks directly with Approved status
+      const marksList = Object.values(marksMap).map((m: any) => ({ ...m, status: 'Approved' }));
+      
       await saveTeacherMarks({
         gradeClass: combinedClass,
         subject: activeSubject,
@@ -972,12 +975,132 @@ export default function TeacherPortal({
         teacherId,
         marksList,
         paper: selectedPaper,
-        status: targetStatus
+        status: 'Approved'
       });
-      setSuccessMessage(targetStatus === 'Approved' ? 'Marks submitted and locked successfully.' : 'Draft marks saved successfully.');
-      loadData();
+      
+      // Update local marksMap state to Approved
+      const updatedMarksMap = { ...marksMap };
+      Object.keys(updatedMarksMap).forEach(key => {
+        updatedMarksMap[key] = { ...updatedMarksMap[key], status: 'Approved' };
+      });
+      setMarksMap(updatedMarksMap);
+
+      setSuccessMessage('All marks saved successfully.');
+      setTimeout(() => setSuccessMessage(null), 4000);
     } catch (err: any) {
-      setError(err.message || 'Failed to save drafts.');
+      setError(err.message || 'Failed to save marks.');
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const validateMarksForStudent = (studentId: string): boolean => {
+    const record = marksMap[studentId];
+    if (!record) return true;
+    const student = students.find(s => s.id === studentId);
+    const studentName = student ? student.name : 'Student';
+
+    if (isUACE) {
+      const checkRange = (val: any, label: string) => {
+        if (val !== undefined && val !== null && val !== '') {
+          const num = parseFloat(val);
+          if (isNaN(num) || num < 0 || num > 100) {
+            return `${label} must be between 0 and 100.`;
+          }
+        }
+        return null;
+      };
+      let err = checkRange(record.bot, 'BOT');
+      if (err) { setError(`${err} (Student: "${studentName}")`); return false; }
+      err = checkRange(record.mot, 'MOT');
+      if (err) { setError(`${err} (Student: "${studentName}")`); return false; }
+      err = checkRange(record.eot, 'EOT');
+      if (err) { setError(`${err} (Student: "${studentName}")`); return false; }
+    } else {
+      const maxAI = 3;
+      const maxExam = 100;
+      const checkRange = (val: any, label: string, maxVal: number) => {
+        if (val !== undefined && val !== null && val !== '') {
+          const num = parseFloat(val);
+          if (isNaN(num) || num < 0 || num > maxVal) {
+            return `${label} must be between 0 and ${maxVal}.`;
+          }
+        }
+        return null;
+      };
+
+      let err = checkRange(record.integration1, 'AI1', maxAI);
+      if (err) { setError(`${err} (Student: "${studentName}")`); return false; }
+      err = checkRange(record.integration2, 'AI2', maxAI);
+      if (err) { setError(`${err} (Student: "${studentName}")`); return false; }
+      err = checkRange(record.integration3, 'AI3', maxAI);
+      if (err) { setError(`${err} (Student: "${studentName}")`); return false; }
+
+      if (record.exam_score !== undefined && record.exam_score !== null && record.exam_score !== '') {
+        const exam = parseFloat(record.exam_score);
+        if (isNaN(exam) || exam < 0 || exam > maxExam) {
+          setError(`Exam score must be between 0 and ${maxExam} (Student: "${studentName}")`);
+          return false;
+        }
+      }
+    }
+    return true;
+  };
+
+  const handleSaveSingleStudent = async (studentId: string) => {
+    if ((!selectedSubjects || selectedSubjects.length === 0) || !selectedClassVal || !selectedStreamVal) {
+      setError('Please select a subject, class, and stream first.');
+      return;
+    }
+
+    if (!validateMarksForStudent(studentId)) return;
+    if (fieldErrors[studentId] && Object.keys(fieldErrors[studentId]).length > 0) {
+      setError('Please fix validation errors for this student before saving.');
+      return;
+    }
+
+    setSaving(true);
+    setError(null);
+    setSuccessMessage(null);
+    const combinedClass = `${selectedClassVal} ${selectedStreamVal}`;
+    try {
+      if (!activeSubject) {
+        setError('Please select an active subject to save marks for.');
+        setSaving(false);
+        return;
+      }
+      
+      const record = marksMap[studentId];
+      if (!record) {
+        setError('No marks record found for this student.');
+        setSaving(false);
+        return;
+      }
+
+      const updatedRecord = { ...record, status: 'Approved' };
+
+      await saveTeacherMarks({
+        gradeClass: combinedClass,
+        subject: activeSubject,
+        term,
+        year,
+        teacherId,
+        marksList: [updatedRecord],
+        paper: selectedPaper,
+        status: 'Approved'
+      });
+
+      setMarksMap(prev => ({
+        ...prev,
+        [studentId]: updatedRecord
+      }));
+
+      const student = students.find(s => s.id === studentId);
+      const studentName = student ? student.name.toUpperCase() : 'Student';
+      setSuccessMessage(`Marks for ${studentName} saved successfully.`);
+      setTimeout(() => setSuccessMessage(null), 4000);
+    } catch (err: any) {
+      setError(err.message || 'Failed to save student marks.');
     } finally {
       setSaving(false);
     }
@@ -1484,11 +1607,11 @@ export default function TeacherPortal({
             ) : (
               <div className="flex-1 flex flex-col">
                 <div className="overflow-x-auto">
-                  <table className="w-full min-w-[800px] text-left text-xs border-collapse">
+                  <table className="w-full min-w-[1300px] text-left text-xs border-collapse">
                     <thead>
                       <tr className="bg-slate-900/50 border-b border-slate-850 text-slate-400 uppercase font-black tracking-wider text-[10px]">
                         <th className="p-4 w-16 text-center">No</th>
-                        <th className="p-4">Student Details</th>
+                        <th className="p-4 w-80 min-w-[280px]">Student Details</th>
                         {isUACE ? (
                           <>
                             <th className="p-4 w-44 text-center">Paper Type</th>
@@ -1512,28 +1635,13 @@ export default function TeacherPortal({
                           </>
                         )}
                         <th className="p-4 w-32 text-center">Status</th>
+                        <th className="p-4 w-28 text-center">Action</th>
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-slate-850">
                       {Array.isArray(students) && students.map((student, idx) => {
                         const record = marksMap[student.id] || {};
-                        let isLocked = record.status === 'Submitted' || record.status === 'Approved';
-                        if (isLocked) {
-                          if (isUACE) {
-                            const hasEmptyMark = record.score === undefined || record.score === null || record.score === '';
-                            if (hasEmptyMark) {
-                              isLocked = false;
-                            }
-                          } else {
-                            const hasEmptyMark = (record.integration1 === undefined || record.integration1 === null || record.integration1 === '') ||
-                                                 (record.integration2 === undefined || record.integration2 === null || record.integration2 === '') ||
-                                                 (record.integration3 === undefined || record.integration3 === null || record.integration3 === '') ||
-                                                 (record.exam_score === undefined || record.exam_score === null || record.exam_score === '');
-                            if (hasEmptyMark) {
-                              isLocked = false;
-                            }
-                          }
-                        }
+                        let isLocked = false; // Locks disabled. Teachers can edit marks at any time.
 
                         // Calculate metrics for display if O-Level
                         let ca = 0;
@@ -1577,8 +1685,8 @@ export default function TeacherPortal({
                         return (
                           <tr key={student.id} className="hover:bg-slate-900/30 transition-colors font-medium text-slate-200">
                             <td className="p-4 text-center font-mono text-slate-500">{idx + 1}</td>
-                            <td className="p-4">
-                              <div className="font-bold text-slate-200">{student.name.toUpperCase()}</div>
+                            <td className="p-4 w-80 min-w-[280px] break-normal">
+                              <div className="font-bold text-slate-200 whitespace-nowrap">{student.name.toUpperCase()}</div>
                               <div className="text-[10px] text-slate-500 font-mono mt-0.5">{student.adminNo}</div>
                             </td>
 
@@ -1752,32 +1860,33 @@ export default function TeacherPortal({
                                 {record.status || 'Draft'}
                               </span>
                             </td>
+                            <td className="p-4 text-center">
+                              <button
+                                onClick={() => handleSaveSingleStudent(student.id)}
+                                disabled={saving}
+                                className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-indigo-650 hover:bg-indigo-600 disabled:opacity-50 text-white font-bold text-[10px] uppercase tracking-wider rounded-lg transition shadow-sm cursor-pointer"
+                                title="Save marks for this student"
+                              >
+                                <Save className="w-3.5 h-3.5" /> Save
+                              </button>
+                            </td>
                           </tr>
                         );
                       })}
                     </tbody>
                   </table>
                 </div>
-
-                {/* Bulk Actions Banner */}
                 <div className="px-5 py-4 border-t border-slate-850 bg-slate-950 flex justify-between items-center gap-3">
                   <div className="text-[10px] text-slate-500 font-bold uppercase tracking-wider">
                     Total: {students.length} Students listed
                   </div>
                   <div className="flex gap-3">
                     <button
-                      onClick={() => handleSave('Draft')}
-                      disabled={saving || Object.keys(fieldErrors).length > 0}
-                      className="px-4 py-2.5 bg-slate-800 hover:bg-slate-700 disabled:opacity-50 text-slate-350 border border-slate-700 font-bold uppercase text-[10px] tracking-wider rounded-xl transition-all cursor-pointer flex items-center gap-1.5 shadow"
-                    >
-                      <Save className="w-4 h-4 text-slate-400" /> Save as Draft
-                    </button>
-                    <button
                       onClick={() => handleSave('Approved')}
                       disabled={saving || Object.keys(fieldErrors).length > 0}
-                      className="px-4 py-2.5 bg-emerald-650 hover:bg-emerald-600 disabled:opacity-50 text-white font-bold uppercase text-[10px] tracking-wider rounded-xl transition-all cursor-pointer flex items-center gap-1.5 shadow"
+                      className="px-4 py-2.5 bg-indigo-650 hover:bg-indigo-600 disabled:opacity-50 text-white font-bold uppercase text-[10px] tracking-wider rounded-xl transition-all cursor-pointer flex items-center gap-1.5 shadow"
                     >
-                      <Check className="w-4 h-4 text-white" /> Submit &amp; Lock
+                      <Save className="w-4 h-4 text-white" /> Save All Marks
                     </button>
                   </div>
                 </div>

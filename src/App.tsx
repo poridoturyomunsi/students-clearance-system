@@ -277,7 +277,7 @@ function AppContent() {
   const [viewMode, setViewMode] = useState<'list' | 'board'>('list');
   const [activeBoardClass, setActiveBoardClass] = useState<string>('S.4');
   const [currentPage, setCurrentPage] = useState<number>(1);
-  const [pageSize, setPageSize] = useState<number>(50);
+  const [pageSize, setPageSize] = useState<number>(20);
 
   // Background Tasks Queue States
   interface BackgroundTask {
@@ -479,53 +479,63 @@ function AppContent() {
           }
         }
 
-        // 2. Load school logo branding from database
-        try {
-          const brandingRes = await fetchSchoolLogoFromDb();
-          if (mounted) {
-            if (brandingRes && brandingRes.logo) {
-              setSchoolLogo(brandingRes.logo);
-              localStorage.setItem('clearance_printer_school_logo', brandingRes.logo);
-              console.log("[App Init] Successfully loaded branding school logo.");
-            } else {
-              setSchoolLogo(DEFAULT_SCHOOL_LOGO);
-              localStorage.removeItem('clearance_printer_school_logo');
-              localStorage.removeItem('clearance_printer_school_logo_cleaned_v2');
-            }
-          }
-        } catch (logoErr) {
-          console.warn("[App Init] Failed to load branding school logo:", logoErr);
-        }
+        // 2. Fetch school logo branding, database status, and stats (if authenticated) in parallel
+        const promises: Promise<any>[] = [
+          fetchSchoolLogoFromDb().catch(logoErr => {
+            console.warn("[App Init] Failed to load branding school logo:", logoErr);
+            return null;
+          }),
+          fetchDatabaseStatus().catch(statusErr => {
+            console.warn("[App Init] Failed to load database status:", statusErr);
+            return null;
+          })
+        ];
 
-        // 3. Fetch database connection status
-        const statusRes = await fetchDatabaseStatus();
-        if (mounted && statusRes) {
-          setDbConfig(statusRes.config);
-          setDbFormConfig({
-            mode: statusRes.connectionMode || 'network',
-            db: statusRes.config || { host: '', port: 3306, database: '', user: '', password: '' },
-            serverUrl: statusRes.config ? `http://${statusRes.config.host}:${statusRes.config.port}` : ''
-          });
-
-          const isDegradedMode = !!statusRes.degraded;
-          if (isDegradedMode) {
-            console.warn('[App Init] Database is unavailable; continuing in degraded local mode.');
-            setDbConnectionError(false);
-          } else {
-            setDbConnectionError(!statusRes.connected);
-          }
-        }
-
-        // 4. Fetch lightweight early dashboard statistics if authenticated
         if (authSession) {
-          try {
-            const statsRes = await fetchStatsFromDb();
-            if (mounted) {
-              setDbStats(statsRes || {});
+          promises.push(
+            fetchStatsFromDb().catch(statsErr => {
+              console.warn("[App Init] Failed to load dashboard statistics:", statsErr);
+              return null;
+            })
+          );
+        }
+
+        const [brandingRes, statusRes, statsRes] = await Promise.all(promises);
+
+        if (mounted) {
+          // Process branding logo
+          if (brandingRes && brandingRes.logo) {
+            setSchoolLogo(brandingRes.logo);
+            localStorage.setItem('clearance_printer_school_logo', brandingRes.logo);
+            console.log("[App Init] Successfully loaded branding school logo.");
+          } else if (brandingRes) {
+            setSchoolLogo(DEFAULT_SCHOOL_LOGO);
+            localStorage.removeItem('clearance_printer_school_logo');
+            localStorage.removeItem('clearance_printer_school_logo_cleaned_v2');
+          }
+
+          // Process database connection status
+          if (statusRes) {
+            setDbConfig(statusRes.config);
+            setDbFormConfig({
+              mode: statusRes.connectionMode || 'network',
+              db: statusRes.config || { host: '', port: 3306, database: '', user: '', password: '' },
+              serverUrl: statusRes.config ? `http://${statusRes.config.host}:${statusRes.config.port}` : ''
+            });
+
+            const isDegradedMode = !!statusRes.degraded;
+            if (isDegradedMode) {
+              console.warn('[App Init] Database is unavailable; continuing in degraded local mode.');
               setDbConnectionError(false);
+            } else {
+              setDbConnectionError(!statusRes.connected);
             }
-          } catch (statsErr) {
-            console.warn("[App Init] Failed to load dashboard statistics:", statsErr);
+          }
+
+          // Process dashboard statistics
+          if (authSession && statsRes) {
+            setDbStats(statsRes);
+            setDbConnectionError(false);
           }
         }
       } catch (err: any) {
@@ -3171,20 +3181,17 @@ function AppContent() {
   }
 
   if (isInitializing) {
+    const isCustomLogo = schoolLogo && schoolLogo !== DEFAULT_SCHOOL_LOGO;
     return (
-      <div className="min-h-screen bg-slate-950 flex flex-col items-center justify-center p-6 text-slate-100 font-sans antialiased select-none">
-        <div className="flex flex-col items-center gap-6 max-w-sm text-center">
-          <div className="relative p-2 bg-slate-900/50 rounded-2xl border border-slate-800 shadow-2xl animate-pulse">
-            <SchoolLogo className="w-20 h-20" logoBase64={schoolLogo} />
-          </div>
-          <div className="space-y-2">
-            <h2 className="text-lg font-black uppercase tracking-wider text-slate-200 animate-pulse">Initializing Database</h2>
-            <p className="text-xs text-slate-500 font-medium">Reconciling cloud roster and local clearance state. Please wait...</p>
-          </div>
-          <div className="flex items-center gap-2 px-3 py-1.5 bg-slate-900/60 border border-slate-850 rounded-xl">
-            <RefreshCw className="w-4 h-4 text-indigo-400 animate-spin" />
-            <span className="text-[10px] text-slate-400 font-mono font-bold uppercase tracking-wider">Securing Connection...</span>
-          </div>
+      <div className="min-h-screen bg-slate-950 flex flex-col items-center justify-center p-6 select-none">
+        <div className="flex flex-col items-center justify-center">
+          {isCustomLogo ? (
+            <div className="animate-pulse">
+              <SchoolLogo className="w-32 h-32" logoBase64={schoolLogo} />
+            </div>
+          ) : (
+            <RefreshCw className="w-12 h-12 text-indigo-500 animate-spin" />
+          )}
         </div>
       </div>
     );
@@ -3684,7 +3691,7 @@ function AppContent() {
           </div>
           <div>
             <div className="flex items-center gap-2 flex-wrap">
-              <h1 className="text-sm sm:text-xl font-black text-slate-100 uppercase tracking-tight">Term 2 Student Clearance</h1>
+              <h1 className="text-sm sm:text-xl font-black text-slate-100 uppercase tracking-tight">The Mighty System</h1>
               {dbConnectionError ? (
                 <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[8.5px] uppercase font-bold tracking-wider bg-rose-500/10 border border-rose-500/25 text-rose-400" title="MySQL connection offline. Working on local cache. Changes will automatically sync once connection is restored.">
                   ⚠️ MySQL Offline (Caching)
@@ -6847,27 +6854,28 @@ function AppContent() {
         </div>
       </div>
     )}
-      <AiAssistantPopup schoolLogo={schoolLogo} />
+      {authSession && <AiAssistantPopup schoolLogo={schoolLogo} />}
 
       {/* FLOATING BACKGROUND TASKS PANEL */}
-      <div className="fixed bottom-4 right-4 z-[9999] font-sans">
-        {/* Trigger Button */}
-        <button
-          onClick={() => setIsBgTasksOpen(prev => !prev)}
-          className="flex items-center gap-2 bg-slate-900 hover:bg-slate-800 border border-slate-700 text-white px-4 py-3 rounded-full shadow-2xl transition-all duration-200"
-        >
-          <RefreshCw className={`w-5 h-5 ${bgTasks.some(t => t.status === 'processing') ? 'animate-spin text-indigo-400' : 'text-slate-400'}`} />
-          <span className="font-semibold text-sm">Background Tasks</span>
-          {bgTasks.filter(t => t.status === 'processing').length > 0 && (
-            <span className="bg-indigo-600 text-white text-xs px-2 py-0.5 rounded-full font-bold animate-pulse">
-              {bgTasks.filter(t => t.status === 'processing').length}
-            </span>
-          )}
-        </button>
+      {authSession && (
+        <div className="fixed bottom-4 right-24 z-[9999] font-sans">
+          {/* Trigger Button */}
+          <button
+            onClick={() => setIsBgTasksOpen(prev => !prev)}
+            className="flex items-center gap-2 bg-slate-900 hover:bg-slate-800 border border-slate-700 text-white px-4 py-3 rounded-full shadow-2xl transition-all duration-200"
+          >
+            <RefreshCw className={`w-5 h-5 ${bgTasks.some(t => t.status === 'processing') ? 'animate-spin text-indigo-400' : 'text-slate-400'}`} />
+            <span className="font-semibold text-sm">Background Tasks</span>
+            {bgTasks.filter(t => t.status === 'processing').length > 0 && (
+              <span className="bg-indigo-600 text-white text-xs px-2 py-0.5 rounded-full font-bold animate-pulse">
+                {bgTasks.filter(t => t.status === 'processing').length}
+              </span>
+            )}
+          </button>
 
-        {/* Panel Drawer */}
-        {isBgTasksOpen && (
-          <div className="absolute bottom-16 right-0 w-80 bg-slate-950 border border-slate-800 rounded-2xl shadow-3xl overflow-hidden p-4 space-y-3 max-h-96 overflow-y-auto bg-opacity-95 backdrop-blur-md">
+          {/* Panel Drawer */}
+          {isBgTasksOpen && (
+            <div className="absolute bottom-16 right-0 w-80 bg-slate-950 border border-slate-800 rounded-2xl shadow-3xl overflow-hidden p-4 space-y-3 max-h-96 overflow-y-auto bg-opacity-95 backdrop-blur-md">
             <div className="flex items-center justify-between border-b border-slate-800 pb-2">
               <h3 className="font-bold text-slate-200 text-sm">Task Progress</h3>
               <button onClick={() => setIsBgTasksOpen(false)} className="text-slate-400 hover:text-slate-200">
@@ -6943,6 +6951,7 @@ function AppContent() {
           </div>
         )}
       </div>
+      )}
     </div>
     </>
   );

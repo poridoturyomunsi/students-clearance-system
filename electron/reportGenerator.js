@@ -112,7 +112,8 @@ function drawSafeWatermark(doc, logoBase64, x, y, w, h, opacity = 0.05) {
   if (!logoBase64) return;
   try {
     const isSvg = logoBase64.includes('svg+xml');
-    const format = isSvg ? 'SVG' : 'PNG';
+    const isJpeg = logoBase64.includes('jpeg') || logoBase64.includes('jpg');
+    const format = isSvg ? 'SVG' : (isJpeg ? 'JPEG' : 'PNG');
     
     let hasGState = false;
     try {
@@ -127,7 +128,7 @@ function drawSafeWatermark(doc, logoBase64, x, y, w, h, opacity = 0.05) {
       console.warn("Could not set GState for watermark transparency:", err);
     }
 
-    doc.addImage(logoBase64, format, x, y, w, h, undefined, 'NONE');
+    doc.addImage(logoBase64, format, x, y, w, h, undefined, 'FAST');
 
     if (hasGState) {
       try {
@@ -263,6 +264,7 @@ async function compileReportsPdf({
     orientation: 'portrait',
     unit: 'mm',
     format: 'a4',
+    compress: true, // Enable built-in PDF compression
   });
 
   const logoBase64 = settings.school_logo || null;
@@ -375,9 +377,9 @@ async function compileReportsPdf({
     doc.setLineWidth(0.15);
     doc.roundedRect(11, 11, 188, 275, 2.5, 2.5, 'D');
 
-    // Watermark (3% opacity)
+    // Watermark (6% opacity to ensure clear visibility as requested)
     if (logoBase64) {
-      drawSafeWatermark(doc, logoBase64, 55, 95, 100, 100, 0.03);
+      drawSafeWatermark(doc, logoBase64, 55, 95, 100, 100, 0.06);
     }
 
     // Header Layout
@@ -386,7 +388,9 @@ async function compileReportsPdf({
     if (logoBase64) {
       try {
         const isSvg = logoBase64.includes('svg+xml');
-        doc.addImage(logoBase64, isSvg ? 'SVG' : 'PNG', 15.0, 15.0, 28, 28);
+        const isJpeg = logoBase64.includes('jpeg') || logoBase64.includes('jpg');
+        const format = isSvg ? 'SVG' : (isJpeg ? 'JPEG' : 'PNG');
+        doc.addImage(logoBase64, format, 15.0, 15.0, 28, 28, undefined, 'FAST');
       } catch (e) {
         console.warn("Could not draw logo in report header:", e);
       }
@@ -402,7 +406,7 @@ async function compileReportsPdf({
       try {
         const fmtMatch = student.photo.match(/^data:image\/([a-zA-Z]+);base64,/);
         const format = fmtMatch ? fmtMatch[1].toUpperCase() : 'JPEG';
-        doc.addImage(student.photo, format, 170.5, 15.5, 24, 29);
+        doc.addImage(student.photo, format, 170.5, 15.5, 24, 29, undefined, 'FAST');
         
         // Navy rounded frame on top
         doc.setDrawColor(11, 30, 91);
@@ -1144,7 +1148,7 @@ async function compileReportsPdf({
         try {
           const isSvg = ctSignature.includes('svg+xml');
           const format = isSvg ? 'SVG' : 'PNG';
-          doc.addImage(ctSignature, format, 65, commentsY + 16, 24, 7);
+          doc.addImage(ctSignature, format, 65, commentsY + 16, 24, 7, undefined, 'FAST');
         } catch (e) {
           console.warn(`Could not draw Class Teacher signature:`, e);
         }
@@ -1183,7 +1187,7 @@ async function compileReportsPdf({
         try {
           const isSvg = htSignature.includes('svg+xml');
           const format = isSvg ? 'SVG' : 'PNG';
-          doc.addImage(htSignature, format, 150, commentsY + 16, 24, 7);
+          doc.addImage(htSignature, format, 150, commentsY + 16, 24, 7, undefined, 'FAST');
         } catch (e) {
           console.warn(`Could not draw Head Teacher signature:`, e);
         }
@@ -1213,7 +1217,7 @@ async function compileReportsPdf({
       if (stampBase64) {
         try {
           const isSvg = stampBase64.includes('svg+xml');
-          doc.addImage(stampBase64, isSvg ? 'SVG' : 'PNG', stampX + 2, stampY + 2, 20, 20);
+          doc.addImage(stampBase64, isSvg ? 'SVG' : 'PNG', stampX + 2, stampY + 2, 20, 20, undefined, 'FAST');
         } catch (e) {
           console.warn("Could not draw school stamp in UACE block:", e);
         }
@@ -1392,7 +1396,7 @@ async function compileReportsPdf({
           try {
             const isSvg = signatureData.includes('svg+xml');
             const format = isSvg ? 'SVG' : 'PNG';
-            doc.addImage(signatureData, format, centerX - 12, sigY + 0.5, 24, 8);
+            doc.addImage(signatureData, format, centerX - 12, sigY + 0.5, 24, 8, undefined, 'FAST');
           } catch (e) {
             console.warn(`Could not draw signature for ${title}:`, e);
           }
@@ -1446,7 +1450,7 @@ async function compileReportsPdf({
       if (stampBase64) {
         try {
           const isSvg = stampBase64.includes('svg+xml');
-          doc.addImage(stampBase64, isSvg ? 'SVG' : 'PNG', 155, sigY - 2, 16, 16);
+          doc.addImage(stampBase64, isSvg ? 'SVG' : 'PNG', 155, sigY - 2, 16, 16, undefined, 'FAST');
         } catch (e) {
           console.warn("Could not draw school stamp:", e);
         }

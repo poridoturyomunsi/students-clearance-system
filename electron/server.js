@@ -815,7 +815,6 @@ app.use(async (req, res, next) => {
     console.log(`  - process.env.DB_PORT: ${process.env.DB_PORT || 'Not Set'}`);
     console.log(`  - process.env.DB_DATABASE: ${process.env.DB_DATABASE || 'Not Set'}`);
     console.log(`  - process.env.DB_USER: ${process.env.DB_USER || 'Not Set'}`);
-    console.log(`  - process.env.MYSQLHOST: ${process.env.MYSQLHOST || 'Not Set'}`);
 
     const dbConfig = process.env.MYSQL_PUBLIC_URL || process.env.DATABASE_URL || (process.env.DB_HOST ? {
       host: process.env.DB_HOST,
@@ -823,13 +822,7 @@ app.use(async (req, res, next) => {
       user: process.env.DB_USER,
       password: process.env.DB_PASSWORD,
       database: process.env.DB_DATABASE
-    } : (process.env.MYSQLHOST ? {
-      host: process.env.MYSQLHOST,
-      port: parseInt(process.env.MYSQLPORT || '3306', 10),
-      user: process.env.MYSQLUSER || 'root',
-      password: process.env.MYSQLPASSWORD || '',
-      database: process.env.MYSQLDATABASE || 'railway'
-    } : null));
+    } : null);
 
     if (dbConfig) {
       console.log('[API] Intercepted request. Initializing database pool lazily with Resolved Config:', 
@@ -1529,13 +1522,25 @@ app.post('/api/students/bulk-delete', async (req, res) => {
 
 // Helper to pre-resolve database logo path/url into base64 for PDF rendering engines
 async function getLogoAsBase64(logoVal) {
-  if (!logoVal) return null;
+  const fs = require('fs');
+  const path = require('path');
+
+  if (!logoVal) {
+    const defaultPath = path.join(process.cwd(), 'public/school_logo.png');
+    if (fs.existsSync(defaultPath)) {
+      try {
+        const data = fs.readFileSync(defaultPath);
+        return `data:image/png;base64,${data.toString('base64')}`;
+      } catch (err) {
+        console.error('Failed to read default logo file:', err);
+      }
+    }
+    return null;
+  }
+
   if (logoVal.startsWith('data:')) {
     return logoVal;
   }
-  
-  const fs = require('fs');
-  const path = require('path');
   
   // If it is a relative download path, extract the filename
   if (logoVal.includes('/api/pdf/download/')) {
@@ -2231,7 +2236,7 @@ app.post('/api/pdf/generate', async (req, res) => {
     }
 
     if (!schoolLogoBase64) {
-      return res.status(400).json({ error: 'Quality Control Warning: School crest/logo is missing or not visible.' });
+      console.warn('Quality Control Warning: School crest/logo is missing or not visible. Proceeding without logo.');
     }
 
     const incompleteStudents = [];
@@ -2248,9 +2253,7 @@ app.post('/api/pdf/generate', async (req, res) => {
     }
 
     if (incompleteStudents.length > 0) {
-      return res.status(400).json({
-        error: `Quality Control Warning: Cannot generate PDF. Incomplete student profiles found:\n\n${incompleteStudents.join('\n')}`
-      });
+      console.warn(`Quality Control Warning: Incomplete student profiles found:\n\n${incompleteStudents.join('\n')}`);
     }
     
     const taskId = `task-pdf-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
@@ -2849,7 +2852,7 @@ app.post('/api/teacher/marks', async (req, res) => {
         const pNum = m.paper !== undefined && m.paper !== null && m.paper !== '' ? parseInt(m.paper, 10) : paperNum;
         
         const grInfo = (subType === 'General Paper' || subType === 'Subsidiary') ? getUACESubGPGrade(score) : getUACEPrincipalGrade(score);
-        const targetStatus = (req.body.status !== 'Approved') ? 'Draft' : 'Approved';
+        const targetStatus = 'Approved';
 
         await connection.query(
           `INSERT INTO uace_marks (student_id, subject, subject_type, paper, bot, mot, eot, score, grade, points, term, year, teacher_id, status) 
@@ -2867,7 +2870,7 @@ app.post('/api/teacher/marks', async (req, res) => {
         const exam = m.exam_score !== undefined && m.exam_score !== null && m.exam_score !== '' ? parseFloat(m.exam_score) : null;
         
         const hasNoMarks = (int1 === null) && (int2 === null) && (int3 === null) && (exam === null);
-        const targetStatus = (hasNoMarks || req.body.status !== 'Approved') ? 'Draft' : 'Approved';
+        const targetStatus = 'Approved';
 
         await connection.query(
           `INSERT INTO olevel_marks (student_id, subject, integration1, integration2, integration3, exam_score, term, year, teacher_id, status) 
@@ -3120,7 +3123,7 @@ app.post('/api/admin/students/search-with-marks', async (req, res) => {
       }
 
       const average = subjectCount > 0 ? totalMarks / subjectCount : 0;
-      const passedAll = statuses.length === 0 || statuses.every(status => status === 'Approved' || status === 'Reopened');
+      const passedAll = true; // All marks are considered active immediately
 
       return {
         ...student,
@@ -3323,13 +3326,6 @@ app.post('/api/pdf/generate-reports', async (req, res) => {
       return res.status(400).json({ error: 'No marks records found. Cannot print blank report cards.' });
     }
 
-    const unapprovedOLevelCount = olevelAll.filter(m => m.status !== 'Approved').length;
-    const unapprovedUACECount = uaceAll.filter(m => m.status !== 'Approved').length;
-
-    if (unapprovedOLevelCount > 0 || unapprovedUACECount > 0) {
-      return res.status(400).json({ error: 'Cannot compile report card. Some marks entered for the selected student(s) are unapproved.' });
-    }
-
     // Quality Control validations - Select specific columns to check completeness (avoids loading massive photos)
     const [studentsCheck] = await pool.query(
       'SELECT id, name, adminNo, gradeClass, photo FROM students WHERE id IN (?)',
@@ -3343,7 +3339,7 @@ app.post('/api/pdf/generate-reports', async (req, res) => {
     const [logoRows] = await pool.query('SELECT val_value FROM settings WHERE key_name = ?', ['school_logo']);
     const schoolLogoSetting = logoRows[0]?.val_value;
     if (!schoolLogoSetting) {
-      return res.status(400).json({ error: 'Quality Control Warning: School crest/logo is missing or not visible.' });
+      console.warn('Quality Control Warning: School crest/logo is missing or not visible. Proceeding without logo.');
     }
 
     const incompleteStudents = [];
@@ -3360,9 +3356,7 @@ app.post('/api/pdf/generate-reports', async (req, res) => {
     }
 
     if (incompleteStudents.length > 0) {
-      return res.status(400).json({
-        error: `Quality Control Warning: Cannot generate PDF. Incomplete student profiles found:\n\n${incompleteStudents.join('\n')}`
-      });
+      console.warn(`Quality Control Warning: Incomplete student profiles found:\n\n${incompleteStudents.join('\n')}`);
     }
 
     const taskId = `task-report-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
@@ -3398,8 +3392,8 @@ app.post('/api/pdf/generate-reports', async (req, res) => {
           return a.name.localeCompare(b.name);
         });
 
-        const [olevelMarks] = await pool.query('SELECT * FROM olevel_marks WHERE student_id IN (?) AND term = ? AND year = ? AND status = "Approved"', [studentIds, term, parseInt(year, 10)]);
-        const [uaceMarks] = await pool.query('SELECT * FROM uace_marks WHERE student_id IN (?) AND term = ? AND year = ? AND status = "Approved"', [studentIds, term, parseInt(year, 10)]);
+        const [olevelMarks] = await pool.query('SELECT * FROM olevel_marks WHERE student_id IN (?) AND term = ? AND year = ?', [studentIds, term, parseInt(year, 10)]);
+        const [uaceMarks] = await pool.query('SELECT * FROM uace_marks WHERE student_id IN (?) AND term = ? AND year = ?', [studentIds, term, parseInt(year, 10)]);
 
         const [settingsRows] = await pool.query('SELECT key_name, val_value FROM settings');
         const settings = {};
@@ -3448,9 +3442,7 @@ app.post('/api/pdf/generate-reports', async (req, res) => {
           }));
         }
 
-        if (settings.school_logo) {
-          settings.school_logo = await getLogoAsBase64(settings.school_logo) || settings.school_logo;
-        }
+        settings.school_logo = await getLogoAsBase64(settings.school_logo);
 
         if (settings.school_stamp && settings.school_stamp.startsWith('http')) {
           settings.school_stamp = await getBase64ImageFromUrl(settings.school_stamp) || settings.school_stamp;
@@ -3789,7 +3781,7 @@ app.get('/api/reports/:studentId', async (req, res) => {
 // GET all teachers
 app.get('/api/teachers', async (req, res) => {
   try {
-    const [rows] = await pool.query('SELECT id, username, name, gender, subjects, classes, position, signature, photo, status, createdAt FROM teachers ORDER BY name');
+    const [rows] = await pool.query('SELECT id, username, name, gender, subjects, classes, position, photo, status, createdAt, (signature IS NOT NULL AND LENGTH(signature) > 0) as hasSignature FROM teachers ORDER BY name');
     
     // Fetch all assignments and class teachers
     const [assignmentsRows] = await pool.query('SELECT teacher_id, subject, grade_class FROM teacher_assignments');
@@ -3808,11 +3800,26 @@ app.get('/api/teachers', async (req, res) => {
         ...r,
         subjects: typeof r.subjects === 'string' ? JSON.parse(r.subjects) : r.subjects,
         classes: typeof r.classes === 'string' ? JSON.parse(r.classes) : r.classes,
+        hasSignature: !!r.hasSignature,
         assignments,
         classTeacherFor
       };
     });
     res.json(list);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// GET teacher signature lazily
+app.get('/api/teachers/:id/signature', async (req, res) => {
+  try {
+    await ensureDbInitialized();
+    const [rows] = await pool.query('SELECT signature FROM teachers WHERE id = ?', [req.params.id]);
+    if (rows.length === 0) {
+      return res.status(404).json({ error: 'Teacher not found' });
+    }
+    res.json({ signature: rows[0].signature });
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
@@ -4579,18 +4586,10 @@ if (require.main === module) {
   const isCloudProd = process.env.NODE_ENV === 'production' || !!process.env.VERCEL;
   
   let dbConfig = null;
-  if (process.env.DATABASE_URL) {
+  if (process.env.MYSQL_PUBLIC_URL) {
+    dbConfig = process.env.MYSQL_PUBLIC_URL;
+  } else if (process.env.DATABASE_URL) {
     dbConfig = process.env.DATABASE_URL;
-  } else if (process.env.MYSQL_URL) {
-    dbConfig = process.env.MYSQL_URL;
-  } else if (process.env.MYSQLHOST) {
-    dbConfig = {
-      host: process.env.MYSQLHOST,
-      port: parseInt(process.env.MYSQLPORT || '3306', 10),
-      user: process.env.MYSQLUSER || 'root',
-      password: process.env.MYSQLPASSWORD || '',
-      database: process.env.MYSQLDATABASE || 'railway'
-    };
   } else if (process.env.DB_HOST) {
     dbConfig = {
       host: process.env.DB_HOST,

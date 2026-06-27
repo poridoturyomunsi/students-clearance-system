@@ -186,12 +186,6 @@ export default function StudentPortal({ studentId, studentName, adminNo, student
       return;
     }
 
-    const unapproved = marks.some(m => m.status !== 'Approved');
-    if (unapproved) {
-      alert('Your subject marks have not been fully approved by the school administrator yet. Please check back later.');
-      return;
-    }
-
     // Determine active term & year from first marks record if available, fallback to '2' / 2026
     const activeMark = marks && marks.length > 0 ? marks[0] : null;
     const targetTerm = activeMark ? String(activeMark.term) : '2';
@@ -735,10 +729,10 @@ export default function StudentPortal({ studentId, studentName, adminNo, student
                     {marks.length > 0 && !marks.some(m => m.status !== 'Approved') ? (
                       <CheckCircle2 className="w-4 h-4 text-emerald-400 shrink-0" />
                     ) : (
-                      <XCircle className="w-4 h-4 text-rose-500 shrink-0" />
+                      <AlertCircle className="w-4 h-4 text-amber-500 shrink-0" />
                     )}
                     <span className="text-slate-350">
-                      {marks.length > 0 && !marks.some(m => m.status !== 'Approved') ? 'All marks Approved by Admin' : 'Pending Admin Approval'}
+                      {marks.length > 0 && !marks.some(m => m.status !== 'Approved') ? 'All marks Approved by Admin' : 'Marks Pending Approval (Download Allowed)'}
                     </span>
                   </div>
                 </div>

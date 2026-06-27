@@ -34,7 +34,7 @@ interface AiAssistantPopupProps {
 }
 
 export default function AiAssistantPopup({ schoolLogo }: AiAssistantPopupProps) {
-  const [isOpen, setIsOpen] = useState<boolean>(false);
+  const [isOpen, setIsOpen] = useState<boolean>(true);
   const [isKeyConfigured, setIsKeyConfigured] = useState<boolean>(false);
   const [messages, setMessages] = useState<Message[]>([]);
   const [inputVal, setInputVal] = useState<string>('');

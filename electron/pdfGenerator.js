@@ -71,7 +71,8 @@ function drawSafeWatermark(doc, logoBase64, x, y, w, h, opacity = 0.08) {
   if (!logoBase64) return;
   try {
     const isSvg = logoBase64.includes('svg+xml');
-    const format = isSvg ? 'SVG' : 'PNG';
+    const isJpeg = logoBase64.includes('jpeg') || logoBase64.includes('jpg');
+    const format = isSvg ? 'SVG' : (isJpeg ? 'JPEG' : 'PNG');
     
     let hasGState = false;
     try {
@@ -86,7 +87,7 @@ function drawSafeWatermark(doc, logoBase64, x, y, w, h, opacity = 0.08) {
       console.warn("Could not set GState for watermark transparency:", err);
     }
 
-    doc.addImage(logoBase64, format, x, y, w, h, undefined, 'NONE');
+    doc.addImage(logoBase64, format, x, y, w, h, undefined, 'FAST');
 
     if (hasGState) {
       try {
@@ -233,7 +234,9 @@ function drawCardFrontPdf(
   if (logoBase64) {
     try {
       const isSvg = logoBase64.includes('svg+xml');
-      doc.addImage(logoBase64, isSvg ? 'SVG' : 'PNG', x + 2.4, y + 1.6, 8.0, 8.0, undefined, 'NONE');
+      const isJpeg = logoBase64.includes('jpeg') || logoBase64.includes('jpg');
+      const format = isSvg ? 'SVG' : (isJpeg ? 'JPEG' : 'PNG');
+      doc.addImage(logoBase64, format, x + 2.4, y + 1.6, 8.0, 8.0, undefined, 'FAST');
       hasImageDrawn = true;
     } catch (e) {
       console.warn("Could not draw logoBase64 directly via addImage:", e);
@@ -308,7 +311,7 @@ function drawCardFrontPdf(
     try {
       const fmtMatch = student.photo.match(/^data:image\/([a-zA-Z]+);base64,/);
       const format = fmtMatch ? fmtMatch[1].toUpperCase() : 'JPEG';
-      doc.addImage(student.photo, format, picX + 0.3, picY + 0.3, picW - 0.6, picH - 0.6, undefined, 'NONE');
+      doc.addImage(student.photo, format, picX + 0.3, picY + 0.3, picW - 0.6, picH - 0.6, undefined, 'FAST');
       hasStudentPhotoDrawn = true;
     } catch (e) {
       console.warn("Could not draw student photo in back PDF:", e);
@@ -472,7 +475,9 @@ function drawCardBackPdf(
   if (logoBase64) {
     try {
       const isSvg = logoBase64.includes('svg+xml');
-      doc.addImage(logoBase64, isSvg ? 'SVG' : 'PNG', x + 2.4, y + 1.1, 7.5, 7.5, undefined, 'NONE');
+      const isJpeg = logoBase64.includes('jpeg') || logoBase64.includes('jpg');
+      const format = isSvg ? 'SVG' : (isJpeg ? 'JPEG' : 'PNG');
+      doc.addImage(logoBase64, format, x + 2.4, y + 1.1, 7.5, 7.5, undefined, 'FAST');
       hasImageDrawn = true;
     } catch (e) {
       console.error("Error drawing logo in back PDF:", e);
@@ -613,7 +618,9 @@ function drawCardPaymentPdf(
   if (logoBase64) {
     try {
       const isSvg = logoBase64.includes('svg+xml');
-      doc.addImage(logoBase64, isSvg ? 'SVG' : 'PNG', x + 2.4, y + 1.1, 7.5, 7.5, undefined, 'NONE');
+      const isJpeg = logoBase64.includes('jpeg') || logoBase64.includes('jpg');
+      const format = isSvg ? 'SVG' : (isJpeg ? 'JPEG' : 'PNG');
+      doc.addImage(logoBase64, format, x + 2.4, y + 1.1, 7.5, 7.5, undefined, 'FAST');
       hasImageDrawn = true;
     } catch (e) {
       console.error("Error drawing logo in payment card:", e);
@@ -789,7 +796,9 @@ function drawCardAugustPdf(
   if (logoBase64) {
     try {
       const isSvg = logoBase64.includes('svg+xml');
-      doc.addImage(logoBase64, isSvg ? 'SVG' : 'PNG', x + 2.4, y + 1.1, 7.5, 7.5, undefined, 'NONE');
+      const isJpeg = logoBase64.includes('jpeg') || logoBase64.includes('jpg');
+      const format = isSvg ? 'SVG' : (isJpeg ? 'JPEG' : 'PNG');
+      doc.addImage(logoBase64, format, x + 2.4, y + 1.1, 7.5, 7.5, undefined, 'FAST');
       hasImageDrawn = true;
     } catch (e) {
       console.error("Error drawing logo in payment card:", e);
@@ -901,6 +910,7 @@ async function generateClearancePdf({
     orientation: 'portrait',
     unit: 'mm',
     format: 'a4',
+    compress: true, // Enable built-in PDF compression
   });
 
   const cardW = 90;

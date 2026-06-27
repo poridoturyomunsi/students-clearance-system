@@ -87,6 +87,7 @@ export interface Teacher {
   photo?: string;
   status?: string;
   createdAt?: string;
+  hasSignature?: boolean;
 }
 
 export interface OLevelMark {
