@@ -77,28 +77,28 @@ import { removeLogoBackground, processStudentPhoto, analyzeImageQuality, compres
 import SidebarLayout from './components/SidebarLayout.tsx';
 import AiAssistantPopup from './components/AiAssistantPopup.tsx';
 
-// Lazy-load heavy UI modules and utilities to keep initial bundle small
-const ClearanceCard = lazy(() => import('./components/ClearanceCard.tsx'));
-const BulkPhotoMatcher = lazy(() => import('./components/BulkPhotoMatcher.tsx'));
-const WebcamCapture = lazy(() => import('./components/WebcamCapture.tsx'));
-const ManualBackgroundEditor = lazy(() => import('./components/ManualBackgroundEditor.tsx'));
-const LoginGateway = lazy(() => import('./components/LoginGateway.tsx'));
-const StudentPortal = lazy(() => import('./components/StudentPortal.tsx'));
-const StudentForcePasswordChange = lazy(() => import('./components/StudentForcePasswordChange.tsx'));
-const TeacherPortal = lazy(() => import('./components/TeacherPortal.tsx'));
-const AdminPortalExtensions = lazy(() => import('./components/AdminPortalExtensions.tsx'));
-const AdminSettingsView = lazy(() => import('./components/AdminSettingsView.tsx'));
+// UI modules and utilities statically imported to prevent dynamic import fetch errors
+import ClearanceCard from './components/ClearanceCard.tsx';
+import BulkPhotoMatcher from './components/BulkPhotoMatcher.tsx';
+import WebcamCapture from './components/WebcamCapture.tsx';
+import ManualBackgroundEditor from './components/ManualBackgroundEditor.tsx';
+import LoginGateway from './components/LoginGateway.tsx';
+import StudentPortal from './components/StudentPortal.tsx';
+import StudentForcePasswordChange from './components/StudentForcePasswordChange.tsx';
+import TeacherPortal from './components/TeacherPortal.tsx';
+import AdminPortalExtensions from './components/AdminPortalExtensions.tsx';
+import AdminSettingsView from './components/AdminSettingsView.tsx';
 
-// Lazy-load feature modules
-const StudentsModule = lazy(() => import('./components/modules/StudentsModule.tsx'));
-const TeachersModule = lazy(() => import('./components/modules/TeachersModule.tsx'));
-const SubjectsModule = lazy(() => import('./components/modules/SubjectsModule.tsx'));
-const ExamsModule = lazy(() => import('./components/modules/ExamsModule.tsx'));
-const ClearanceModule = lazy(() => import('./components/modules/ClearanceModule.tsx'));
-const FeesModule = lazy(() => import('./components/modules/FeesModule.tsx'));
-const AttendanceModule = lazy(() => import('./components/modules/AttendanceModule.tsx'));
-const SettingsModule = lazy(() => import('./components/modules/SettingsModule.tsx'));
-const AiAssistantModule = lazy(() => import('./components/modules/AiAssistantModule.tsx'));
+// Statically imported feature modules
+import StudentsModule from './components/modules/StudentsModule.tsx';
+import TeachersModule from './components/modules/TeachersModule.tsx';
+import SubjectsModule from './components/modules/SubjectsModule.tsx';
+import ExamsModule from './components/modules/ExamsModule.tsx';
+import ClearanceModule from './components/modules/ClearanceModule.tsx';
+import FeesModule from './components/modules/FeesModule.tsx';
+import AttendanceModule from './components/modules/AttendanceModule.tsx';
+import SettingsModule from './components/modules/SettingsModule.tsx';
+import AiAssistantModule from './components/modules/AiAssistantModule.tsx';
 import {
   setApiBaseUrl,
   getApiBaseUrl,
