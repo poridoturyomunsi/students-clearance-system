@@ -591,6 +591,17 @@ async function ensureDbInitialized() {
   if (initializingDb) return false;
   initializingDb = true;
 
+  // Fast path: If settings table exists, bypass full migrations (crucial for Vercel serverless cold starts)
+  try {
+    await pool.query('SELECT 1 FROM settings LIMIT 1');
+    dbInitialized = true;
+    initializingDb = false;
+    console.log('[DB-INIT-LOG] Database is already initialized. Skipping full migration schemas.');
+    return true;
+  } catch (fastErr) {
+    console.warn('[DB-INIT-LOG] settings table check failed. Running full database schema migration...');
+  }
+
   try {
     let connection;
     try {
