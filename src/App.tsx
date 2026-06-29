@@ -579,6 +579,17 @@ function AppContent() {
     clearLegacyClearanceRouteCache();
   }, []);
 
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      const handleUnauthorized = () => {
+        console.warn('[App] Session unauthorized or expired. Resetting auth session...');
+        setAuthSession(null);
+      };
+      window.addEventListener('spss_unauthorized', handleUnauthorized);
+      return () => window.removeEventListener('spss_unauthorized', handleUnauthorized);
+    }
+  }, []);
+
   // Dynamically update the browser tab favicon to match the school logo
   useEffect(() => {
     if (typeof window !== 'undefined' && schoolLogo) {

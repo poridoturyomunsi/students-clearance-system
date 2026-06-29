@@ -94,6 +94,13 @@ async function apiCall(path: string, options: RequestInit = {}) {
     const response = await fetchWithPerf(url, config);
     clearTimeout(timeoutId);
     if (!response.ok) {
+      if (response.status === 401) {
+        if (typeof window !== 'undefined') {
+          localStorage.removeItem('spss_session');
+          localStorage.removeItem('spss_token');
+          window.dispatchEvent(new Event('spss_unauthorized'));
+        }
+      }
       let errMsg = `HTTP error! status: ${response.status}`;
       try {
         const errJson = await response.json();
