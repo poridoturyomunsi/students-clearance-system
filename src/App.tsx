@@ -584,6 +584,7 @@ function AppContent() {
       const handleUnauthorized = () => {
         console.warn('[App] Session unauthorized or expired. Resetting auth session...');
         setAuthSession(null);
+        setDbConnectionError(false);
       };
       window.addEventListener('spss_unauthorized', handleUnauthorized);
       return () => window.removeEventListener('spss_unauthorized', handleUnauthorized);
@@ -665,7 +666,19 @@ function AppContent() {
         setStudents([]);
         setTotalStudentsCount(0);
       }
-      setDbConnectionError(true);
+      const isAuthError = err?.message && (
+        err.message.includes('token') ||
+        err.message.includes('expired') ||
+        err.message.includes('unauthorized') ||
+        err.message.includes('Forbidden') ||
+        err.message.includes('Unauthorized') ||
+        err.message.includes('log in') ||
+        err.message.includes('401') ||
+        err.message.includes('403')
+      );
+      if (!isAuthError) {
+        setDbConnectionError(true);
+      }
       setTableError(err?.message || 'Unable to load student records from server.');
     } finally {
       setIsTableLoading(false);

@@ -94,7 +94,7 @@ async function apiCall(path: string, options: RequestInit = {}) {
     const response = await fetchWithPerf(url, config);
     clearTimeout(timeoutId);
     if (!response.ok) {
-      if (response.status === 401) {
+      if (response.status === 401 || response.status === 403) {
         if (typeof window !== 'undefined') {
           localStorage.removeItem('spss_session');
           localStorage.removeItem('spss_token');
