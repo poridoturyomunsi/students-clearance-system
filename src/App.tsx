@@ -2173,34 +2173,47 @@ function AppContent() {
       }
       const studentId = editingStudent ? editingStudent.id : `stud-${Date.now()}`;
 
-      // Upload portrait photo to Cloudinary separately
+      // Upload photos to Cloudinary in parallel to reduce registration latency
       let uploadedPhoto = compressedPhoto;
+      let uploadedOriginal = originalPhoto;
+      const uploadPromises: Promise<void>[] = [];
+
       if (compressedPhoto && compressedPhoto.startsWith('data:image')) {
-        console.log("[Save Student] Uploading compressed portrait photo to Cloudinary via upload API...");
-        try {
-          const uploadRes = await uploadImage(compressedPhoto, `student_${studentId}_photo`);
-          if (uploadRes && uploadRes.url) {
-            uploadedPhoto = uploadRes.url;
-            console.log("[Save Student] Portrait photo uploaded successfully. URL:", uploadedPhoto);
-          }
-        } catch (uploadErr) {
-          console.warn("[Save Student] Portrait photo upload failed, passing original base64 to DB fallback:", uploadErr);
-        }
+        console.log("[Save Student] Queuing compressed portrait photo upload...");
+        uploadPromises.push(
+          uploadImage(compressedPhoto, `student_${studentId}_photo`)
+            .then((uploadRes) => {
+              if (uploadRes && uploadRes.url) {
+                uploadedPhoto = uploadRes.url;
+                console.log("[Save Student] Portrait photo uploaded successfully. URL:", uploadedPhoto);
+              }
+            })
+            .catch((uploadErr) => {
+              console.warn("[Save Student] Portrait photo upload failed, passing base64 fallback:", uploadErr);
+            })
+        );
       }
 
-      // Upload original photo to Cloudinary separately
-      let uploadedOriginal = originalPhoto;
       if (originalPhoto && originalPhoto.startsWith('data:image')) {
-        console.log("[Save Student] Uploading raw original photo to Cloudinary via upload API...");
-        try {
-          const uploadRes = await uploadImage(originalPhoto, `student_${studentId}_original`);
-          if (uploadRes && uploadRes.url) {
-            uploadedOriginal = uploadRes.url;
-            console.log("[Save Student] Original photo uploaded successfully. URL:", uploadedOriginal);
-          }
-        } catch (uploadErr) {
-          console.warn("[Save Student] Original photo upload failed, passing original base64 to DB fallback:", uploadErr);
-        }
+        console.log("[Save Student] Queuing raw original photo upload...");
+        uploadPromises.push(
+          uploadImage(originalPhoto, `student_${studentId}_original`)
+            .then((uploadRes) => {
+              if (uploadRes && uploadRes.url) {
+                uploadedOriginal = uploadRes.url;
+                console.log("[Save Student] Original photo uploaded successfully. URL:", uploadedOriginal);
+              }
+            })
+            .catch((uploadErr) => {
+              console.warn("[Save Student] Original photo upload failed, passing base64 fallback:", uploadErr);
+            })
+        );
+      }
+
+      if (uploadPromises.length > 0) {
+        console.log("[Save Student] Initiating parallel Cloudinary uploads...");
+        await Promise.all(uploadPromises);
+        console.log("[Save Student] Parallel uploads completed.");
       }
 
       const uploadedEnhanced = uploadedPhoto;

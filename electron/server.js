@@ -380,6 +380,12 @@ async function compressImageIfNeeded(base64Str, maxWidth, maxHeight, quality = 8
   if (!base64Str.startsWith('data:')) {
     return base64Str;
   }
+  
+  // Fast path: If the image is already compressed and small (under ~300KB base64), skip slow backend Jimp processing
+  if (base64Str.length < 400000) {
+    return base64Str;
+  }
+
   try {
     const matches = base64Str.match(/^data:([a-zA-Z0-9]+\/[a-zA-Z0-9-.+]+);base64,(.+)$/);
     if (!matches) return base64Str;
