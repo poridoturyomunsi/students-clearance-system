@@ -1,7 +1,7 @@
 import React, { useEffect, useRef, useMemo, useState } from 'react';
 import * as XLSX from 'xlsx';
 import Loading from '../Loading.tsx';
-import { Printer, FileSpreadsheet, Search, Plus, Download } from 'lucide-react';
+import { Printer, FileSpreadsheet, Search, Plus, Download, ShieldAlert, AlertCircle } from 'lucide-react';
 import {
   fetchStudentsFromDb,
   fetchStatsFromDb,
@@ -42,6 +42,10 @@ export default function ClearanceModule() {
   const [filterClass, setFilterClass] = useState<string>('All');
   const [filterStream, setFilterStream] = useState<string>('All');
   const fileInputRef = useRef<HTMLInputElement | null>(null);
+
+  const [duplicatePrompt, setDuplicatePrompt] = useState<any>(null);
+  const [applyToAllAction, setApplyToAllAction] = useState<'update' | 'skip' | 'create' | null>(null);
+  const [rememberChoice, setRememberChoice] = useState(false);
 
   const CLASS_ORDER = ['S.1', 'S.2', 'S.3', 'S.4', 'S.5', 'S.6'];
   const STREAM_ORDER = ['A', 'B', 'C', 'Arts', 'Sciences'];
@@ -214,6 +218,27 @@ export default function ClearanceModule() {
     }
   };
 
+  const getSortedTokens = (nameStr: string) => {
+    return (nameStr || '')
+      .toLowerCase()
+      .replace(/[^a-z0-9\s]/g, '')
+      .split(/\s+/)
+      .filter(Boolean)
+      .sort()
+      .join(' ');
+  };
+
+  const isSimilarName = (nameA: string, nameB: string) => {
+    if (!nameA || !nameB) return false;
+    const cleanA = nameA.trim().toLowerCase();
+    const cleanB = nameB.trim().toLowerCase();
+    if (cleanA === cleanB) return true;
+    
+    const tokensA = getSortedTokens(nameA);
+    const tokensB = getSortedTokens(nameB);
+    return tokensA && tokensA === tokensB;
+  };
+
   const handleImportButton = () => {
     setImportSummary(null);
     fileInputRef.current?.click();
@@ -221,6 +246,7 @@ export default function ClearanceModule() {
 
   const handleImportFile = async (event: React.ChangeEvent<HTMLInputElement>) => {
     setImportSummary(null);
+    setApplyToAllAction(null); // Reset bulk choice
     const file = event.target.files?.[0];
     event.target.value = '';
     if (!file) {
@@ -248,16 +274,13 @@ export default function ClearanceModule() {
         throw new Error('Imported file is missing required columns. Expected columns: StudentNo, Name, Class, Stream, Gender, BoardingStatus');
       }
 
-      const existingAdminNos = new Set(students.map((s) => safeValue(s.adminNo).toLowerCase()));
-      const existingNames = new Set(students.map((s) => safeValue(s.name).toLowerCase()));
       const seenStudentNos = new Set<string>();
       let skipped = 0;
-      let skippedByStudentNo = 0;
       let updated = 0;
       let created = 0;
       let failed = 0;
 
-      // Process each row: match existing student by name/class/stream and update student's studentNo, otherwise create new
+      // Process each row
       for (let index = 0; index < rawRows.length; index++) {
         const row = rawRows[index];
         const normalizedRow = normalizeRow(row);
@@ -276,53 +299,85 @@ export default function ClearanceModule() {
         const normalizedStudentNo = studentNo.toLowerCase();
         if (seenStudentNos.has(normalizedStudentNo)) {
           skipped += 1;
-          skippedByStudentNo += 1;
           continue;
         }
 
         // Convert codes
-        let gender = 'Male';
+        let gender: 'Male' | 'Female' = 'Male';
         if (/^f$/i.test(genderValue) || /^female/i.test(genderValue)) gender = 'Female';
         if (/^m$/i.test(genderValue) || /^male/i.test(genderValue)) gender = 'Male';
 
-        let boardingStatus = 'Boarder';
+        let boardingStatus: 'Boarder' | 'Day Scholar' = 'Boarder';
         if (/^d$/i.test(boardingValue) || /day/i.test(boardingValue)) boardingStatus = 'Day Scholar';
         if (/^b$/i.test(boardingValue) || /boarder/i.test(boardingValue)) boardingStatus = 'Boarder';
 
-        // Try to find an existing student by exact name and matching class/stream when provided
-        const normalizedName = name.trim().toLowerCase();
-        const existing = students.find((s: any) => {
-          const studentGrade = (s.gradeClass || '').toLowerCase();
-          if (classValue && classValue.trim()) {
-            if (!studentGrade.includes(classValue.trim().toLowerCase())) return false;
-          }
-          if (streamValue && streamValue.trim()) {
-            if (!studentGrade.includes(streamValue.trim().toLowerCase())) return false;
-          }
+        // Check if a duplicate already exists (same number or similar name in same class/stream)
+        const existingSimilar = students.find((s: any) => {
+          const adminMatch = s.adminNo && s.adminNo.trim().toLowerCase() === studentNo.trim().toLowerCase();
+          const nameMatch = isSimilarName(s.name, name);
+          const aliasMatch = Array.isArray(s.aliases) && s.aliases.some((alias: string) => isSimilarName(alias, name));
 
-          const nameMatch = s.name && s.name.trim().toLowerCase() === normalizedName;
-          const aliasMatch = Array.isArray(s.aliases) && s.aliases.some((alias: string) => alias.trim().toLowerCase() === normalizedName);
-          return !!nameMatch || !!aliasMatch;
+          const studentGrade = (s.gradeClass || '').toLowerCase();
+          let sameClass = true;
+          if (classValue && classValue.trim()) {
+            sameClass = studentGrade.includes(classValue.trim().toLowerCase());
+          }
+          let sameStream = true;
+          if (streamValue && streamValue.trim()) {
+            sameStream = studentGrade.includes(streamValue.trim().toLowerCase());
+          }
+          const nameAndClassMatch = (nameMatch || aliasMatch) && sameClass && sameStream;
+
+          return adminMatch || nameAndClassMatch;
         });
 
-        if (existing) {
-          // Update existing student with new student number and normalized fields
+        let action: 'update' | 'skip' | 'create' = 'create';
+
+        if (existingSimilar) {
+          if (applyToAllAction) {
+            action = applyToAllAction;
+          } else {
+            // Wait for user modal resolution
+            action = await new Promise<'update' | 'skip' | 'create'>((resolve) => {
+              setDuplicatePrompt({
+                rowStudent: {
+                  adminNo: studentNo.trim(),
+                  name: name.trim(),
+                  gender,
+                  gradeClass: (classValue || '').toString().trim() + (streamValue ? ` ${streamValue.toString().trim()}` : ''),
+                  boardingStatus
+                },
+                existingStudent: existingSimilar,
+                resolve: (decision: 'update' | 'skip' | 'create', applyToAll: boolean) => {
+                  if (applyToAll) {
+                    setApplyToAllAction(decision);
+                  }
+                  setDuplicatePrompt(null);
+                  resolve(decision);
+                }
+              });
+            });
+          }
+        } else {
+          action = 'create';
+        }
+
+        if (action === 'update' && existingSimilar) {
           try {
             const updatedStudent = {
-              ...existing,
+              ...existingSimilar,
               adminNo: studentNo.trim(),
               studentNo: studentNo.trim(),
               gender,
               boardingStatus
             };
-            await updateStudentInDb(existing.id, updatedStudent as any);
+            await updateStudentInDb(existingSimilar.id, updatedStudent as any);
             updated += 1;
           } catch (err) {
             console.error('Failed to update existing student during import:', err);
             failed += 1;
           }
-        } else {
-          // Create new student record
+        } else if (action === 'create') {
           try {
             const newStudent = {
               id: createIdFromAdminNo(studentNo, index),
@@ -344,13 +399,16 @@ export default function ClearanceModule() {
             console.error('Failed to create student during import:', err);
             failed += 1;
           }
+        } else {
+          // action === 'skip'
+          skipped += 1;
         }
 
         seenStudentNos.add(normalizedStudentNo);
       }
 
       await loadClearanceData();
-      setImportSummary(`Imported: ${created} created, ${updated} updated. ${skipped} duplicate StudentNo(s) skipped, ${failed} invalid/failed row(s).`);
+      setImportSummary(`Imported: ${created} created, ${updated} updated. ${skipped} duplicate record(s) skipped, ${failed} invalid/failed row(s).`);
 
     } catch (err: any) {
       console.error('Import failed:', err);
@@ -392,6 +450,12 @@ export default function ClearanceModule() {
         if (statusRes.status === 'completed') {
           done = true;
           await triggerFileDownload(`${baseUrl}/api/pdf/download/${statusRes.filename}`, statusRes.filename!);
+          
+          // Mark all students as printed locally in the state to reflect immediately in the UI
+          const printedIds = students.map((s) => s.id);
+          setStudents((prev) =>
+            prev.map((s) => (printedIds.includes(s.id) ? { ...s, printStatus: 'Printed' as const } : s))
+          );
         } else if (statusRes.status === 'failed') {
           throw new Error(statusRes.error || 'PDF generation failed.');
         }
@@ -718,6 +782,90 @@ export default function ClearanceModule() {
                 </button>
               </div>
             </form>
+          </div>
+        </div>
+      )}
+      {duplicatePrompt && (
+        <div className="fixed inset-0 z-50 bg-slate-950/80 backdrop-blur-sm flex items-center justify-center p-4">
+          <div className="w-full max-w-lg rounded-3xl border border-slate-800 bg-slate-900 shadow-2xl overflow-hidden p-6 space-y-6">
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 bg-amber-500/10 border border-amber-500/20 rounded-full flex items-center justify-center text-amber-400 shrink-0">
+                <ShieldAlert className="w-5 h-5" />
+              </div>
+              <div>
+                <h3 className="text-sm font-black uppercase text-slate-100 tracking-wide">Duplicate Student Warning</h3>
+                <p className="text-[10px] text-slate-400 mt-0.5">A similar student record was found in the database.</p>
+              </div>
+            </div>
+
+            {/* Comparison card */}
+            <div className="bg-slate-950/40 border border-slate-800 rounded-2xl overflow-hidden divide-y divide-slate-800/80">
+              <div className="grid grid-cols-2 p-3 text-[10px] uppercase font-black text-slate-500 tracking-wider bg-slate-950/30">
+                <div>Importing Row</div>
+                <div>Existing Registry Record</div>
+              </div>
+              <div className="grid grid-cols-2 p-3 text-xs gap-3">
+                <div className="space-y-1.5 font-medium">
+                  <div className="text-slate-100 font-bold">{duplicatePrompt.rowStudent.name}</div>
+                  <div className="text-slate-400 font-mono">No: {duplicatePrompt.rowStudent.adminNo}</div>
+                  <div className="text-slate-400">Class: {duplicatePrompt.rowStudent.gradeClass}</div>
+                  <div className="text-slate-400">Boarding: {duplicatePrompt.rowStudent.boardingStatus}</div>
+                  <div className="text-slate-400">Gender: {duplicatePrompt.rowStudent.gender}</div>
+                </div>
+                <div className="space-y-1.5 font-medium border-l border-slate-800/50 pl-3">
+                  <div className="text-slate-100 font-bold">{duplicatePrompt.existingStudent.name}</div>
+                  <div className="text-slate-400 font-mono">No: {duplicatePrompt.existingStudent.adminNo || 'None'}</div>
+                  <div className="text-slate-400">Class: {duplicatePrompt.existingStudent.gradeClass}</div>
+                  <div className="text-slate-400">Boarding: {duplicatePrompt.existingStudent.boardingStatus}</div>
+                  <div className="text-slate-400">Gender: {duplicatePrompt.existingStudent.gender}</div>
+                </div>
+              </div>
+            </div>
+
+            {/* Remember decision checkbox */}
+            <label className="flex items-center gap-2.5 text-xs text-slate-400 font-medium select-none cursor-pointer">
+              <input
+                type="checkbox"
+                checked={rememberChoice}
+                onChange={(e) => setRememberChoice(e.target.checked)}
+                className="h-4.5 w-4.5 rounded border-slate-700 bg-slate-950 text-indigo-500 cursor-pointer"
+              />
+              Apply this choice to all remaining duplicates in this file
+            </label>
+
+            {/* Action Buttons */}
+            <div className="flex flex-col sm:flex-row gap-2 pt-2">
+              <button
+                type="button"
+                onClick={() => {
+                  duplicatePrompt.resolve('update', rememberChoice);
+                  setRememberChoice(false);
+                }}
+                className="px-4 py-2.5 bg-indigo-600 hover:bg-indigo-550 text-white rounded-xl text-xs font-black uppercase tracking-wider transition-all cursor-pointer flex-1"
+              >
+                Update Existing Student
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  duplicatePrompt.resolve('create', rememberChoice);
+                  setRememberChoice(false);
+                }}
+                className="px-4 py-2.5 bg-slate-800 hover:bg-slate-750 text-slate-200 rounded-xl text-xs font-black uppercase tracking-wider transition-all cursor-pointer flex-1 border border-slate-700"
+              >
+                Create New Anyway
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  duplicatePrompt.resolve('skip', rememberChoice);
+                  setRememberChoice(false);
+                }}
+                className="px-4 py-2.5 bg-rose-950/20 hover:bg-rose-950/40 text-rose-300 rounded-xl text-xs font-black uppercase tracking-wider transition-all cursor-pointer flex-1 border border-rose-900/40"
+              >
+                Skip Import
+              </button>
+            </div>
           </div>
         </div>
       )}

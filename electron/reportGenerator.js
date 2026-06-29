@@ -16,21 +16,151 @@ function getOLevelComment(mark) {
   return 'Below basic competency, but still indicates acquired skills.';
 }
 
+function isScienceSubject(subjectName) {
+  const norm = (subjectName || '').toLowerCase().trim();
+  return norm.includes('physic') || norm.includes('phy') ||
+         norm.includes('chemist') || norm.includes('chem') ||
+         norm.includes('biolog') || norm.includes('bio') ||
+         norm.includes('agricult') || norm.includes('agr') ||
+         norm.includes('mathe') || norm.includes('math') || norm.includes('mtc');
+}
+
 function getUACEPrincipalGrade(score) {
   const s = Math.round(score || 0);
-  if (s >= 80) return { grade: 'D1', points: 6 };
-  if (s >= 75) return { grade: 'D2', points: 5 };
-  if (s >= 66) return { grade: 'C3', points: 4 };
-  if (s >= 60) return { grade: 'C4', points: 3 };
-  if (s >= 55) return { grade: 'C5', points: 2 };
-  if (s >= 50) return { grade: 'C6', points: 1 };
-  if (s >= 45) return { grade: 'P7', points: 0 };
-  if (s >= 35) return { grade: 'P8', points: 0 };
+  if (s >= 85) return { grade: 'D1', points: 6 };
+  if (s >= 80) return { grade: 'D2', points: 5 };
+  if (s >= 75) return { grade: 'C3', points: 4 };
+  if (s >= 70) return { grade: 'C4', points: 3 };
+  if (s >= 65) return { grade: 'C5', points: 2 };
+  if (s >= 60) return { grade: 'C6', points: 1 };
+  if (s >= 50) return { grade: 'P7', points: 0 };
+  if (s >= 40) return { grade: 'P8', points: 0 };
   return { grade: 'F9', points: 0 };
 }
 
+function isSubsidiarySubject(subjectName, subjectType) {
+  const normType = (subjectType || '').toLowerCase().trim();
+  if (normType === 'general paper' || normType === 'subsidiary') {
+    return true;
+  }
+  const normName = (subjectName || '').toLowerCase().trim();
+  if (normName === 'general paper' || normName === 'gp' || normName === 'sub math' || normName === 'subsidiary math' || normName === 'subsidiary mathematics' || normName === 'subsidiary ict' || normName === 'sict' || normName === 'sm') {
+    return true;
+  }
+  if (normName.includes('subsidiary') || normName.includes('general paper')) {
+    return true;
+  }
+  return false;
+}
+
 function getUACESubGPGrade(score) {
-  return getUACEPrincipalGrade(score);
+  const s = Math.round(score || 0);
+  if (s >= 60) {
+    return { grade: 'SP', points: 1 };
+  } else {
+    return { grade: 'SF', points: 0 };
+  }
+}
+
+function getUACEOverallSubjectGrade(papers, subjectName, subjectType) {
+  if (isSubsidiarySubject(subjectName, subjectType)) {
+    let sumScore = 0;
+    let count = 0;
+    papers.forEach(p => {
+      if (p.score !== null && p.score !== undefined && p.score !== '') {
+        sumScore += parseFloat(p.score);
+        count++;
+      }
+    });
+    const avg = count > 0 ? Math.round(sumScore / count) : 0;
+    if (avg >= 60) {
+      return { grade: 'SP', points: 1, comment: 'Subsidiary Pass' };
+    } else {
+      return { grade: 'F', points: 0, comment: 'Fail' };
+    }
+  }
+
+  const grades = [];
+  papers.forEach(p => {
+    if (p.score !== null && p.score !== undefined && p.score !== '') {
+      const s = Math.round(p.score);
+      let pg = 9;
+      if (s >= 85) pg = 1;
+      else if (s >= 80) pg = 2;
+      else if (s >= 75) pg = 3;
+      else if (s >= 70) pg = 4;
+      else if (s >= 65) pg = 5;
+      else if (s >= 60) pg = 6;
+      else if (s >= 50) pg = 7;
+      else if (s >= 40) pg = 8;
+      grades.push(pg);
+    }
+  });
+
+  if (grades.length === 0) {
+    return { grade: '-', points: 0, comment: '-' };
+  }
+
+  const sorted = grades.sort((a, b) => a - b);
+  const numPapers = sorted.length;
+
+  if (numPapers === 1) {
+    const g = sorted[0];
+    if (g <= 2) return { grade: 'A', points: 6, comment: 'Excellent' };
+    if (g === 3) return { grade: 'B', points: 5, comment: 'Very Good results' };
+    if (g === 4) return { grade: 'C', points: 4, comment: 'Good performance' };
+    if (g === 5) return { grade: 'D', points: 3, comment: 'Fair' };
+    if (g === 6) return { grade: 'E', points: 2, comment: 'Pass' };
+    if (g <= 8) return { grade: 'O', points: 1, comment: 'Subsidiary Pass' };
+    return { grade: 'F', points: 0, comment: 'Fail' };
+  }
+
+  if (numPapers === 2) {
+    const g1 = sorted[0];
+    const g2 = sorted[1];
+    if (g2 <= 2) return { grade: 'A', points: 6, comment: 'Excellent' };
+    if (g2 === 3) return { grade: 'B', points: 5, comment: 'Very Good results' };
+    if (g2 === 4) return { grade: 'C', points: 4, comment: 'Good performance' };
+    if (g2 === 5) return { grade: 'D', points: 3, comment: 'Fair' };
+    if (g2 === 6 || (g2 <= 8 && g1 + g2 <= 12)) return { grade: 'E', points: 2, comment: 'Pass' };
+    if (g2 <= 8 && g1 + g2 <= 16) return { grade: 'O', points: 1, comment: 'Subsidiary Pass' };
+    if (g1 <= 7 && g2 === 9) return { grade: 'O', points: 1, comment: 'Subsidiary Pass' };
+    return { grade: 'F', points: 0, comment: 'Fail' };
+  }
+
+  if (numPapers === 3) {
+    const g1 = sorted[0];
+    const g2 = sorted[1];
+    const g3 = sorted[2];
+    if (g3 <= 3) return { grade: 'A', points: 6, comment: 'Excellent' };
+    if (g3 === 4) return { grade: 'B', points: 5, comment: 'Very Good results' };
+    if (g3 === 5) return { grade: 'C', points: 4, comment: 'Good performance' };
+    if (g3 === 6) return { grade: 'D', points: 3, comment: 'Fair' };
+    if ((g3 === 7 && g2 <= 6) || (g3 === 8 && g2 <= 6 && g1 <= 5)) return { grade: 'E', points: 2, comment: 'Pass' };
+    if (g3 <= 8) return { grade: 'O', points: 1, comment: 'Subsidiary Pass' };
+    if (g3 === 9 && g2 <= 8) return { grade: 'O', points: 1, comment: 'Subsidiary Pass' };
+    if (g3 === 9 && g2 === 9 && g1 <= 7) {
+      if (g1 === 7 && isScienceSubject(subjectName)) {
+        return { grade: 'F', points: 0, comment: 'Fail' };
+      }
+      return { grade: 'O', points: 1, comment: 'Subsidiary Pass' };
+    }
+    return { grade: 'F', points: 0, comment: 'Fail' };
+  }
+
+  const g1 = sorted[0];
+  const g2 = sorted[1];
+  const g3 = sorted[2];
+  const g4 = sorted[3];
+  if (g4 <= 3) return { grade: 'A', points: 6, comment: 'Excellent' };
+  if (g4 === 4) return { grade: 'B', points: 5, comment: 'Very Good results' };
+  if (g4 === 5) return { grade: 'C', points: 4, comment: 'Good performance' };
+  if (g4 === 6) return { grade: 'D', points: 3, comment: 'Fair' };
+  if ((g4 === 7 && g3 <= 6) || (g4 === 8 && g3 <= 6 && g2 <= 6 && g1 <= 5)) return { grade: 'E', points: 2, comment: 'Pass' };
+  if (g4 <= 8) return { grade: 'O', points: 1, comment: 'Subsidiary Pass' };
+  if (g4 === 9 && g3 <= 8) return { grade: 'O', points: 1, comment: 'Subsidiary Pass' };
+  if (g4 === 9 && g3 === 9 && g2 <= 7) return { grade: 'O', points: 1, comment: 'Subsidiary Pass' };
+  return { grade: 'F', points: 0, comment: 'Fail' };
 }
 
 function calculateUACEPoints(marks) {
@@ -38,30 +168,22 @@ function calculateUACEPoints(marks) {
   marks.forEach(m => {
     if (!subjects[m.subject]) {
       subjects[m.subject] = {
+        name: m.subject,
         type: m.subject_type,
-        scores: []
+        papers: []
       };
     }
-    subjects[m.subject].scores.push(parseFloat(m.score || 0));
+    subjects[m.subject].papers.push({ score: m.score });
   });
 
   let principalPoints = 0;
   let subsidiaryPoints = 0;
   Object.values(subjects).forEach(sub => {
-    const avgScore = sub.scores.reduce((a, b) => a + b, 0) / sub.scores.length;
-    if (sub.type === 'General Paper' || sub.type === 'Subsidiary') {
-      if (avgScore >= 35) {
-        subsidiaryPoints += 1;
-      }
+    const grInfo = getUACEOverallSubjectGrade(sub.papers, sub.name, sub.type);
+    if (isSubsidiarySubject(sub.name, sub.type)) {
+      subsidiaryPoints += grInfo.points;
     } else {
-      let pts = 0;
-      if (avgScore >= 70) pts = 6;
-      else if (avgScore >= 60) pts = 5;
-      else if (avgScore >= 50) pts = 4;
-      else if (avgScore >= 45) pts = 3;
-      else if (avgScore >= 40) pts = 2;
-      else if (avgScore >= 35) pts = 1;
-      principalPoints += pts;
+      principalPoints += grInfo.points;
     }
   });
 
@@ -210,7 +332,7 @@ function getSubjectSortIndex(subjectName, gradeClass) {
   const isS3orS4 = cls.startsWith('S.3') || cls.startsWith('S.4');
 
   if (isS1orS2) {
-    if (normalized.includes('english')) return 1;
+    if (normalized.includes('english') && !normalized.includes('literature')) return 1;
     if (normalized === 'mathematics' || normalized === 'maths' || normalized === 'mtc') return 2;
     if (normalized === 'physics' || normalized === 'phy') return 3;
     if (normalized === 'chemistry' || normalized === 'chem') return 4;
@@ -222,7 +344,7 @@ function getSubjectSortIndex(subjectName, gradeClass) {
     if (normalized.includes('christian religious') || normalized === 'cre') return 10;
     if (normalized.includes('history') || normalized === 'hist') return 11;
   } else if (isS3orS4) {
-    if (normalized.includes('english')) return 1;
+    if (normalized.includes('english') && !normalized.includes('literature')) return 1;
     if (normalized === 'mathematics' || normalized === 'maths' || normalized === 'mtc') return 2;
     if (normalized === 'physics' || normalized === 'phy') return 3;
     if (normalized === 'chemistry' || normalized === 'chem') return 4;
@@ -633,19 +755,9 @@ async function compileReportsPdf({
         let finalComment = '-';
 
         if (validPapersCount > 0) {
-          if (g.type === 'General Paper' || g.type === 'Subsidiary') {
-            finalGrade = avgScore >= 35 ? 'SP' : 'SF';
-            finalComment = avgScore >= 35 ? 'Good results' : 'Aim higher next term';
-          } else {
-            // Principal
-            if (avgScore >= 70) { finalGrade = 'A'; finalComment = 'Excellent'; }
-            else if (avgScore >= 60) { finalGrade = 'B'; finalComment = 'Very Good results'; }
-            else if (avgScore >= 50) { finalGrade = 'C'; finalComment = 'Good performance'; }
-            else if (avgScore >= 45) { finalGrade = 'D'; finalComment = 'Fair'; }
-            else if (avgScore >= 40) { finalGrade = 'E'; finalComment = 'Pass'; }
-            else if (avgScore >= 35) { finalGrade = 'O'; finalComment = 'Subsidiary Pass'; }
-            else { finalGrade = 'F'; finalComment = 'Fail'; }
-          }
+          const overall = getUACEOverallSubjectGrade(g.papers, g.subject, g.type);
+          finalGrade = overall.grade;
+          finalComment = overall.comment;
         }
 
         // Collect unique teacher initials
@@ -706,8 +818,11 @@ async function compileReportsPdf({
           const totalScoreStr = p.score !== null && p.score !== undefined ? `${Math.round(p.score)}/100` : '-/100';
           doc.text(totalScoreStr, 115, paperY + rowHeight - 2, { align: 'center' });
 
-          // Paper Grade (D1-F9 scale)
-          const paperGrade = p.score !== null && p.score !== undefined ? getUACEPrincipalGrade(p.score).grade : '-';
+          // Paper Grade (D1-F9 scale or SP/SF for subsidiary)
+          const isSubSubject = isSubsidiarySubject(g.subject, g.type);
+          const paperGrade = p.score !== null && p.score !== undefined
+            ? (isSubSubject ? getUACESubGPGrade(p.score).grade : getUACEPrincipalGrade(p.score).grade)
+            : '-';
           doc.setFont('helvetica', 'bold');
           doc.text(paperGrade, 129, paperY + rowHeight - 2, { align: 'center' });
         });
@@ -780,29 +895,11 @@ async function compileReportsPdf({
         return getOLevelGrade(finalMark).grade;
       });
 
-      const COMPULSORY_SUBJECTS = [
-        "English Language",
-        "Mathematics",
-        "Biology",
-        "Chemistry",
-        "Physics",
-        "History and Political Education",
-        "Geography"
-      ];
-
-      const satSubjects = sMarks.map(m => (m.subject || '').trim().toLowerCase());
-      const missingCompulsory = COMPULSORY_SUBJECTS.filter(subj => !satSubjects.includes(subj.toLowerCase()));
-      const satCompulsory = missingCompulsory.length === 0;
       const satCount = sMarks.length;
-      const meetsSubjectRange = satCount >= 8 && satCount <= 9;
       const hasDOrHigher = olevelGrades.some(g => ['A', 'B', 'C', 'D'].includes(g));
 
       if (satCount > 0) {
-        if (!satCompulsory) {
-          uceResultStatus = 'Result 2 (Missed compulsory subjects)';
-        } else if (!meetsSubjectRange) {
-          uceResultStatus = `Result 2 (Sat for ${satCount} subjects, expected 8 or 9)`;
-        } else if (!hasDOrHigher) {
+        if (!hasDOrHigher) {
           uceResultStatus = 'Result 2 (Scores exclusively at E level)';
         } else {
           uceResultStatus = 'Result 1 (Passed / Achieved Certification)';
@@ -1480,5 +1577,9 @@ module.exports = {
   getUACESubGPGrade,
   getGeneralComment,
   getClassTeacherComment,
-  getHeadTeacherComment
+  getHeadTeacherComment,
+  isSubsidiarySubject,
+  calculateUACEPoints,
+  getUACEOverallSubjectGrade,
+  isScienceSubject
 };

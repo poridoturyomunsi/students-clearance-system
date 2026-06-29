@@ -15,6 +15,7 @@ export interface Student {
   name: string; // Official name
   aliases?: string[]; // Alternative name variations linked to same Student Number
   gender: 'Male' | 'Female';
+  dob?: string; // Date of Birth (YYYY-MM-DD format)
   gradeClass: string; // Class / Form (e.g., Form 4 West, Grade 10B)
   boardingStatus: BoardingStatus;
   isCleared: boolean; // General clearance state (true: Cleared, false: Hold / Not Cleared)

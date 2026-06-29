@@ -56,6 +56,7 @@ export default function TeacherPortal({
   const [selectedPaper, setSelectedPaper] = useState<number>(1);
 
   const [students, setStudents] = useState<any[]>([]);
+  const [boardingFilter, setBoardingFilter] = useState<'All' | 'Hosteller' | 'Day Scholar'>('All');
   const [marksMap, setMarksMap] = useState<Record<string, any>>({});
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
@@ -69,6 +70,16 @@ export default function TeacherPortal({
   });
 
   const isUACE = selectedClassVal.startsWith('S.5') || selectedClassVal.startsWith('S.6');
+
+  const filteredStudents = Array.isArray(students) ? students.filter(student => {
+    if (boardingFilter === 'Hosteller') {
+      return student.boardingStatus === 'Boarder' || student.boardingStatus === 'Hosteller';
+    }
+    if (boardingFilter === 'Day Scholar') {
+      return student.boardingStatus === 'Day Scholar' || student.boardingStatus === 'Day Scholars';
+    }
+    return true;
+  }) : [];
 
   const STREAM_ORDER = ['A', 'B', 'C', 'Arts', 'Sciences'];
   const orderStreams = (streams: string[]) => {
@@ -152,7 +163,8 @@ export default function TeacherPortal({
     loadMetadata();
   }, []);
 
-  const availableSubjects = (assignedSubjects && assignedSubjects.length > 0) ? assignedSubjects : allSubjects;
+  // Note: Allow selecting all subjects for marks entry.
+  const availableSubjects = allSubjects;
   const filteredSubjects = availableSubjects.filter(sub =>
     sub.toLowerCase().includes(subjectSearch.toLowerCase())
   );
@@ -274,6 +286,14 @@ export default function TeacherPortal({
       setSelectedPaper(1);
     }
   }, [activeSubject]);
+
+  useEffect(() => {
+    if (term && term.toLowerCase().includes('midterm')) {
+      setBoardingFilter('Hosteller');
+    } else {
+      setBoardingFilter('All');
+    }
+  }, [term]);
 
   useEffect(() => {
     if (error) {
@@ -400,7 +420,7 @@ export default function TeacherPortal({
 
         // Build a map of normalized loaded student name or alias -> student object
         const activeStudentsByName = new Map<string, any>();
-        students.forEach(s => {
+        filteredStudents.forEach(s => {
           const norm = normalizeName(s.name);
           if (norm) {
             activeStudentsByName.set(norm, s);
@@ -528,7 +548,7 @@ export default function TeacherPortal({
 
               const scoreNum = parseFloat(newScoreVal) || 0;
               let grInfo = { grade: 'F', points: 0 };
-              if (newTypeVal === 'General Paper' || newTypeVal === 'Subsidiary') {
+              if (isSubsidiarySubject(activeSubject, newTypeVal)) {
                 grInfo = getUACESubGPGrade(scoreNum);
               } else {
                 grInfo = getUACEPrincipalGrade(scoreNum);
@@ -683,7 +703,7 @@ export default function TeacherPortal({
       if (!isNaN(num)) {
         let isInvalid = false;
         if (isU) {
-          if (field === 'score') {
+          if (field === 'bot' || field === 'mot' || field === 'eot' || field === 'score') {
             if (num < 0 || num > maxExam) {
               isInvalid = true;
             }
@@ -716,13 +736,13 @@ export default function TeacherPortal({
       const errsForStudent = { ...(next[studentId] || {}) };
 
       if (isU) {
-        if (field === 'score') {
+        if (field === 'bot' || field === 'mot' || field === 'eot' || field === 'score') {
           if (trimmedValue === '') {
-            delete errsForStudent['score'];
+            delete errsForStudent[field];
           } else if (isNaN(parseFloat(trimmedValue)) || parseFloat(trimmedValue) < 0 || parseFloat(trimmedValue) > maxExam) {
-            errsForStudent['score'] = `${label} must be between 0 and ${maxExam}`;
+            errsForStudent[field] = `${label} must be between 0 and ${maxExam}`;
           } else {
-            delete errsForStudent['score'];
+            delete errsForStudent[field];
           }
         }
       } else {
@@ -755,16 +775,37 @@ export default function TeacherPortal({
       current.status = 'Draft'; // Revert back to Draft on any edit
 
       if (isUACE) {
-        const score = parseFloat(current.score) || 0;
-        const type = current.subject_type || 'Principal';
-        let grInfo = { grade: 'F', points: 0 };
-        if (type === 'General Paper' || type === 'Subsidiary') {
-          grInfo = getUACESubGPGrade(score);
+        const bot = field === 'bot' ? trimmedValue : current.bot;
+        const mot = field === 'mot' ? trimmedValue : current.mot;
+        const eot = field === 'eot' ? trimmedValue : current.eot;
+        const type = field === 'subject_type' ? trimmedValue : (current.subject_type || 'Principal');
+
+        const botVal = bot !== undefined && bot !== null && bot !== '' ? parseFloat(bot) : null;
+        const motVal = mot !== undefined && mot !== null && mot !== '' ? parseFloat(mot) : null;
+        const eotVal = eot !== undefined && eot !== null && eot !== '' ? parseFloat(eot) : null;
+
+        const hasNoMarks = botVal === null && motVal === null && eotVal === null;
+
+        if (hasNoMarks) {
+          current.score = null;
+          current.grade = null;
+          current.points = null;
         } else {
-          grInfo = getUACEPrincipalGrade(score);
+          const score = Math.round(
+            (botVal !== null ? botVal : 0) * 0.3 +
+            (motVal !== null ? motVal : 0) * 0.3 +
+            (eotVal !== null ? eotVal : 0) * 0.4
+          );
+          current.score = score;
+          let grInfo = { grade: 'F', points: 0 };
+          if (isSubsidiarySubject(activeSubject, type)) {
+            grInfo = getUACESubGPGrade(score);
+          } else {
+            grInfo = getUACEPrincipalGrade(score);
+          }
+          current.grade = grInfo.grade;
+          current.points = grInfo.points;
         }
-        current.grade = grInfo.grade;
-        current.points = grInfo.points;
       }
 
       return {
@@ -797,19 +838,38 @@ export default function TeacherPortal({
           status: targetStatus
         };
 
-        if (isUACE && field === 'score') {
-          const score = newValue;
-          const type = current.subject_type || 'Principal';
-          let grInfo = { grade: 'F', points: 0 };
-          if (score !== null) {
-            if (type === 'General Paper' || type === 'Subsidiary') {
+        if (isUACE && (field === 'bot' || field === 'mot' || field === 'eot' || field === 'score')) {
+          const bot = field === 'bot' ? newValue : current.bot;
+          const mot = field === 'mot' ? newValue : current.mot;
+          const eot = field === 'eot' ? newValue : current.eot;
+
+          const botVal = bot !== undefined && bot !== null && bot !== '' ? parseFloat(bot) : null;
+          const motVal = mot !== undefined && mot !== null && mot !== '' ? parseFloat(mot) : null;
+          const eotVal = eot !== undefined && eot !== null && eot !== '' ? parseFloat(eot) : null;
+
+          const hasNoMarks = botVal === null && motVal === null && eotVal === null;
+
+          if (hasNoMarks) {
+            updatedRecord.score = null;
+            updatedRecord.grade = null;
+            updatedRecord.points = null;
+          } else {
+            const score = Math.round(
+              (botVal !== null ? botVal : 0) * 0.3 +
+              (motVal !== null ? motVal : 0) * 0.3 +
+              (eotVal !== null ? eotVal : 0) * 0.4
+            );
+            updatedRecord.score = score;
+            const type = current.subject_type || 'Principal';
+            let grInfo = { grade: 'F', points: 0 };
+            if (isSubsidiarySubject(activeSubject, type)) {
               grInfo = getUACESubGPGrade(score);
             } else {
               grInfo = getUACEPrincipalGrade(score);
             }
+            updatedRecord.grade = grInfo.grade;
+            updatedRecord.points = grInfo.points;
           }
-          updatedRecord.grade = score !== null ? grInfo.grade : null;
-          updatedRecord.points = score !== null ? grInfo.points : null;
         }
 
         return {
@@ -820,11 +880,11 @@ export default function TeacherPortal({
     };
 
     if (isU) {
-      if (field === 'score') {
+      if (field === 'bot' || field === 'mot' || field === 'eot' || field === 'score') {
         if (trimmedValue === '') {
           setFieldErrors(prev => {
             const next = { ...prev };
-            if (next[studentId]) { delete next[studentId].score; if (Object.keys(next[studentId]).length === 0) delete next[studentId]; }
+            if (next[studentId]) { delete next[studentId][field]; if (Object.keys(next[studentId]).length === 0) delete next[studentId]; }
             return next;
           });
           updateMarkState(null);
@@ -832,11 +892,11 @@ export default function TeacherPortal({
         }
         const num = parseFloat(trimmedValue);
         if (isNaN(num) || num < 0 || num > maxExam) {
-          setFieldErrors(prev => ({ ...prev, [studentId]: { ...(prev[studentId] || {}), score: `${label} must be between 0 and ${maxExam}` } }));
+          setFieldErrors(prev => ({ ...prev, [studentId]: { ...(prev[studentId] || {}), [field]: `${label} must be between 0 and ${maxExam}` } }));
         } else {
           setFieldErrors(prev => {
             const next = { ...prev };
-            if (next[studentId]) { delete next[studentId].score; if (Object.keys(next[studentId]).length === 0) delete next[studentId]; }
+            if (next[studentId]) { delete next[studentId][field]; if (Object.keys(next[studentId]).length === 0) delete next[studentId]; }
             return next;
           });
           updateMarkState(num);
@@ -965,7 +1025,8 @@ export default function TeacherPortal({
       }
       
       // Save all marks directly with Approved status
-      const marksList = Object.values(marksMap).map((m: any) => ({ ...m, status: 'Approved' }));
+      const marksList = Object.values(marksMap)
+        .map((m: any) => ({ ...m, status: 'Approved' }));
       
       await saveTeacherMarks({
         gradeClass: combinedClass,
@@ -1118,19 +1179,40 @@ export default function TeacherPortal({
   }
 
   function getUACEPrincipalGrade(score: number) {
-    if (score >= 80) return { grade: 'D1', points: 6 };
-    if (score >= 75) return { grade: 'D2', points: 5 };
-    if (score >= 66) return { grade: 'C3', points: 4 };
-    if (score >= 60) return { grade: 'C4', points: 3 };
-    if (score >= 55) return { grade: 'C5', points: 2 };
-    if (score >= 50) return { grade: 'C6', points: 1 };
-    if (score >= 45) return { grade: 'P7', points: 0 };
-    if (score >= 35) return { grade: 'P8', points: 0 };
+    const s = Math.round(score || 0);
+    if (s >= 85) return { grade: 'D1', points: 6 };
+    if (s >= 80) return { grade: 'D2', points: 5 };
+    if (s >= 75) return { grade: 'C3', points: 4 };
+    if (s >= 70) return { grade: 'C4', points: 3 };
+    if (s >= 65) return { grade: 'C5', points: 2 };
+    if (s >= 60) return { grade: 'C6', points: 1 };
+    if (s >= 50) return { grade: 'P7', points: 0 };
+    if (s >= 40) return { grade: 'P8', points: 0 };
     return { grade: 'F9', points: 0 };
   }
 
+  function isSubsidiarySubject(subjectName: string, subjectType: string) {
+    const normType = (subjectType || '').toLowerCase().trim();
+    if (normType === 'general paper' || normType === 'subsidiary') {
+      return true;
+    }
+    const normName = (subjectName || '').toLowerCase().trim();
+    if (normName === 'general paper' || normName === 'gp' || normName === 'sub math' || normName === 'subsidiary math' || normName === 'subsidiary mathematics' || normName === 'subsidiary ict' || normName === 'sict' || normName === 'sm') {
+      return true;
+    }
+    if (normName.includes('subsidiary') || normName.includes('general paper')) {
+      return true;
+    }
+    return false;
+  }
+
   function getUACESubGPGrade(score: number) {
-    return getUACEPrincipalGrade(score);
+    const s = Math.round(score || 0);
+    if (s >= 60) {
+      return { grade: 'SP', points: 1 };
+    } else {
+      return { grade: 'SF', points: 0 };
+    }
   }
 
   return (
@@ -1470,7 +1552,7 @@ export default function TeacherPortal({
                     className="w-full bg-slate-900 border border-slate-800 rounded-xl px-4 py-2.5 text-xs text-slate-200 font-bold focus:outline-none focus:border-indigo-500"
                   >
                     <option value="">Select Class...</option>
-                    {(assignedClasses && assignedClasses.length > 0 ? assignedClasses : classList).map((c) => {
+                    {classList.map((c) => {
                       const parsed = parseClassAndStream(c);
                       const displayValue = parsed.stream ? `${parsed.class} / ${parsed.stream}` : c;
                       return (
@@ -1511,6 +1593,19 @@ export default function TeacherPortal({
                         <option value="Midterm 2">Midterm 2</option>
                         <option value="3">Term 3</option>
                         <option value="Midterm 3">Midterm 3</option>
+                      </select>
+                    </div>
+
+                    <div className="w-full md:w-36">
+                      <label className="text-[10px] text-slate-400 font-bold uppercase tracking-wider block mb-1">Boarding Status</label>
+                      <select
+                        value={boardingFilter}
+                        onChange={(e) => setBoardingFilter(e.target.value as any)}
+                        className="w-full bg-slate-900 border border-slate-800 rounded-xl px-4 py-2.5 text-xs text-slate-200 font-bold focus:outline-none focus:border-indigo-500"
+                      >
+                        <option value="All">All Students</option>
+                        <option value="Hosteller">Hostellers Only</option>
+                        <option value="Day Scholar">Day Scholars Only</option>
                       </select>
                     </div>
 
@@ -1600,7 +1695,7 @@ export default function TeacherPortal({
                 <RefreshCw className="w-8 h-8 text-indigo-400 animate-spin" />
                 <p className="text-xs text-slate-400 font-bold uppercase tracking-wider">Syncing Student Worksheet...</p>
               </div>
-            ) : students.length === 0 ? (
+            ) : filteredStudents.length === 0 ? (
               <div className="py-20 text-center text-slate-500 font-medium text-xs">
                 No students enrolled in {selectedClassVal}{selectedStreamVal && <span> {selectedStreamVal}</span>} were found.
               </div>
@@ -1639,7 +1734,7 @@ export default function TeacherPortal({
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-slate-850">
-                      {Array.isArray(students) && students.map((student, idx) => {
+                      {filteredStudents.map((student, idx) => {
                         const record = marksMap[student.id] || {};
                         let isLocked = false; // Locks disabled. Teachers can edit marks at any time.
 
@@ -1878,7 +1973,7 @@ export default function TeacherPortal({
                 </div>
                 <div className="px-5 py-4 border-t border-slate-850 bg-slate-950 flex justify-between items-center gap-3">
                   <div className="text-[10px] text-slate-500 font-bold uppercase tracking-wider">
-                    Total: {students.length} Students listed
+                    Total: {filteredStudents.length} Students listed
                   </div>
                   <div className="flex gap-3">
                     <button

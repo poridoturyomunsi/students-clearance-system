@@ -2,6 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { Users, FileSpreadsheet, RefreshCw, Plus, Edit2, Trash2, Check, X, ShieldAlert, TrendingUp, BarChart3, Settings, Upload, Download, CheckCircle2, Search, KeyRound, Camera } from 'lucide-react';
 import { Teacher, Student } from '../types.ts';
 import AdminStudentAccountsTab from './AdminStudentAccountsTab.tsx';
+import AdminDuplicatesTab from './AdminDuplicatesTab.tsx';
 import { SCHOOL_CLASSES } from '../data.ts';
 import { 
   fetchTeachers, createTeacher, updateTeacher, deleteTeacher, 
@@ -39,7 +40,7 @@ export default function AdminPortalExtensions({ schoolLogo, onLogoRefresh, authS
     return pos === 'classteacher' || pos === 'dos' || pos === 'directorofstudies' || pos === 'headteacher';
   };
 
-  const [activeSubTab, setActiveSubTab] = useState<'teachers' | 'reports' | 'promotions' | 'emis' | 'studentsearch' | 'studentaccounts'>('teachers');
+  const [activeSubTab, setActiveSubTab] = useState<'teachers' | 'reports' | 'promotions' | 'emis' | 'studentsearch' | 'studentaccounts' | 'duplicates'>('teachers');
   
   // Teachers Management State
   const [teachers, setTeachers] = useState<Teacher[]>([]);
@@ -792,6 +793,14 @@ export default function AdminPortalExtensions({ schoolLogo, onLogoRefresh, authS
           }`}
         >
           <KeyRound className="w-4 h-4" /> Student Accounts
+        </button>
+        <button
+          onClick={() => setActiveSubTab('duplicates')}
+          className={`w-full sm:w-auto px-4 py-2 rounded-lg text-xs font-black uppercase tracking-wider flex items-center gap-2 transition-all cursor-pointer ${
+            activeSubTab === 'duplicates' ? 'bg-indigo-600 text-white' : 'bg-slate-950 text-slate-400 hover:text-slate-200'
+          }`}
+        >
+          <Users className="w-4 h-4" /> Manage Duplicates
         </button>
       </div>
 
@@ -2086,6 +2095,10 @@ export default function AdminPortalExtensions({ schoolLogo, onLogoRefresh, authS
 
       {activeSubTab === 'studentaccounts' && (
         <AdminStudentAccountsTab approvedBy={authSession?.user?.name || 'Administrator'} />
+      )}
+
+      {activeSubTab === 'duplicates' && (
+        <AdminDuplicatesTab approvedBy={authSession?.user?.name || 'Administrator'} />
       )}
     </div>
   );

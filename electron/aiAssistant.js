@@ -84,6 +84,72 @@ function registerAiAssistantRoutes(app, poolProvider) {
     }
   });
 
+  // Predefined Answers Dictionary for Common Questions
+  function getPredefinedAnswer(question) {
+    const q = question.toLowerCase().trim().replace(/[?.]/g, '');
+    
+    if (q.includes('enter marks') || q.includes('input marks') || q.includes('add marks')) {
+      return `Log in as a teacher.
+Open Results Management.
+Select Class and Stream.
+Choose the Subject.
+Enter marks and click Save.
+Use Edit Marks if you need to make corrections.`;
+    }
+    
+    if (q.includes('print report card') || q.includes('generate report card') || q.includes('print reports')) {
+      return `Log in as an Administrator, Teacher, or Student.
+Go to the Results page or Student Portal.
+Locate the specific student.
+Click Print Report Card or Compile PDF.
+Download or print the generated PDF.`;
+    }
+    
+    if (q.includes('add a new student') || q.includes('register student') || q.includes('add student') || q.includes('register a new student')) {
+      return `Log in as an Administrator.
+Navigate to Student Directory.
+Click the Add Student or Register Student button.
+Fill in the student's name, class, gender, and boarding status.
+Click Save to add the student.`;
+    }
+    
+    if (q.includes('assign teacher') || q.includes('assign teachers') || q.includes('teacher assignments')) {
+      return `Log in as an Administrator.
+Go to the Teacher Management section.
+Select the target teacher from the list.
+Assign classes and subjects to the teacher.
+Click Save Assignments.`;
+    }
+    
+    if (q.includes('generate class list') || q.includes('generate class lists') || q.includes('export class list')) {
+      return `Log in as an Administrator or Teacher.
+Navigate to Class Lists or Student Directory.
+Select the class and stream to view.
+Click Export to CSV/Excel or Print Class List.`;
+    }
+    
+    if (q.includes('upload school logo') || q.includes('upload logo') || q.includes('change school logo')) {
+      return `Log in as an Administrator.
+Go to Admin Settings.
+Under General Settings, click Upload School Logo.
+Choose the image file and click save settings.`;
+    }
+    
+    return null;
+  }
+
+  // Clean Markdown helper
+  function cleanPlainText(text) {
+    if (!text) return '';
+    return text
+      .replace(/\*\*/g, '')
+      .replace(/\*/g, '')
+      .replace(/#/g, '')
+      .replace(/[-•]\s+/g, '') // remove bullets
+      .replace(/`/g, '')       // remove backticks
+      .trim();
+  }
+
   // POST ask AI assistant
   app.post('/api/ai/ask', async (req, res) => {
     try {
@@ -99,103 +165,141 @@ function registerAiAssistantRoutes(app, poolProvider) {
         });
       }
 
+      // Check predefined answers first
+      const predefinedAnswer = getPredefinedAnswer(question);
+      if (predefinedAnswer) {
+        console.log(`[AI Assistant] Programmatic match for predefined question: "${question}"`);
+        return res.json({
+          question,
+          sql: null,
+          answer: predefinedAnswer,
+          columns: [],
+          rows: []
+        });
+      }
+
       const ai = new GoogleGenAI({ apiKey });
 
-      // DB Schema Description
-      const dbSchemaDescription = `
-You are the Database AI Expert for "St. Paul Secondary School" Student Clearance Card System.
-Your job is to translate a user's natural language question into a single read-only SELECT SQL query, which will run on a MySQL database.
+      // Classifier & Knowledge Base prompt
+      const classificationPrompt = `
+You are the Brain Classifier for "St. Paul Secondary School" Student Clearance Card System.
+Analyze the user's question: "${question}"
 
-Database Schema:
+Determine the type of the question:
+1. "database" - The question asks for data residing in the MySQL database (e.g., student counts, specific student clearance status, fees balances, list of students in a class).
+2. "help" - The question is about how to use the system, how to perform features, or instructions/tutorials (e.g., how to enter marks, print report cards, register students, promote students, upload photos, upload school logos, assign teachers, generate class lists).
+3. "mixed" - The question asks for BOTH database data and help/tutorial instructions (e.g., "how many students are cleared and how do I clear a student?").
+
+Here is the System Knowledge Base containing all system features and instructions:
+- Entering/Editing Marks:
+  Log in as a teacher.
+  Open Results Management.
+  Select Class and Stream.
+  Choose the Subject.
+  Enter marks and click Save.
+  Use Edit Marks if you need to make corrections.
+- Printing Report Cards:
+  Log in as an Administrator, Teacher, or Student.
+  Go to the Results page or Student Portal.
+  Locate the specific student.
+  Click Print Report Card or Compile PDF.
+  Download or print the generated PDF.
+- Registering/Adding Students:
+  Log in as an Administrator.
+  Navigate to Student Directory.
+  Click the Add Student or Register Student button.
+  Fill in the student's name, class, gender, and boarding status.
+  Click Save to add the student.
+- Assigning Teachers:
+  Log in as an Administrator.
+  Go to the Teacher Management section.
+  Select the target teacher from the list.
+  Assign classes and subjects to the teacher.
+  Click Save Assignments.
+- Generating Class Lists:
+  Log in as an Administrator or Teacher.
+  Navigate to Class Lists or Student Directory.
+  Select the class and stream to view.
+  Click Export to CSV/Excel or Print Class List.
+- Uploading School Logos:
+  Log in as an Administrator.
+  Go to Admin Settings.
+  Under General Settings, click Upload School Logo.
+  Choose the image file and click save settings.
+- Uploading Student Photos:
+  Log in as an Administrator or Teacher.
+  Navigate to Student Directory or Registry.
+  Select the student and click Upload Photo or Capture Webcam.
+  Save or match the photo.
+- Promoting Students:
+  Log in as an Administrator.
+  Open Student Directory / Bulk Actions.
+  Select the students to promote.
+  Choose Promote Students action and update class levels.
+
+MySQL Database Schema:
 1. "students" table:
    - id (VARCHAR(50), Primary Key)
-   - adminNo (VARCHAR(50)) - unique student identification number (e.g. ADM-2026-001)
-   - name (VARCHAR(255)) - student's full name
-   - aliases (TEXT) - comma-separated alternate names
-   - gender (VARCHAR(10)) - 'Male' or 'Female'
-   - gradeClass (VARCHAR(50)) - class/stream name. Format is "S.X StreamName" (e.g., "S.1 A", "S.4 B", "S.5 Sciences", "S.6 Arts").
-   - boardingStatus (VARCHAR(50)) - 'Boarder' (hosteller) or 'Day Scholar'
-   - isCleared (BOOLEAN) - clearance status (1 = Cleared, 0 = Hold/Not Cleared)
+   - adminNo (VARCHAR(50))
+   - name (VARCHAR(255))
+   - aliases (TEXT)
+   - gender (VARCHAR(10))
+   - gradeClass (VARCHAR(50))
+   - boardingStatus (VARCHAR(50))
+   - isCleared (BOOLEAN)
    - gateClearanceDate (VARCHAR(20))
    - mealsClearanceDate (VARCHAR(20))
-   - remarks (TEXT) - teacher/administrator remarks
+   - remarks (TEXT)
    - photo (LONGTEXT) - base64 photo (to check if photo is uploaded, use "photo IS NOT NULL AND LENGTH(photo) > 0" or check "photo = ''" as missing)
    - photoOriginal (LONGTEXT)
    - photoEnhanced (LONGTEXT)
-   - printStatus (VARCHAR(20)) - 'Printed' or 'Not Printed'
-   - uace_combination (VARCHAR(50)) - optional subject combination for S.5/S.6 (e.g. PCM, HEL)
-
+   - printStatus (VARCHAR(20))
+   - uace_combination (VARCHAR(50))
 2. "marks" table:
-   - id (INT, Primary Key)
-   - student_id (VARCHAR(50), Foreign Key pointing to students.id)
-   - subject (VARCHAR(100))
-   - marks_obtained (DECIMAL(5,2))
-   - max_marks (DECIMAL(5,2))
-   - term (VARCHAR(20))
-   - year (INT)
+   - id, student_id, subject, marks_obtained, max_marks, term, year.
+3. "olevel_marks" table:
+   - id, student_id, subject, integration1, integration2, integration3, exam_score, term, year, status.
+4. "uace_marks" table:
+   - id, student_id, subject, subject_type, paper, score, bot, mot, eot, grade, points, term, year, status.
+5. "attendance" table:
+   - id, student_id, date, status.
+6. "fees" table:
+   - id, student_id, term, year, amount_due, amount_paid, balance, payment_status.
+7. "teachers" table:
+   - id, name, username, classes, subjects, position, status.
 
-3. "attendance" table:
-   - id (INT, Primary Key)
-   - student_id (VARCHAR(50), Foreign Key pointing to students.id)
-   - date (DATE)
-   - status (ENUM('Present', 'Absent', 'Late', 'Excused'))
-
-4. "fees" table:
-   - id (INT, Primary Key)
-   - student_id (VARCHAR(50), Foreign Key pointing to students.id)
-   - term (VARCHAR(20))
-   - year (INT)
-   - amount_due (DECIMAL(12,2))
-   - amount_paid (DECIMAL(12,2))
-   - balance (DECIMAL(12,2))
-   - payment_status (ENUM('Paid', 'Pending', 'Overdue'))
-
-5. "teachers" table:
-   - id (VARCHAR(50), Primary Key)
-   - name (VARCHAR(100))
-
-Rules for SQL Generation:
-1. ONLY write SELECT statements. Under NO circumstances should you generate INSERT, UPDATE, DELETE, ALTER, CREATE, DROP, RENAME, or REPLACE statements.
-2. If the question asks for students in a class or stream, remember:
-   - The gradeClass column contains both class and stream (e.g., "S.4 B").
-   - To query by class only (e.g. S.4), use "gradeClass LIKE 'S.4 %' OR gradeClass = 'S.4'".
-   - To query by stream only (e.g. Stream A), use "gradeClass LIKE '% A' OR gradeClass LIKE '%A'".
-   - To query both class and stream (e.g. S.4 Stream A), use "gradeClass = 'S.4 A'".
-3. Check photo existence: "photo IS NOT NULL AND LENGTH(photo) > 0".
-4. Check missing photo: "photo IS NULL OR LENGTH(photo) = 0".
-5. For clearance checks: "isCleared = 1" or "isCleared = 0".
-6. If the user question is a greeting or a general, non-database question, return a JSON response with "sql": null and a friendly response in "explanation".
+Rules:
+1. ONLY write SELECT SQL queries.
+2. If the user question is a greeting, non-database query, or tutorial help request, return "sql": null.
+3. In explanation, respond in PLAIN TEXT only. Do NOT use markdown (*, **, #, bullets). Do not say "Ask the administrator" unless the question is completely unknown.
 
 You MUST return a JSON object with this exact structure:
 {
-  "sql": "SELECT ...",
-  "explanation": "Brief explanation of what this query does."
+  "type": "database" | "help" | "mixed",
+  "sql": "SELECT ... if database/mixed, or null",
+  "explanation": "If 'help' or 'mixed', write step-by-step instructions from the Knowledge Base here. Otherwise, a brief description of the SQL query."
 }
 
-Do not wrap your output in markdown code blocks like \`\`\`json. Return only the raw JSON string.
+Do not wrap output in markdown code blocks. Return only raw JSON.
 `;
 
-      // Call Gemini to generate the SQL
-      console.log(`[AI Assistant] Requesting SQL translation for: "${question}"`);
-      const sqlGenResponse = await ai.models.generateContent({
+      console.log(`[AI Assistant] Requesting query classification for: "${question}"`);
+      const classificationResponse = await ai.models.generateContent({
         model: 'gemini-2.5-flash',
         contents: [
-          { role: 'user', parts: [{ text: dbSchemaDescription }] },
-          { role: 'user', parts: [{ text: `Question: "${question}"` }] }
+          { role: 'user', parts: [{ text: classificationPrompt }] }
         ]
       });
 
-      let responseText = sqlGenResponse.text ? sqlGenResponse.text.trim() : '';
-      
-      // Clean potential markdown wrap
+      let responseText = classificationResponse.text ? classificationResponse.text.trim() : '';
       if (responseText.startsWith('```json')) {
         responseText = responseText.replace(/^```json\s*/i, '').replace(/\s*```$/i, '');
       } else if (responseText.startsWith('```')) {
         responseText = responseText.replace(/^```\s*/i, '').replace(/\s*```$/i, '');
       }
 
-      console.log(`[AI Assistant] Raw response received: ${responseText}`);
-      
+      console.log(`[AI Assistant] Classification raw response: ${responseText}`);
+
       let payload;
       try {
         payload = JSON.parse(responseText);
@@ -204,15 +308,15 @@ Do not wrap your output in markdown code blocks like \`\`\`json. Return only the
         throw new Error('Failed to parse query instruction generated by AI.');
       }
 
+      const qType = payload.type || 'database';
       const sqlQuery = payload.sql;
       const explanation = payload.explanation || '';
 
-      if (!sqlQuery) {
-        // No SQL generated, likely a greeting or non-DB question. Return explanation directly as the answer.
+      if (qType === 'help' || !sqlQuery) {
         return res.json({
           question,
           sql: null,
-          answer: explanation || 'Hello! I am St.Paul Intelligence Assistant. How can I help you manage student clearance cards today?',
+          answer: cleanPlainText(explanation || 'I am here to help you manage the student clearance cards and school system. Ask me database or usage questions!'),
           columns: [],
           rows: []
         });
@@ -242,7 +346,8 @@ Do not wrap your output in markdown code blocks like \`\`\`json. Return only the
         return copy;
       });
 
-      // Synthesis Prompt: Translate raw query results back to user-friendly plain English
+      // Mixed/Synthesis Prompt
+      const mixedInstruction = qType === 'mixed' ? `Also, include these system help instructions in your response:\n${explanation}` : '';
       const synthesisPrompt = `
 You are the Database AI Expert for "St. Paul Secondary School" Student Clearance Card System.
 The user asked: "${question}"
@@ -257,12 +362,14 @@ Columns: ${JSON.stringify(columns)}
 Rows: ${JSON.stringify(sanitizedRows)}
 Total rows in database match: ${rows.length}
 
-Please synthesize a natural language response summarizing these results for the school administrator.
+${mixedInstruction}
+
+Please synthesize a natural language response summarizing these database results for the school administrator.
 Rules:
 1. Write a clear, professional, and friendly response.
 2. Present statistics and summaries nicely.
 3. If there are lists of students, briefly summarize the total number and classes, then mention that the detailed list is shown in the table below.
-4. Keep the response concise, using bold text, bullet points, or lists in Markdown.
+4. Respond in PLAIN TEXT only. Do NOT use markdown formatting (no *, no **, no #, no bullet symbols). Use clean newlines and regular lists instead.
 `;
 
       const synthesisResponse = await ai.models.generateContent({
@@ -270,7 +377,8 @@ Rules:
         contents: [{ role: 'user', parts: [{ text: synthesisPrompt }] }]
       });
 
-      const answer = synthesisResponse.text ? synthesisResponse.text.trim() : 'I have fetched the records matching your question. Please inspect the table below.';
+      const rawAnswer = synthesisResponse.text ? synthesisResponse.text.trim() : 'I have fetched the records matching your question. Please inspect the table below.';
+      const answer = cleanPlainText(rawAnswer);
 
       res.json({
         question,

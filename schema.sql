@@ -139,16 +139,20 @@ CREATE TABLE IF NOT EXISTS uace_marks (
   student_id VARCHAR(50) NOT NULL,
   subject VARCHAR(100) NOT NULL,
   subject_type VARCHAR(20) NOT NULL, -- 'Principal' | 'Subsidiary' | 'General Paper'
-  score DECIMAL(5,2) NOT NULL,
+  paper INT NOT NULL DEFAULT 1,
+  score DECIMAL(5,2) NULL,
+  bot DECIMAL(5,2) NULL DEFAULT NULL,
+  mot DECIMAL(5,2) NULL DEFAULT NULL,
+  eot DECIMAL(5,2) NULL DEFAULT NULL,
   grade VARCHAR(2) NULL,
-  points INT NOT NULL DEFAULT 0,
+  points INT NULL DEFAULT NULL,
   term VARCHAR(20) NOT NULL,
   year INT NOT NULL,
   teacher_id VARCHAR(50) NULL,
   status VARCHAR(20) NOT NULL DEFAULT 'Draft',
   updatedAt TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
   FOREIGN KEY (student_id) REFERENCES students(id) ON DELETE CASCADE,
-  UNIQUE KEY `unique_uace_subject_term` (student_id, subject, term, year)
+  UNIQUE KEY `unique_uace_subject_paper_term` (student_id, subject, paper, term, year)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
 -- Create teacher_assignments table for linking subjects to specific classes/streams

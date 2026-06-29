@@ -97,7 +97,7 @@ export default function StudentPortal({ studentId, studentName, adminNo, student
     const isS3orS4 = cls.startsWith('S.3') || cls.startsWith('S.4');
 
     if (isS1orS2) {
-      if (normalized.includes('english')) return 1;
+      if (normalized.includes('english') && !normalized.includes('literature')) return 1;
       if (normalized === 'mathematics' || normalized === 'maths' || normalized === 'mtc') return 2;
       if (normalized === 'physics' || normalized === 'phy') return 3;
       if (normalized === 'chemistry' || normalized === 'chem') return 4;
@@ -109,7 +109,7 @@ export default function StudentPortal({ studentId, studentName, adminNo, student
       if (normalized.includes('christian religious') || normalized === 'cre') return 10;
       if (normalized.includes('history') || normalized === 'hist') return 11;
     } else if (isS3orS4) {
-      if (normalized.includes('english')) return 1;
+      if (normalized.includes('english') && !normalized.includes('literature')) return 1;
       if (normalized === 'mathematics' || normalized === 'maths' || normalized === 'mtc') return 2;
       if (normalized === 'physics' || normalized === 'phy') return 3;
       if (normalized === 'chemistry' || normalized === 'chem') return 4;

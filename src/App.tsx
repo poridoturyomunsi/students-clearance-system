@@ -104,6 +104,7 @@ import {
   getApiBaseUrl,
   fetchStudentsFromDb,
   saveStudentInDb,
+  uploadImage,
   deleteStudentInDb,
   saveStudentsBulkInDb,
   deleteStudentsBulkInDb,
@@ -307,12 +308,32 @@ function AppContent() {
                 triggerFileDownload(downloadUrl, res.filename!);
 
                 if (t.type === 'pdf') {
-                  setStudents(prevStudents => Array.isArray(prevStudents) ? prevStudents.map(s => {
-                    if (targetStudentIds && targetStudentIds.includes(s.id)) {
-                      return { ...s, printStatus: 'Printed' };
+                  setStudents(prevStudents => {
+                    const updated = Array.isArray(prevStudents) ? prevStudents.map(s => {
+                      if (targetStudentIds && targetStudentIds.includes(s.id)) {
+                        return { ...s, printStatus: 'Printed' as const };
+                      }
+                      return s;
+                    }) : [];
+                    
+                    // Persist local cache asynchronously
+                    saveStudentsAsync(updated).catch(e => console.warn('Local cache save failed:', e));
+                    
+                    // Persist to MySQL and Firestore databases asynchronously
+                    const changed = updated.filter(s => {
+                      const original = (prevStudents || []).find(o => o.id === s.id);
+                      return original && original.printStatus !== s.printStatus;
+                    });
+                    if (changed.length > 0) {
+                      if (!dbConnectionError) {
+                        saveStudentsBulkInDb(changed).catch(e => console.error('MySQL bulk update failed:', e));
+                      }
+                      if (isFirebaseConfigured()) {
+                        Promise.all(changed.map(s => saveStudentInFirestore(s))).catch(e => console.warn('Firestore sync failed:', e));
+                      }
                     }
-                    return s;
-                  }) : (prevStudents || []));
+                    return updated;
+                  });
                 }
               }
               return {
@@ -558,6 +579,27 @@ function AppContent() {
     clearLegacyClearanceRouteCache();
   }, []);
 
+  // Dynamically update the browser tab favicon to match the school logo
+  useEffect(() => {
+    if (typeof window !== 'undefined' && schoolLogo) {
+      let resolvedSrc = schoolLogo;
+      if (schoolLogo.startsWith('/')) {
+        resolvedSrc = `${getApiBaseUrl()}${schoolLogo}`;
+      }
+      
+      const link: HTMLLinkElement | null = document.querySelector("link[rel*='icon']");
+      if (link) {
+        link.href = resolvedSrc;
+      } else {
+        const newLink = document.createElement('link');
+        newLink.type = 'image/png';
+        newLink.rel = 'icon';
+        newLink.href = resolvedSrc;
+        document.getElementsByTagName('head')[0].appendChild(newLink);
+      }
+    }
+  }, [schoolLogo]);
+
   // Load full student list from backend (or fallback to local storage)
   const loadStudentsFromServer = useCallback(async () => {
     if (dbConnectionError) return;
@@ -759,11 +801,90 @@ function AppContent() {
   const [formInputs, setFormInputs] = useState<any>({ adminNo: '', name: '', aliases: '', gender: 'Male', gradeClass: SCHOOL_CLASSES[0], boardingStatus: 'Boarder', isCleared: true, remarks: '', photo: undefined, printStatus: 'Not Printed' });
 
   const handleSaveAndSync = async (updatedStudents: Student[]) => {
+    // 1. Identify changed/new students and deleted students by comparing with current state
+    const currentMap = new Map(Array.isArray(students) ? students.map(s => [s.id, s]) : []);
+    const updatedMap = new Map(Array.isArray(updatedStudents) ? updatedStudents.map(s => [s.id, s]) : []);
+
+    const changedStudents: Student[] = [];
+    const deletedIds: string[] = [];
+
+    // Find new and changed students
+    for (const student of updatedStudents) {
+      const current = currentMap.get(student.id);
+      if (!current) {
+        changedStudents.push(student);
+      } else {
+        if (
+          current.name !== student.name ||
+          current.adminNo !== student.adminNo ||
+          current.gender !== student.gender ||
+          current.gradeClass !== student.gradeClass ||
+          current.boardingStatus !== student.boardingStatus ||
+          current.isCleared !== student.isCleared ||
+          current.printStatus !== student.printStatus ||
+          current.photo !== student.photo ||
+          current.remarks !== student.remarks ||
+          current.gateClearanceDate !== student.gateClearanceDate ||
+          current.mealsClearanceDate !== student.mealsClearanceDate
+        ) {
+          changedStudents.push(student);
+        }
+      }
+    }
+
+    // Find deleted students
+    if (Array.isArray(students)) {
+      for (const student of students) {
+        if (!updatedMap.has(student.id)) {
+          deletedIds.push(student.id);
+        }
+      }
+    }
+
+    // 2. Update React state locally
     setStudents(updatedStudents);
-    try {
-      await saveStudentsAsync(updatedStudents);
-    } catch (err) {
-      console.warn('Unable to persist student list locally during sync:', err);
+
+    // 3. Persist local cache asynchronously (non-blocking)
+    setTimeout(() => {
+      saveStudentsAsync(updatedStudents).catch(err => {
+        console.warn('Unable to persist student list locally during sync:', err);
+      });
+    }, 50);
+
+    // 4. Persist to MySQL database server in the background (if connected)
+    if (!dbConnectionError) {
+      try {
+        if (changedStudents.length > 0) {
+          console.log(`[Sync-Database] Saving ${changedStudents.length} new/modified student(s) to MySQL...`);
+          await saveStudentsBulkInDb(changedStudents);
+        }
+        if (deletedIds.length > 0) {
+          console.log(`[Sync-Database] Deleting ${deletedIds.length} student(s) from MySQL...`);
+          await deleteStudentsBulkInDb(deletedIds);
+        }
+      } catch (dbErr) {
+        console.error('Failed to synchronize changes with MySQL database:', dbErr);
+      }
+    }
+
+    // 5. Cloud Database Sync (Firestore - Non-blocking background sync)
+    if (isFirebaseConfigured()) {
+      try {
+        if (changedStudents.length > 0) {
+          console.log(`[Sync-Firestore] Saving ${changedStudents.length} student(s) to Firestore...`);
+          Promise.all(changedStudents.map(s => saveStudentInFirestore(s)))
+            .then(() => console.log("[Sync-Firestore] Firestore sync completed successfully."))
+            .catch(fireErr => console.warn("[Sync-Firestore] Firestore sync failed:", fireErr));
+        }
+        if (deletedIds.length > 0) {
+          console.log(`[Sync-Firestore] Deleting ${deletedIds.length} student(s) from Firestore...`);
+          deleteMultipleStudentsInFirestore(deletedIds)
+            .then(() => console.log("[Sync-Firestore] Firestore deletion completed successfully."))
+            .catch(fireErr => console.warn("[Sync-Firestore] Firestore deletion failed:", fireErr));
+        }
+      } catch (fireErr) {
+        console.warn("[Sync-Firestore] Pre-sync checks or triggers failed:", fireErr);
+      }
     }
   };
 
@@ -1758,10 +1879,12 @@ function AppContent() {
         console.warn("Failed to save deleted IDs to tracking list:", e);
       }
 
-      // Update local UI state and cache
+      // Update local UI state and cache (non-blocking disk write)
       const updated = students.filter((s) => !idsToDelete.includes(s.id));
       setStudents(updated);
-      await saveStudentsAsync(updated);
+      setTimeout(() => {
+        saveStudentsAsync(updated).catch(e => console.warn('Local cache save failed:', e));
+      }, 50);
 
       // Reset selection
       if (activeLevel === 'master') {
@@ -1847,11 +1970,13 @@ function AppContent() {
         console.warn("Failed to save deleted IDs to tracking list:", e);
       }
 
-      // Update local UI state
+      // Update local UI state (non-blocking disk write)
       setStudents([]);
       setSelectedIds([]);
       setSelectiveSelectedIds([]);
-      await saveStudentsAsync([]);
+      setTimeout(() => {
+        saveStudentsAsync([]).catch(e => console.warn('Local cache save failed:', e));
+      }, 50);
 
       alert(`${totalCount} students deleted successfully.`);
     } catch (err: any) {
@@ -1932,13 +2057,16 @@ function AppContent() {
       photo: fullStudent.photo,
       printStatus: fullStudent.printStatus || 'Not Printed'
     });
-    setPhotoRaw(fullStudent.photo || null);
+    setPhotoRaw(fullStudent.photoOriginal || fullStudent.photo || null);
+    setPhotoOriginal(fullStudent.photoOriginal || fullStudent.photo || null);
     setPhotoZoom(1.0);
     setPhotoPanX(0);
     setPhotoPanY(0);
     setPhotoWhiten(fullStudent.photo ? 0 : 45);
     setPhotoAutoCenter(false);
     setPhotoFilter('studio');
+    setPhotoBgColor('white'); // Default background to white when editing
+    setHasManualBgEdits(false);
     setShowWebcamCapture(false);
     setShowFormModal(true);
   };
@@ -2008,8 +2136,50 @@ function AppContent() {
           console.warn("[Save Student] Compression failed, saving original photo:", compErr);
         }
       }
-      const originalPhoto = formInputs.photoOriginal || photoOriginal || undefined;
-      const enhancedPhoto = compressedPhoto;
+
+      let originalPhoto = formInputs.photoOriginal || photoOriginal || undefined;
+      if (originalPhoto && originalPhoto.startsWith('data:image')) {
+        console.log("[Save Student] Compressing raw original photo to max 800x1000 JPG to optimize transfer size...");
+        try {
+          originalPhoto = await compressStudentPhoto(originalPhoto, 800, 1000, 0.85);
+          console.log("[Save Student] Original photo compressed successfully.");
+        } catch (compErr) {
+          console.warn("[Save Student] Original photo compression failed:", compErr);
+        }
+      }
+      const studentId = editingStudent ? editingStudent.id : `stud-${Date.now()}`;
+
+      // Upload portrait photo to Cloudinary separately
+      let uploadedPhoto = compressedPhoto;
+      if (compressedPhoto && compressedPhoto.startsWith('data:image')) {
+        console.log("[Save Student] Uploading compressed portrait photo to Cloudinary via upload API...");
+        try {
+          const uploadRes = await uploadImage(compressedPhoto, `student_${studentId}_photo`);
+          if (uploadRes && uploadRes.url) {
+            uploadedPhoto = uploadRes.url;
+            console.log("[Save Student] Portrait photo uploaded successfully. URL:", uploadedPhoto);
+          }
+        } catch (uploadErr) {
+          console.warn("[Save Student] Portrait photo upload failed, passing original base64 to DB fallback:", uploadErr);
+        }
+      }
+
+      // Upload original photo to Cloudinary separately
+      let uploadedOriginal = originalPhoto;
+      if (originalPhoto && originalPhoto.startsWith('data:image')) {
+        console.log("[Save Student] Uploading raw original photo to Cloudinary via upload API...");
+        try {
+          const uploadRes = await uploadImage(originalPhoto, `student_${studentId}_original`);
+          if (uploadRes && uploadRes.url) {
+            uploadedOriginal = uploadRes.url;
+            console.log("[Save Student] Original photo uploaded successfully. URL:", uploadedOriginal);
+          }
+        } catch (uploadErr) {
+          console.warn("[Save Student] Original photo upload failed, passing original base64 to DB fallback:", uploadErr);
+        }
+      }
+
+      const uploadedEnhanced = uploadedPhoto;
 
       let studentToSave: Student;
 
@@ -2018,9 +2188,9 @@ function AppContent() {
         studentToSave = {
           ...editingStudent,
           ...formInputs,
-          photo: compressedPhoto,
-          photoOriginal: originalPhoto,
-          photoEnhanced: enhancedPhoto,
+          photo: uploadedPhoto,
+          photoOriginal: uploadedOriginal,
+          photoEnhanced: uploadedEnhanced,
           name,
           adminNo,
           aliases,
@@ -2031,18 +2201,18 @@ function AppContent() {
       } else {
         // Add mode
         studentToSave = {
-          id: `stud-${Date.now()}`,
+          id: studentId,
           ...formInputs,
-          photo: compressedPhoto,
-          photoOriginal: originalPhoto,
-          photoEnhanced: enhancedPhoto,
+          photo: uploadedPhoto,
+          photoOriginal: uploadedOriginal,
+          photoEnhanced: uploadedEnhanced,
           name,
           adminNo,
           aliases,
           gateClearanceDate: formInputs.isCleared ? today : undefined,
           mealsClearanceDate: formInputs.isCleared ? today : undefined,
         };
-        console.log("[Save Student] Operating in ADD mode. Generated new ID:", studentToSave.id);
+        console.log("[Save Student] Operating in ADD mode. Generated ID:", studentToSave.id);
       }
 
       // 5. Stage: Database Insert
@@ -2060,14 +2230,16 @@ function AppContent() {
         console.log("[Save Student] Firebase is not configured. Skipping cloud sync.");
       }
 
-      // 7. Local Cache Update
+      // 7. Local Cache Update (non-blocking disk write to prevent UI freeze)
       console.log("[Save Student] Updating local cache and state...");
       const updatedList = editingStudent
         ? (Array.isArray(students) ? students.map(s => s.id === editingStudent.id ? studentToSave : s) : [])
         : [...students, studentToSave];
       setStudents(updatedList);
-      await saveStudentsAsync(updatedList);
-      console.log("[Save Student] Local state and cache updated successfully.");
+      setTimeout(() => {
+        saveStudentsAsync(updatedList).catch(e => console.warn('Local cache save failed:', e));
+      }, 50);
+      console.log("[Save Student] Local state and cache scheduled to update in background.");
 
       // 8. Stage: Success Response
       console.log("[Save Student] Stage: Processing success response...");
@@ -2105,7 +2277,23 @@ function AppContent() {
       if (err.stack) {
         console.error("[Save Student] Error stack trace:", err.stack);
       }
-      alert(`Failed to save student: ${err.message || 'Unknown database or connection error'}.\n\nStack: ${err.stack || 'No stack trace available'}`);
+      
+      const errMsg = err.message || '';
+      const isConnectionError = 
+        errMsg.toLowerCase().includes('connect') || 
+        errMsg.toLowerCase().includes('timeout') || 
+        errMsg.toLowerCase().includes('time out') || 
+        errMsg.toLowerCase().includes('network') || 
+        errMsg.toLowerCase().includes('fetch') || 
+        errMsg.toLowerCase().includes('abort') || 
+        errMsg.toLowerCase().includes('sql') || 
+        errMsg.toLowerCase().includes('database');
+
+      if (isConnectionError) {
+        alert("Unable to connect to the database. Please try again in a few seconds.");
+      } else {
+        alert(`Failed to save student: ${err.message || 'Unknown error'}`);
+      }
     } finally {
       console.log("[Save Student] Re-enabling Save button (setting isSaving to false).");
       setIsSaving(false);
@@ -3181,17 +3369,24 @@ function AppContent() {
   }
 
   if (isInitializing) {
-    const isCustomLogo = schoolLogo && schoolLogo !== DEFAULT_SCHOOL_LOGO;
     return (
-      <div className="min-h-screen bg-slate-950 flex flex-col items-center justify-center p-6 select-none">
-        <div className="flex flex-col items-center justify-center">
-          {isCustomLogo ? (
-            <div className="animate-pulse">
-              <SchoolLogo className="w-32 h-32" logoBase64={schoolLogo} />
+      <div className="min-h-screen bg-slate-950 flex flex-col items-center justify-center p-6 select-none relative overflow-hidden">
+        {/* Subtle background glow */}
+        <div className="absolute top-1/3 left-1/4 w-96 h-96 bg-indigo-500/5 rounded-full blur-3xl pointer-events-none" />
+        <div className="absolute bottom-1/3 right-1/4 w-96 h-96 bg-violet-500/5 rounded-full blur-3xl pointer-events-none" />
+        
+        <div className="flex flex-col items-center justify-center space-y-6">
+          <div className="relative flex items-center justify-center">
+            {/* Outer glowing spinner ring */}
+            <div className="absolute w-40 h-40 border-2 border-indigo-500/20 border-t-indigo-500 rounded-full animate-spin" />
+            <div className="w-32 h-32 rounded-full overflow-hidden bg-slate-900 border border-slate-800 flex items-center justify-center shadow-lg p-4 backdrop-blur-md">
+              <SchoolLogo className="w-full h-full object-contain" logoBase64={schoolLogo} />
             </div>
-          ) : (
-            <RefreshCw className="w-12 h-12 text-indigo-500 animate-spin" />
-          )}
+          </div>
+          <div className="text-center space-y-1">
+            <h2 className="text-sm font-black uppercase text-slate-200 font-mono tracking-widest">Loading Clearance Cards</h2>
+            <p className="text-[10px] text-slate-500 font-mono">Verifying database connection & initializing modules...</p>
+          </div>
         </div>
       </div>
     );
@@ -6644,6 +6839,101 @@ function AppContent() {
                     }}
                     onClose={() => setShowWebcamCapture(false)}
                   />
+                </div>
+              )}
+
+              {/* Photo Editor Adjustments */}
+              {formInputs.photo && (
+                <div className="pt-3 border-t border-slate-800 grid grid-cols-2 gap-x-4 gap-y-2.5">
+                  <div className="space-y-1">
+                    <div className="flex justify-between text-[9px] font-bold text-slate-400">
+                      <span>ZOOM</span>
+                      <span>{photoZoom.toFixed(2)}x</span>
+                    </div>
+                    <input
+                      type="range"
+                      min="0.5"
+                      max="2.5"
+                      step="0.05"
+                      value={photoZoom}
+                      onChange={(e) => {
+                        setPhotoZoom(parseFloat(e.target.value));
+                        setPhotoAutoCenter(false);
+                      }}
+                      className="w-full h-1 bg-slate-850 rounded-lg appearance-none cursor-pointer accent-indigo-500"
+                    />
+                  </div>
+
+                  <div className="space-y-1">
+                    <label className="text-[9px] font-bold text-slate-400 uppercase tracking-wider block">Background Color</label>
+                    <select
+                      value={photoBgColor}
+                      onChange={(e) => setPhotoBgColor(e.target.value as any)}
+                      className="w-full bg-slate-900 border border-slate-800 rounded px-2 py-0.5 text-[10px] text-slate-200 outline-none focus:border-indigo-500 font-mono"
+                    >
+                      <option value="white">White Background</option>
+                      <option value="light-blue">Light Blue Background</option>
+                      <option value="light-gray">Light Gray Background</option>
+                      <option value="none">Original Background</option>
+                    </select>
+                  </div>
+
+                  <div className="space-y-1">
+                    <div className="flex justify-between text-[9px] font-bold text-slate-400">
+                      <span>PAN X</span>
+                      <span>{photoPanX}px</span>
+                    </div>
+                    <input
+                      type="range"
+                      min="-100"
+                      max="100"
+                      step="1"
+                      value={photoPanX}
+                      onChange={(e) => {
+                        setPhotoPanX(parseInt(e.target.value));
+                        setPhotoAutoCenter(false);
+                      }}
+                      className="w-full h-1 bg-slate-850 rounded-lg appearance-none cursor-pointer accent-indigo-500"
+                    />
+                  </div>
+
+                  <div className="space-y-1">
+                    <div className="flex justify-between text-[9px] font-bold text-slate-400">
+                      <span>PAN Y</span>
+                      <span>{photoPanY}px</span>
+                    </div>
+                    <input
+                      type="range"
+                      min="-100"
+                      max="100"
+                      step="1"
+                      value={photoPanY}
+                      onChange={(e) => {
+                        setPhotoPanY(parseInt(e.target.value));
+                        setPhotoAutoCenter(false);
+                      }}
+                      className="w-full h-1 bg-slate-850 rounded-lg appearance-none cursor-pointer accent-indigo-500"
+                    />
+                  </div>
+
+                  <div className="col-span-2 flex items-center justify-between gap-3 pt-1">
+                    <label className="flex items-center gap-1.5 text-[10px] font-bold text-slate-400 cursor-pointer select-none">
+                      <input
+                        type="checkbox"
+                        checked={photoAutoCenter}
+                        onChange={(e) => setPhotoAutoCenter(e.target.checked)}
+                        className="rounded bg-slate-900 border-slate-800 text-indigo-500 focus:ring-0 focus:ring-offset-0"
+                      />
+                      <span>Auto-Center</span>
+                    </label>
+                    <button
+                      type="button"
+                      onClick={() => setShowManualBgEditor(true)}
+                      className="inline-flex items-center gap-1 px-2 py-0.5 bg-slate-850 hover:bg-slate-800 border border-slate-800 text-[9.5px] font-black uppercase tracking-wider rounded text-indigo-400 hover:text-indigo-300 transition cursor-pointer"
+                    >
+                      <Sparkles className="w-3 h-3 text-indigo-400" /> Manual Backdrop Eraser
+                    </button>
+                  </div>
                 </div>
               )}
             </div>

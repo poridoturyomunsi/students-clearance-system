@@ -1,5 +1,6 @@
 try {
-  require('dotenv').config();
+  const path = require('path');
+  require('dotenv').config({ path: path.join(__dirname, '..', '.env') });
 } catch (e) {
   // ignore if not installed
 }
@@ -18,13 +19,34 @@ let lastDbError = null;
 
 
 function normalizeDbConfig(rawConfig) {
-  if (!rawConfig || typeof rawConfig !== 'object') return null;
+  if (!rawConfig) return null;
+  if (typeof rawConfig === 'string') return rawConfig;
 
-  const host = rawConfig.db?.host || rawConfig.host || rawConfig.databaseHost || rawConfig.databaseHost || '';
-  const port = parseInt(String(rawConfig.db?.port || rawConfig.port || rawConfig.databasePort || 3306), 10) || 3306;
-  const user = rawConfig.db?.user || rawConfig.user || rawConfig.databaseUsername || '';
-  const password = rawConfig.db?.password || rawConfig.password || rawConfig.databasePassword || '';
-  const database = rawConfig.db?.database || rawConfig.database || rawConfig.databaseName || 'school_system';
+  // Handle case where rawConfig is a connection URL directly or wrapped inside an object
+  if (typeof rawConfig.connectionString === 'string' && rawConfig.connectionString) {
+    return rawConfig.connectionString;
+  }
+  if (typeof rawConfig.databaseUrl === 'string' && rawConfig.databaseUrl) {
+    return rawConfig.databaseUrl;
+  }
+  if (typeof rawConfig.mysqlUrl === 'string' && rawConfig.mysqlUrl) {
+    return rawConfig.mysqlUrl;
+  }
+
+  // Handle the format sent by the frontend UI:
+  // { mode: 'network', db: { host: '...', port: 3306, ... } }
+  const dbData = rawConfig.db || rawConfig;
+
+  // If the host field itself is a connection URI (like mysql://...), return it directly
+  if (typeof dbData.host === 'string' && (dbData.host.startsWith('mysql://') || dbData.host.startsWith('mysql2://'))) {
+    return dbData.host;
+  }
+
+  const host = dbData.host || dbData.databaseHost || '';
+  const port = parseInt(String(dbData.port || dbData.databasePort || 3306), 10) || 3306;
+  const user = dbData.user || dbData.databaseUsername || '';
+  const password = dbData.password || dbData.databasePassword || '';
+  const database = dbData.database || dbData.databaseName || 'school_system';
 
   return {
     host,
@@ -32,6 +54,127 @@ function normalizeDbConfig(rawConfig) {
     user,
     password,
     database
+  };
+}
+
+function getDbConfigFilePath() {
+  const path = require('path');
+  const os = require('os');
+  const appDataDir = process.env.APPDATA || (process.platform === 'darwin' ? path.join(os.homedir(), 'Library', 'Application Support') : path.join(os.homedir(), '.config'));
+  const configDir = path.join(appDataDir, 'students-clearance-cards');
+  const fs = require('fs');
+  if (!fs.existsSync(configDir)) {
+    fs.mkdirSync(configDir, { recursive: true });
+  }
+  return path.join(configDir, 'db_config.json');
+}
+
+function saveToEnvFile(config) {
+  try {
+    const fs = require('fs');
+    const path = require('path');
+    const envPath = path.join(__dirname, '..', '.env');
+    let envContent = '';
+    if (fs.existsSync(envPath)) {
+      envContent = fs.readFileSync(envPath, 'utf8');
+    }
+    
+    let newLines = [];
+    if (typeof config === 'string') {
+      newLines.push(`DATABASE_URL=${config}`);
+    } else {
+      if (config.host) newLines.push(`DB_HOST=${config.host}`);
+      if (config.port) newLines.push(`DB_PORT=${config.port}`);
+      if (config.user) newLines.push(`DB_USER=${config.user}`);
+      if (config.password !== undefined) newLines.push(`DB_PASSWORD=${config.password}`);
+      if (config.database) newLines.push(`DB_DATABASE=${config.database}`);
+    }
+    
+    const envLines = envContent.split(/\r?\n/);
+    const updatedLines = [];
+    const keysToUpdate = typeof config === 'string' ? ['DATABASE_URL'] : ['DB_HOST', 'DB_PORT', 'DB_USER', 'DB_PASSWORD', 'DB_DATABASE'];
+    
+    for (let line of envLines) {
+      const match = line.match(/^\s*([^=#\s]+)\s*=\s*(.*)$/);
+      if (match) {
+        const key = match[1];
+        if (keysToUpdate.includes(key)) {
+          continue;
+        }
+      }
+      updatedLines.push(line);
+    }
+    
+    updatedLines.push(...newLines);
+    fs.writeFileSync(envPath, updatedLines.join('\n'), 'utf8');
+    console.log('[saveToEnvFile] Successfully updated .env file.');
+  } catch (err) {
+    console.warn('[saveToEnvFile] Failed to write to .env file:', err.message);
+  }
+}
+
+function getDbConfigFromEnv() {
+  if (process.env.DATABASE_URL) return process.env.DATABASE_URL;
+  if (process.env.MYSQL_PUBLIC_URL) return process.env.MYSQL_PUBLIC_URL;
+  if (process.env.MYSQL_URL) return process.env.MYSQL_URL;
+  
+  const host = process.env.DB_HOST || process.env.MYSQLHOST;
+  if (host) {
+    return {
+      host: host,
+      port: parseInt(process.env.DB_PORT || process.env.MYSQLPORT || '3306', 10),
+      user: process.env.DB_USER || process.env.MYSQLUSER || 'root',
+      password: process.env.DB_PASSWORD || process.env.MYSQLPASSWORD || '',
+      database: process.env.DB_DATABASE || process.env.MYSQLDATABASE || process.env.DB_NAME || 'school_system'
+    };
+  }
+  return null;
+}
+
+function loadDbConfig() {
+  const fs = require('fs');
+  const path = require('path');
+  
+  const envConfig = getDbConfigFromEnv();
+  if (envConfig) {
+    console.log('[DB-CONFIG] Loaded database config from environment variables');
+    return envConfig;
+  }
+
+  const appDataPath = getDbConfigFilePath();
+  if (fs.existsSync(appDataPath)) {
+    try {
+      const parsed = JSON.parse(fs.readFileSync(appDataPath, 'utf8'));
+      const normalized = normalizeDbConfig(parsed);
+      if (normalized) {
+        console.log(`[DB-CONFIG] Loaded database config from APPDATA path: ${appDataPath}`);
+        return normalized;
+      }
+    } catch (err) {
+      console.warn(`[DB-CONFIG] Error reading config from APPDATA path: ${err.message}`);
+    }
+  }
+
+  const rootPath = path.join(__dirname, '..', 'db_config.json');
+  if (fs.existsSync(rootPath)) {
+    try {
+      const parsed = JSON.parse(fs.readFileSync(rootPath, 'utf8'));
+      const normalized = normalizeDbConfig(parsed);
+      if (normalized) {
+        console.log(`[DB-CONFIG] Loaded database config from project root path: ${rootPath}`);
+        return normalized;
+      }
+    } catch (err) {
+      console.warn(`[DB-CONFIG] Error reading config from project root path: ${err.message}`);
+    }
+  }
+
+  return {
+    host: 'localhost',
+    port: 3306,
+    user: 'root',
+    password: '',
+    database: 'school_system'
   };
 }
 
@@ -77,35 +220,152 @@ function getInitials(name) {
   }
 }
 
+function isScienceSubject(subjectName) {
+  const norm = (subjectName || '').toLowerCase().trim();
+  return norm.includes('physic') || norm.includes('phy') ||
+         norm.includes('chemist') || norm.includes('chem') ||
+         norm.includes('biolog') || norm.includes('bio') ||
+         norm.includes('agricult') || norm.includes('agr') ||
+         norm.includes('mathe') || norm.includes('math') || norm.includes('mtc');
+}
+
+function isSubsidiarySubject(subjectName, subjectType) {
+  const normType = (subjectType || '').toLowerCase().trim();
+  if (normType === 'general paper' || normType === 'subsidiary') {
+    return true;
+  }
+  const normName = (subjectName || '').toLowerCase().trim();
+  if (normName === 'general paper' || normName === 'gp' || normName === 'sub math' || normName === 'subsidiary math' || normName === 'subsidiary mathematics' || normName === 'subsidiary ict' || normName === 'sict' || normName === 'sm') {
+    return true;
+  }
+  if (normName.includes('subsidiary') || normName.includes('general paper')) {
+    return true;
+  }
+  return false;
+}
+
+function getUACEOverallSubjectGrade(papers, subjectName, subjectType) {
+  if (isSubsidiarySubject(subjectName, subjectType)) {
+    let sumScore = 0;
+    let count = 0;
+    papers.forEach(p => {
+      if (p.score !== null && p.score !== undefined && p.score !== '') {
+        sumScore += parseFloat(p.score);
+        count++;
+      }
+    });
+    const avg = count > 0 ? Math.round(sumScore / count) : 0;
+    if (avg >= 60) {
+      return { grade: 'SP', points: 1, comment: 'Subsidiary Pass' };
+    } else {
+      return { grade: 'F', points: 0, comment: 'Fail' };
+    }
+  }
+
+  const grades = [];
+  papers.forEach(p => {
+    if (p.score !== null && p.score !== undefined && p.score !== '') {
+      const s = Math.round(p.score);
+      let pg = 9;
+      if (s >= 85) pg = 1;
+      else if (s >= 80) pg = 2;
+      else if (s >= 75) pg = 3;
+      else if (s >= 70) pg = 4;
+      else if (s >= 65) pg = 5;
+      else if (s >= 60) pg = 6;
+      else if (s >= 50) pg = 7;
+      else if (s >= 40) pg = 8;
+      grades.push(pg);
+    }
+  });
+
+  if (grades.length === 0) {
+    return { grade: '-', points: 0, comment: '-' };
+  }
+
+  const sorted = grades.sort((a, b) => a - b);
+  const numPapers = sorted.length;
+
+  if (numPapers === 1) {
+    const g = sorted[0];
+    if (g <= 2) return { grade: 'A', points: 6, comment: 'Excellent' };
+    if (g === 3) return { grade: 'B', points: 5, comment: 'Very Good results' };
+    if (g === 4) return { grade: 'C', points: 4, comment: 'Good performance' };
+    if (g === 5) return { grade: 'D', points: 3, comment: 'Fair' };
+    if (g === 6) return { grade: 'E', points: 2, comment: 'Pass' };
+    if (g <= 8) return { grade: 'O', points: 1, comment: 'Subsidiary Pass' };
+    return { grade: 'F', points: 0, comment: 'Fail' };
+  }
+
+  if (numPapers === 2) {
+    const g1 = sorted[0];
+    const g2 = sorted[1];
+    if (g2 <= 2) return { grade: 'A', points: 6, comment: 'Excellent' };
+    if (g2 === 3) return { grade: 'B', points: 5, comment: 'Very Good results' };
+    if (g2 === 4) return { grade: 'C', points: 4, comment: 'Good performance' };
+    if (g2 === 5) return { grade: 'D', points: 3, comment: 'Fair' };
+    if (g2 === 6 || (g2 <= 8 && g1 + g2 <= 12)) return { grade: 'E', points: 2, comment: 'Pass' };
+    if (g2 <= 8 && g1 + g2 <= 16) return { grade: 'O', points: 1, comment: 'Subsidiary Pass' };
+    if (g1 <= 7 && g2 === 9) return { grade: 'O', points: 1, comment: 'Subsidiary Pass' };
+    return { grade: 'F', points: 0, comment: 'Fail' };
+  }
+
+  if (numPapers === 3) {
+    const g1 = sorted[0];
+    const g2 = sorted[1];
+    const g3 = sorted[2];
+    if (g3 <= 3) return { grade: 'A', points: 6, comment: 'Excellent' };
+    if (g3 === 4) return { grade: 'B', points: 5, comment: 'Very Good results' };
+    if (g3 === 5) return { grade: 'C', points: 4, comment: 'Good performance' };
+    if (g3 === 6) return { grade: 'D', points: 3, comment: 'Fair' };
+    if ((g3 === 7 && g2 <= 6) || (g3 === 8 && g2 <= 6 && g1 <= 5)) return { grade: 'E', points: 2, comment: 'Pass' };
+    if (g3 <= 8) return { grade: 'O', points: 1, comment: 'Subsidiary Pass' };
+    if (g3 === 9 && g2 <= 8) return { grade: 'O', points: 1, comment: 'Subsidiary Pass' };
+    if (g3 === 9 && g2 === 9 && g1 <= 7) {
+      if (g1 === 7 && isScienceSubject(subjectName)) {
+        return { grade: 'F', points: 0, comment: 'Fail' };
+      }
+      return { grade: 'O', points: 1, comment: 'Subsidiary Pass' };
+    }
+    return { grade: 'F', points: 0, comment: 'Fail' };
+  }
+
+  const g1 = sorted[0];
+  const g2 = sorted[1];
+  const g3 = sorted[2];
+  const g4 = sorted[3];
+  if (g4 <= 3) return { grade: 'A', points: 6, comment: 'Excellent' };
+  if (g4 === 4) return { grade: 'B', points: 5, comment: 'Very Good results' };
+  if (g4 === 5) return { grade: 'C', points: 4, comment: 'Good performance' };
+  if (g4 === 6) return { grade: 'D', points: 3, comment: 'Fair' };
+  if ((g4 === 7 && g3 <= 6) || (g4 === 8 && g3 <= 6 && g2 <= 6 && g1 <= 5)) return { grade: 'E', points: 2, comment: 'Pass' };
+  if (g4 <= 8) return { grade: 'O', points: 1, comment: 'Subsidiary Pass' };
+  if (g4 === 9 && g3 <= 8) return { grade: 'O', points: 1, comment: 'Subsidiary Pass' };
+  if (g4 === 9 && g3 === 9 && g2 <= 7) return { grade: 'O', points: 1, comment: 'Subsidiary Pass' };
+  return { grade: 'F', points: 0, comment: 'Fail' };
+}
+
 function calculateUACEPoints(marks) {
   const subjects = {};
   marks.forEach(m => {
     if (!subjects[m.subject]) {
       subjects[m.subject] = {
+        name: m.subject,
         type: m.subject_type,
-        scores: []
+        papers: []
       };
     }
-    subjects[m.subject].scores.push(parseFloat(m.score || 0));
+    subjects[m.subject].papers.push({ score: m.score });
   });
 
   let principalPoints = 0;
   let subsidiaryPoints = 0;
   Object.values(subjects).forEach(sub => {
-    const avgScore = sub.scores.reduce((a, b) => a + b, 0) / sub.scores.length;
-    if (sub.type === 'General Paper' || sub.type === 'Subsidiary') {
-      if (avgScore >= 35) {
-        subsidiaryPoints += 1;
-      }
+    const grInfo = getUACEOverallSubjectGrade(sub.papers, sub.name, sub.type);
+    if (isSubsidiarySubject(sub.name, sub.type)) {
+      subsidiaryPoints += grInfo.points;
     } else {
-      let pts = 0;
-      if (avgScore >= 70) pts = 6;
-      else if (avgScore >= 60) pts = 5;
-      else if (avgScore >= 50) pts = 4;
-      else if (avgScore >= 45) pts = 3;
-      else if (avgScore >= 40) pts = 2;
-      else if (avgScore >= 35) pts = 1;
-      principalPoints += pts;
+      principalPoints += grInfo.points;
     }
   });
 
@@ -113,6 +373,64 @@ function calculateUACEPoints(marks) {
 }
 
 const imageCache = {};
+const { Jimp } = require('jimp');
+
+async function compressImageIfNeeded(base64Str, maxWidth, maxHeight, quality = 80, forceJpeg = false) {
+  if (!base64Str) return null;
+  if (!base64Str.startsWith('data:')) {
+    return base64Str;
+  }
+  try {
+    const matches = base64Str.match(/^data:([a-zA-Z0-9]+\/[a-zA-Z0-9-.+]+);base64,(.+)$/);
+    if (!matches) return base64Str;
+    const mimeType = matches[1];
+    
+    if (mimeType.includes('svg')) {
+      return base64Str; // Cannot process SVG with Jimp
+    }
+
+    const buffer = Buffer.from(matches[2], 'base64');
+    let image = await Jimp.read(buffer);
+    
+    const width = image.width;
+    const height = image.height;
+    
+    let changed = false;
+    if (width > maxWidth || height > maxHeight) {
+      image.scaleToFit({ w: maxWidth, h: maxHeight });
+      changed = true;
+    }
+    
+    let outputMime = 'image/jpeg';
+    if (!forceJpeg && (mimeType.includes('png') || mimeType.includes('gif'))) {
+      outputMime = 'image/png';
+    }
+    
+    if (outputMime === 'image/jpeg' && (mimeType.includes('png') || mimeType.includes('gif'))) {
+      // Create a white background and composite transparent PNGs over it
+      const whiteBg = new Jimp({ width: image.width, height: image.height, color: 0xffffffff });
+      whiteBg.composite(image, 0, 0);
+      image = whiteBg;
+      changed = true;
+    }
+    
+    if (!changed && buffer.length < 150000) {
+      return base64Str;
+    }
+    
+    const options = {};
+    if (outputMime === 'image/jpeg') {
+      options.quality = quality;
+    }
+    
+    const compressedBuffer = await image.getBuffer(outputMime, options);
+    const compressedBase64 = compressedBuffer.toString('base64');
+    return `data:${outputMime};base64,${compressedBase64}`;
+  } catch (err) {
+    console.error('Failed to compress/resize base64 image:', err);
+    return base64Str;
+  }
+}
 
 async function getBase64ImageFromUrl(url) {
   if (!url) return null;
@@ -123,7 +441,10 @@ async function getBase64ImageFromUrl(url) {
     return imageCache[url];
   }
   try {
-    const response = await fetch(url);
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 5000);
+    const response = await fetch(url, { signal: controller.signal });
+    clearTimeout(timeoutId);
     if (!response.ok) {
       throw new Error(`Failed to fetch image: ${response.statusText}`);
     }
@@ -149,15 +470,16 @@ async function uploadToCloudinaryIfNeeded(photoBase64, publicId) {
   if (!cloudName || !apiKey || !apiSecret) {
     return photoBase64;
   }
+  const uploadStart = Date.now();
   try {
     cloudinary.config({
       cloud_name: cloudName,
       api_key: apiKey,
       api_secret: apiSecret
     });
-    console.log(`[Cloudinary] Uploading image for public ID ${publicId}...`);
+    console.log(`[Cloudinary] Starting image upload for public ID ${publicId}...`);
     
-    // Set up a 2.5-second upload timeout limit
+    // Set up a 10-second upload timeout limit (increased from 2.5s)
     const uploadPromise = cloudinary.uploader.upload(photoBase64, {
       public_id: publicId,
       folder: 'school_management_system',
@@ -167,14 +489,16 @@ async function uploadToCloudinaryIfNeeded(photoBase64, publicId) {
     });
     
     const timeoutPromise = new Promise((_, reject) =>
-      setTimeout(() => reject(new Error('Cloudinary upload timed out (exceeded 2.5s)')), 2500)
+      setTimeout(() => reject(new Error('Cloudinary upload timed out (exceeded 10s)')), 10000)
     );
     
     const result = await Promise.race([uploadPromise, timeoutPromise]);
-    console.log('[Cloudinary] Upload successful. URL:', result.secure_url);
+    const duration = Date.now() - uploadStart;
+    console.log(`[Cloudinary] Upload successful in ${duration}ms. URL: ${result.secure_url}`);
     return result.secure_url;
   } catch (err) {
-    console.error('[Cloudinary] Upload failed or timed out:', err.message);
+    const duration = Date.now() - uploadStart;
+    console.error(`[Cloudinary-ERROR] Upload failed or timed out after ${duration}ms:`, err.message);
     return photoBase64;
   }
 }
@@ -188,6 +512,55 @@ async function writeAuditLog(action, details = null) {
   } catch (err) {
     console.error('Failed to write audit log:', err);
   }
+}
+
+async function dbSavePdfTask(taskId, status, progress, total, filename = null, error = null, pdfData = null) {
+  try {
+    if (pool && dbInitialized) {
+      if (status === 'processing') {
+        await pool.query(
+          `INSERT INTO pdf_tasks (id, status, progress, total) 
+           VALUES (?, 'processing', ?, ?) 
+           ON DUPLICATE KEY UPDATE 
+             progress = VALUES(progress), 
+             total = VALUES(total)`,
+          [taskId, progress, total]
+        );
+      } else {
+        await pool.query(
+          `INSERT INTO pdf_tasks (id, status, progress, total, filename, error, pdf_data) 
+           VALUES (?, ?, ?, ?, ?, ?, ?) 
+           ON DUPLICATE KEY UPDATE 
+             status = VALUES(status), 
+             progress = VALUES(progress), 
+             total = VALUES(total), 
+             filename = VALUES(filename), 
+             error = VALUES(error), 
+             pdf_data = VALUES(pdf_data)`,
+          [taskId, status, progress, total, filename, error, pdfData]
+        );
+      }
+    }
+  } catch (err) {
+    console.error('Failed to save PDF task to DB:', err);
+  }
+}
+
+async function dbGetPdfTask(taskId) {
+  try {
+    if (pool && dbInitialized) {
+      const [rows] = await pool.query(
+        'SELECT id, status, progress, total, filename, error FROM pdf_tasks WHERE id = ?',
+        [taskId]
+      );
+      if (rows.length > 0) {
+        return rows[0];
+      }
+    }
+  } catch (err) {
+    console.error('Failed to get PDF task from DB:', err);
+  }
+  return null;
 }
 
 function getExportsDir() {
@@ -230,7 +603,7 @@ async function ensureDbInitialized() {
           port: parseInt(String(currentDbConfig.port), 10) || 3306,
           user: currentDbConfig.user,
           password: currentDbConfig.password,
-          connectTimeout: 5000
+          connectTimeout: 30000
         });
         await tempConnection.query(`CREATE DATABASE IF NOT EXISTS \`${currentDbConfig.database}\``);
         await tempConnection.end();
@@ -264,6 +637,7 @@ async function ensureDbInitialized() {
         name VARCHAR(255) NOT NULL,
         aliases TEXT NULL,
         gender VARCHAR(10) NOT NULL,
+        dob DATE NULL,
         gradeClass VARCHAR(50) NOT NULL,
         boardingStatus VARCHAR(50) NOT NULL,
         isCleared BOOLEAN NOT NULL DEFAULT FALSE,
@@ -274,7 +648,11 @@ async function ensureDbInitialized() {
         photoOriginal LONGTEXT NULL,
         photoEnhanced LONGTEXT NULL,
         printStatus VARCHAR(20) NOT NULL DEFAULT 'Not Printed',
-        updatedAt TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+        parentName VARCHAR(255) NULL,
+        parentContact VARCHAR(255) NULL,
+        updatedAt TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+        UNIQUE KEY \`unique_adminNo\` (adminNo),
+        UNIQUE KEY \`unique_name_class_dob\` (name, gradeClass, dob)
       ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;`,
       
       `CREATE TABLE IF NOT EXISTS marks (
@@ -381,12 +759,12 @@ async function ensureDbInitialized() {
         subject VARCHAR(100) NOT NULL,
         subject_type VARCHAR(20) NOT NULL,
         paper INT NOT NULL DEFAULT 1,
-        score DECIMAL(5,2) NOT NULL,
-        bot DECIMAL(5,2) NOT NULL DEFAULT 0.00,
-        mot DECIMAL(5,2) NOT NULL DEFAULT 0.00,
-        eot DECIMAL(5,2) NOT NULL DEFAULT 0.00,
+        score DECIMAL(5,2) NULL,
+        bot DECIMAL(5,2) NULL DEFAULT NULL,
+        mot DECIMAL(5,2) NULL DEFAULT NULL,
+        eot DECIMAL(5,2) NULL DEFAULT NULL,
         grade VARCHAR(2) NULL,
-        points INT NOT NULL DEFAULT 0,
+        points INT NULL DEFAULT NULL,
         term VARCHAR(20) NOT NULL,
         year INT NOT NULL,
         teacher_id VARCHAR(50) NULL,
@@ -419,6 +797,16 @@ async function ensureDbInitialized() {
         content TEXT NOT NULL,
         author VARCHAR(100) NOT NULL DEFAULT 'Administrator',
         createdAt TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+      ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;`,
+      `CREATE TABLE IF NOT EXISTS pdf_tasks (
+        id VARCHAR(50) PRIMARY KEY,
+        status VARCHAR(20) NOT NULL,
+        progress INT NOT NULL DEFAULT 0,
+        total INT NOT NULL DEFAULT 0,
+        filename VARCHAR(255) NULL,
+        error TEXT NULL,
+        pdf_data LONGTEXT NULL,
+        updatedAt TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
       ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;`
     ];
 
@@ -459,6 +847,11 @@ async function ensureDbInitialized() {
       await pool.query('ALTER TABLE students ADD COLUMN aliases TEXT NULL AFTER name');
     } catch (e) {}
 
+    // Alter students table to add dob column if missing
+    try {
+      await pool.query('ALTER TABLE students ADD COLUMN dob DATE NULL AFTER gender');
+    } catch (e) {}
+
     // Alter students table to add photoOriginal and photoEnhanced if missing
     try {
       await pool.query("ALTER TABLE students ADD COLUMN photoOriginal LONGTEXT NULL AFTER photo");
@@ -466,6 +859,20 @@ async function ensureDbInitialized() {
     try {
       await pool.query("ALTER TABLE students ADD COLUMN photoEnhanced LONGTEXT NULL AFTER photoOriginal");
     } catch (e) {}
+
+    // Add unique constraint on adminNo if missing
+    try {
+      await pool.query('ALTER TABLE students ADD UNIQUE KEY unique_adminNo (adminNo)');
+    } catch (e) {
+      console.warn('[DB-MIGRATION] Could not enforce UNIQUE constraint on adminNo (likely duplicate entries exist):', e.message);
+    }
+
+    // Add unique constraint on name, class, dob if missing
+    try {
+      await pool.query('ALTER TABLE students ADD UNIQUE KEY unique_name_class_dob (name, gradeClass, dob)');
+    } catch (e) {
+      console.warn('[DB-MIGRATION] Could not enforce UNIQUE constraint on name, gradeClass, dob (likely duplicate entries exist):', e.message);
+    }
 
     // Alter students table to add uace_combination if missing
     try {
@@ -530,6 +937,21 @@ async function ensureDbInitialized() {
     } catch (e) {}
     try {
       await pool.query('ALTER TABLE uace_marks ADD UNIQUE KEY unique_uace_subject_paper_term (student_id, subject, paper, term, year)');
+    } catch (e) {}
+    try {
+      await pool.query('ALTER TABLE uace_marks MODIFY COLUMN bot DECIMAL(5,2) NULL DEFAULT NULL');
+    } catch (e) {}
+    try {
+      await pool.query('ALTER TABLE uace_marks MODIFY COLUMN mot DECIMAL(5,2) NULL DEFAULT NULL');
+    } catch (e) {}
+    try {
+      await pool.query('ALTER TABLE uace_marks MODIFY COLUMN eot DECIMAL(5,2) NULL DEFAULT NULL');
+    } catch (e) {}
+    try {
+      await pool.query('ALTER TABLE uace_marks MODIFY COLUMN score DECIMAL(5,2) NULL DEFAULT NULL');
+    } catch (e) {}
+    try {
+      await pool.query('ALTER TABLE uace_marks MODIFY COLUMN points INT NULL DEFAULT NULL');
     } catch (e) {}
 
     try {
@@ -626,6 +1048,8 @@ async function ensureDbInitialized() {
 
     dbInitialized = true;
     initializingDb = false;
+    // Run background one-time image compression migration
+    runOneTimeImageMigration().catch(err => console.error('[MIGRATION] One-time migration error:', err));
     return true;
   } catch (err) {
     console.error('ensureDbInitialized critical connection error:', err);
@@ -678,30 +1102,145 @@ async function initDb(config) {
   streamsCache = null;
   settingsCache = {};
 
-  if (!connectionUri && (!config || !config.host)) {
+  if (!targetConfig || !targetConfig.host) {
     console.log('Database configuration is missing. Express server is active but database pool is uninitialized.');
     return false;
   }
 
   try {
-    if (connectionUri) {
-      pool = mysql.createPool(connectionUri);
-      console.log(`Database pool instantiated for MySQL using connection URI.`);
-    } else {
-      pool = mysql.createPool({
-        host: config.host,
-        port: parseInt(String(config.port), 10) || 3306,
-        user: config.user,
-        password: config.password,
-        database: config.database,
-        waitForConnections: true,
-        connectionLimit: 15,
-        queueLimit: 0,
-        connectTimeout: 5000
-      });
-      console.log(`Database pool instantiated for MySQL at ${config.host}:${config.port || 3306}`);
-    }
-    
+    const poolConfig = {
+      host: targetConfig.host,
+      port: parseInt(String(targetConfig.port), 10) || 3306,
+      user: targetConfig.user,
+      password: targetConfig.password,
+      database: targetConfig.database,
+      waitForConnections: true,
+      connectionLimit: 20,
+      maxIdle: 20,
+      idleTimeout: 60000,
+      queueLimit: 0,
+      connectTimeout: 30000,
+      enableKeepAlive: true,
+      keepAliveInitialDelay: 10000
+    };
+
+    pool = mysql.createPool(poolConfig);
+    console.log(`Database pool instantiated for MySQL at ${targetConfig.host}:${targetConfig.port || 3306} with Keep-Alive support.`);
+
+    // Reconnection and retry wrapper for query and getConnection calls
+    const originalQuery = pool.query;
+    const originalGetConnection = pool.getConnection;
+
+    pool.query = async function(...args) {
+      const startTime = Date.now();
+      const sqlSnippet = typeof args[0] === 'string' ? args[0].substring(0, 150) : 'Non-string query';
+      console.log(`[DB-QUERY-LOG] [${new Date().toISOString()}] Starting query: "${sqlSnippet}..."`);
+
+      let retries = 2;
+      while (retries >= 0) {
+        let timerId;
+        try {
+          const queryPromise = originalQuery.apply(pool, args);
+          const timeoutPromise = new Promise((_, reject) => {
+            timerId = setTimeout(() => reject(new Error('MySQL query execution timed out (exceeded 15s)')), 15000);
+          });
+          const result = await Promise.race([queryPromise, timeoutPromise]);
+          clearTimeout(timerId);
+          const elapsed = Date.now() - startTime;
+          console.log(`[DB-QUERY-LOG] [${new Date().toISOString()}] Query completed in ${elapsed}ms: "${sqlSnippet}..."`);
+          return result;
+        } catch (err) {
+          if (timerId) clearTimeout(timerId);
+          const elapsed = Date.now() - startTime;
+          const isNetworkError = 
+            err.code === 'PROTOCOL_CONNECTION_LOST' ||
+            err.code === 'ECONNRESET' ||
+            err.code === 'ETIMEDOUT' ||
+            err.code === 'ECONNREFUSED' ||
+            err.code === 'ENOTFOUND' ||
+            err.code === 'EHOSTUNREACH' ||
+            err.code === 'PROTOCOL_ENQUEUE_AFTER_FATAL_ERROR' ||
+            err.message.includes('closed') ||
+            err.message.includes('connection') ||
+            err.message.includes('timeout') ||
+            err.message.includes('timed out');
+
+          console.error(`[DB-ERROR-LOG] [${new Date().toISOString()}] Query failed after ${elapsed}ms (retries left: ${retries}). SQL: "${sqlSnippet}...". Error: ${err.code || 'NO_CODE'} - ${err.message}`);
+
+          // Categorize timeout/connection errors clearly for Railway, MySQL, or API identification
+          if (err.code === 'PROTOCOL_CONNECTION_LOST' || err.code === 'ECONNRESET') {
+            console.error(`[DB-TIMEOUT-LOG-ORIGIN] Source: Railway / Network Layer. Connection was terminated by the remote host or proxy.`);
+          } else if (err.code === 'ETIMEDOUT' || err.message.toLowerCase().includes('timeout') || err.message.toLowerCase().includes('time out')) {
+            console.error(`[DB-TIMEOUT-LOG-ORIGIN] Source: Database / MySQL Timeout. The database host failed to respond within the socket or query timeout limit.`);
+          } else if (err.code === 'ECONNREFUSED' || err.code === 'ENOTFOUND' || err.code === 'EHOSTUNREACH') {
+            console.error(`[DB-TIMEOUT-LOG-ORIGIN] Source: Connection Route Layer. The server is offline or host DNS is unresolved.`);
+          } else if (err.code && err.code.startsWith('ER_')) {
+            console.error(`[DB-TIMEOUT-LOG-ORIGIN] Source: MySQL Database Engine (SQL Syntax/Data Constraint Violation).`);
+          } else {
+            console.error(`[DB-TIMEOUT-LOG-ORIGIN] Source: API or Internal App State Layer.`);
+          }
+
+          if (isNetworkError && retries > 0) {
+            console.warn(`[DB-QUERY-RETRY] Attempting automatic query retry in 1.0 second...`);
+            retries--;
+            await new Promise(resolve => setTimeout(resolve, 1000));
+          } else {
+            throw err;
+          }
+        }
+      }
+    };
+
+    pool.getConnection = async function(...args) {
+      const startTime = Date.now();
+      let retries = 2;
+      while (retries >= 0) {
+        let timerId;
+        try {
+          const getConnectionPromise = originalGetConnection.apply(pool, args);
+          const timeoutPromise = new Promise((_, reject) => {
+            timerId = setTimeout(() => reject(new Error('MySQL getConnection timed out (exceeded 10s)')), 10000);
+          });
+          const conn = await Promise.race([getConnectionPromise, timeoutPromise]);
+          clearTimeout(timerId);
+          const elapsed = Date.now() - startTime;
+          console.log(`[DB-CONN-LOG] [${new Date().toISOString()}] Connection retrieved in ${elapsed}ms`);
+          return conn;
+        } catch (err) {
+          if (timerId) clearTimeout(timerId);
+          const elapsed = Date.now() - startTime;
+          const isNetworkError = 
+            err.code === 'PROTOCOL_CONNECTION_LOST' ||
+            err.code === 'ECONNRESET' ||
+            err.code === 'ETIMEDOUT' ||
+            err.code === 'ECONNREFUSED' ||
+            err.code === 'ENOTFOUND' ||
+            err.code === 'EHOSTUNREACH' ||
+            err.message.includes('closed') ||
+            err.message.includes('connection') ||
+            err.message.includes('timeout') ||
+            err.message.includes('timed out');
+
+          console.error(`[DB-CONN-ERROR-LOG] [${new Date().toISOString()}] getConnection failed after ${elapsed}ms (retries left: ${retries}). Error: ${err.code || 'NO_CODE'} - ${err.message}`);
+
+          if (err.code === 'PROTOCOL_CONNECTION_LOST' || err.code === 'ECONNRESET') {
+            console.error(`[DB-CONN-TIMEOUT-ORIGIN] Source: Railway / Network Layer. Connection reset by peer.`);
+          } else if (err.code === 'ETIMEDOUT' || err.message.toLowerCase().includes('timeout') || err.message.toLowerCase().includes('time out')) {
+            console.error(`[DB-CONN-TIMEOUT-ORIGIN] Source: Connection Timeout (Railway / MySQL did not accept TCP handshake within limit).`);
+          } else {
+            console.error(`[DB-CONN-TIMEOUT-ORIGIN] Source: Connection refused or host unreachable.`);
+          }
+
+          if (isNetworkError && retries > 0) {
+            retries--;
+            await new Promise(resolve => setTimeout(resolve, 1000));
+          } else {
+            throw err;
+          }
+        }
+      }
+    };
+
     if (process.env.VERCEL) {
       try {
         await ensureDbInitialized();
@@ -713,6 +1252,24 @@ async function initDb(config) {
         .then(success => {
           if (success) {
             console.log('Database migrations completed successfully on startup.');
+            // Sync environment config back to db_config files for UI display / permanency
+            try {
+              const fs = require('fs');
+              const path = require('path');
+              const rawConfig = {
+                mode: 'network',
+                serverUrl: process.env.VITE_API_URL || 'http://localhost:3000',
+                db: targetConfig
+              };
+              const configJson = JSON.stringify(rawConfig, null, 2);
+              const appDataPath = getDbConfigFilePath();
+              fs.writeFileSync(appDataPath, configJson, 'utf8');
+              const rootPath = path.join(__dirname, '..', 'db_config.json');
+              fs.writeFileSync(rootPath, configJson, 'utf8');
+              console.log('[initDb] Synced successful database configuration to config files.');
+            } catch (syncErr) {
+              console.warn('[initDb] Failed to sync config back to files:', syncErr.message);
+            }
           } else {
             console.log('Database migrations deferred (database may be offline). Will retry lazily.');
           }
@@ -732,6 +1289,7 @@ async function initDb(config) {
 }
 
 const app = express();
+app.set('trust proxy', 1);
 
 const corsOptions = {
   origin: process.env.ALLOWED_ORIGINS ? process.env.ALLOWED_ORIGINS.split(',') : '*',
@@ -774,7 +1332,10 @@ app.use(async (req, res, next) => {
     '/api/ai/test-key'
   ];
   
+  const isApi = req.path.startsWith('/api/');
+  
   const isPublic = 
+    !isApi ||
     publicPaths.includes(req.path) || 
     req.path.match(/\/api\/students\/[^/]+\/photo/) ||
     req.path.startsWith('/api/pdf/download/') ||
@@ -804,25 +1365,12 @@ app.use(async (req, res, next) => {
     '/api/auth/login'
   ];
   
-  const bypassDbCheck = connectionBypassPaths.includes(req.path);
+  const bypassDbCheck = !isApi || connectionBypassPaths.includes(req.path);
 
-  // Lazy database initialization from environment variables (useful for serverless/Vercel)
+  // Lazy database initialization (useful for serverless/Vercel or local startup fallback)
   if (!pool) {
-    console.log('[DB-LAZY-INIT] Checking environment variables in middleware:');
-    console.log(`  - process.env.MYSQL_PUBLIC_URL: ${process.env.MYSQL_PUBLIC_URL ? 'Set (Redacted)' : 'Not Set'}`);
-    console.log(`  - process.env.DATABASE_URL: ${process.env.DATABASE_URL ? 'Set (Redacted)' : 'Not Set'}`);
-    console.log(`  - process.env.DB_HOST: ${process.env.DB_HOST || 'Not Set'}`);
-    console.log(`  - process.env.DB_PORT: ${process.env.DB_PORT || 'Not Set'}`);
-    console.log(`  - process.env.DB_DATABASE: ${process.env.DB_DATABASE || 'Not Set'}`);
-    console.log(`  - process.env.DB_USER: ${process.env.DB_USER || 'Not Set'}`);
-
-    const dbConfig = process.env.MYSQL_PUBLIC_URL || process.env.DATABASE_URL || (process.env.DB_HOST ? {
-      host: process.env.DB_HOST,
-      port: parseInt(process.env.DB_PORT || '3306', 10),
-      user: process.env.DB_USER,
-      password: process.env.DB_PASSWORD,
-      database: process.env.DB_DATABASE
-    } : null);
+    console.log('[DB-LAZY-INIT] Checking database config in middleware...');
+    const dbConfig = loadDbConfig();
 
     if (dbConfig) {
       console.log('[API] Intercepted request. Initializing database pool lazily with Resolved Config:', 
@@ -832,10 +1380,10 @@ app.use(async (req, res, next) => {
       );
       const success = await initDb(dbConfig);
       if (!success && !bypassDbCheck) {
-        return res.status(500).json({ error: 'Failed to initialize database pool from environment variables. Please verify connection credentials.' });
+        return res.status(500).json({ error: 'Failed to initialize database pool from configuration. Please verify connection credentials.' });
       }
     } else {
-      console.warn('[DB-LAZY-INIT] No database configuration found in environment variables!');
+      console.warn('[DB-LAZY-INIT] No database configuration found!');
     }
   }
 
@@ -897,18 +1445,115 @@ app.get('/api/database-config', async (req, res) => {
 
 // POST test database connection (via HTTP API)
 app.post('/api/test-db-connection', async (req, res) => {
-  return res.status(403).json({
-    success: false,
-    error: 'Database connection testing is disabled in Cloud mode.'
-  });
+  if (process.env.VERCEL) {
+    return res.status(403).json({
+      success: false,
+      error: 'Database connection testing is disabled in Cloud mode.'
+    });
+  }
+
+  try {
+    const rawConfig = req.body;
+    const config = normalizeDbConfig(rawConfig);
+    if (!config) {
+      return res.status(400).json({ success: false, error: 'Invalid database configuration format.' });
+    }
+
+    const displayHost = typeof config === 'string' ? 'connection URI' : `${config.host}:${config.port}`;
+    console.log(`[test-db-connection] Testing connection to ${displayHost}...`);
+
+    let connection;
+    if (typeof config === 'string') {
+      connection = await mysql.createConnection(config);
+    } else {
+      connection = await mysql.createConnection({
+        host: config.host,
+        port: parseInt(String(config.port), 10) || 3306,
+        user: config.user,
+        password: config.password,
+        database: config.database,
+        connectTimeout: 5000
+      });
+    }
+
+    await connection.end();
+    return res.json({ success: true, message: 'Database connection test succeeded.' });
+  } catch (err) {
+    console.error('[test-db-connection] Connection test failed:', err);
+    return res.status(500).json({ success: false, error: err.message || String(err) });
+  }
 });
 
 // POST save database config (via HTTP API)
 app.post('/api/save-db-config', async (req, res) => {
-  return res.status(403).json({
-    success: false,
-    error: 'Database configuration is locked in Cloud mode.'
-  });
+  if (process.env.VERCEL) {
+    return res.status(403).json({
+      success: false,
+      error: 'Database configuration is locked in Cloud mode.'
+    });
+  }
+
+  try {
+    const rawConfig = req.body;
+    const config = normalizeDbConfig(rawConfig);
+    if (!config) {
+      return res.status(400).json({ success: false, error: 'Invalid database configuration format.' });
+    }
+
+    // 1. Try to connect first to verify it works
+    let connection;
+    try {
+      if (typeof config === 'string') {
+        connection = await mysql.createConnection(config);
+      } else {
+        connection = await mysql.createConnection({
+          host: config.host,
+          port: parseInt(String(config.port), 10) || 3306,
+          user: config.user,
+          password: config.password,
+          database: config.database,
+          connectTimeout: 30000
+        });
+      }
+      await connection.end();
+    } catch (connErr) {
+      const isDbNotExist = connErr.errno === 1049 || connErr.code === 'ER_BAD_DB_ERROR';
+      if (!isDbNotExist) {
+        throw connErr;
+      }
+    }
+
+    // 2. Save configuration permanently
+    const appDataPath = getDbConfigFilePath();
+    const configJson = JSON.stringify(rawConfig, null, 2);
+    
+    // Save to APPDATA path
+    fs.writeFileSync(appDataPath, configJson, 'utf8');
+    console.log(`[save-db-config] Saved database configuration to APPDATA path: ${appDataPath}`);
+
+    // Save to local project root path (for server startup fallback)
+    try {
+      const rootPath = path.join(__dirname, '..', 'db_config.json');
+      fs.writeFileSync(rootPath, configJson, 'utf8');
+      console.log(`[save-db-config] Saved database configuration to project root: ${rootPath}`);
+    } catch (rootErr) {
+      console.warn(`[save-db-config] Failed to write to project root: ${rootErr.message}`);
+    }
+
+    // Save to local .env file
+    saveToEnvFile(config);
+
+    // 3. Initialize the database pool in memory with new configuration
+    const success = await initDb(config);
+    if (!success) {
+      throw new Error('Failed to initialize connection pool with new settings.');
+    }
+
+    return res.json({ success: true, message: 'Database configuration saved and applied successfully.' });
+  } catch (err) {
+    console.error('[save-db-config] Save config failed:', err);
+    return res.status(500).json({ success: false, error: err.message || String(err) });
+  }
 });
 
 // GET database connection status
@@ -1145,7 +1790,7 @@ app.get('/api/students/:id', async (req, res) => {
     const [rows] = await pool.query(
       `SELECT id, adminNo, name, aliases, gender, gradeClass, boardingStatus, isCleared, 
               gateClearanceDate, mealsClearanceDate, remarks, printStatus, uace_combination, 
-              parentName, parentContact, updatedAt, photo, 
+              parentName, parentContact, updatedAt, photo, photoOriginal, photoEnhanced,
               IF(photo IS NOT NULL AND photo != '', 1, 0) as hasPhoto 
        FROM students WHERE id = ?`,
       [req.params.id]
@@ -1340,6 +1985,44 @@ async function mergePrintHistory(connection, keepStudentId, duplicateStudentId) 
   }
 }
 
+// POST upload image (uploads to Cloudinary, returns URL path)
+app.post('/api/upload', async (req, res) => {
+  const uploadStart = Date.now();
+  try {
+    const { image, publicId } = req.body;
+    if (!image) {
+      return res.status(400).json({ error: 'Image data is required.' });
+    }
+    
+    let maxW = 800;
+    let maxH = 1000;
+    let quality = 85;
+    
+    if (publicId && publicId.includes('_photo')) {
+      maxW = 150;
+      maxH = 150;
+      quality = 75;
+    }
+    
+    const compressStart = Date.now();
+    const compressed = await compressImageIfNeeded(image, maxW, maxH, quality, true);
+    const compressDuration = Date.now() - compressStart;
+    
+    const cloudinaryStart = Date.now();
+    const uploadUrl = await uploadToCloudinaryIfNeeded(compressed, publicId || `upload_${Date.now()}`);
+    const cloudinaryDuration = Date.now() - cloudinaryStart;
+    
+    const totalDuration = Date.now() - uploadStart;
+    console.log(`[API-UPLOAD-LOG] Image processed and uploaded in ${totalDuration}ms (compression: ${compressDuration}ms, upload: ${cloudinaryDuration}ms).`);
+    
+    res.json({ success: true, url: uploadUrl });
+  } catch (err) {
+    const totalDuration = Date.now() - uploadStart;
+    console.error(`[API-UPLOAD-ERROR] Image upload failed after ${totalDuration}ms:`, err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
 // POST new student (Insert or Update)
 app.post('/api/students', async (req, res) => {
   try {
@@ -1347,28 +2030,44 @@ app.post('/api/students', async (req, res) => {
     if (!s.adminNo) {
       return res.status(400).json({ error: 'Admission number (adminNo) is required.' });
     }
-    // Check duplicate
-    const [existing] = await pool.query('SELECT id, name FROM students WHERE adminNo = ? AND id != ?', [s.adminNo, s.id]);
+    // Check duplicate (OPTIMIZED: LIMIT 1)
+    const [existing] = await pool.query('SELECT id, name FROM students WHERE adminNo = ? AND id != ? LIMIT 1', [s.adminNo, s.id]);
     if (existing.length > 0) {
       return res.status(400).json({ error: `Registration number "${s.adminNo}" is already assigned to student "${existing[0].name}".` });
     }
 
     try {
-      s.photo = await uploadToCloudinaryIfNeeded(s.photo, `student_${s.id}_photo`);
-      s.photoOriginal = await uploadToCloudinaryIfNeeded(s.photoOriginal, `student_${s.id}_original`);
-      s.photoEnhanced = await uploadToCloudinaryIfNeeded(s.photoEnhanced, `student_${s.id}_enhanced`);
+      // Parallelize image compression (keep original/enhanced high-res for zoom/cropping)
+      const [compPhoto, compOriginal, compEnhanced] = await Promise.all([
+        s.photo ? compressImageIfNeeded(s.photo, 150, 150, 75, true) : Promise.resolve(s.photo),
+        s.photoOriginal ? compressImageIfNeeded(s.photoOriginal, 800, 1000, 85, true) : Promise.resolve(s.photoOriginal),
+        s.photoEnhanced ? compressImageIfNeeded(s.photoEnhanced, 800, 1000, 85, true) : Promise.resolve(s.photoEnhanced)
+      ]);
+
+      // Parallelize Cloudinary uploads
+      const [photoUrl, originalUrl, enhancedUrl] = await Promise.all([
+        uploadToCloudinaryIfNeeded(compPhoto, `student_${s.id}_photo`),
+        uploadToCloudinaryIfNeeded(compOriginal, `student_${s.id}_original`),
+        uploadToCloudinaryIfNeeded(compEnhanced, `student_${s.id}_enhanced`)
+      ]);
+
+      s.photo = photoUrl;
+      s.photoOriginal = originalUrl;
+      s.photoEnhanced = enhancedUrl;
     } catch (e) {
-      console.warn('Cloudinary upload warning:', e);
+      console.warn('Image processing or Cloudinary upload warning:', e);
     }
 
+    const formattedDob = s.dob && s.dob.trim() !== '' ? s.dob.trim() : null;
+
     await pool.query(
-      `INSERT INTO students (id, adminNo, name, aliases, gender, gradeClass, boardingStatus, isCleared, gateClearanceDate, mealsClearanceDate, remarks, photo, photoOriginal, photoEnhanced, printStatus, parentName, parentContact) 
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?) 
+      `INSERT INTO students (id, adminNo, name, aliases, gender, dob, gradeClass, boardingStatus, isCleared, gateClearanceDate, mealsClearanceDate, remarks, photo, photoOriginal, photoEnhanced, printStatus, parentName, parentContact) 
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?) 
        ON DUPLICATE KEY UPDATE 
-       adminNo = ?, name = ?, aliases = ?, gender = ?, gradeClass = ?, boardingStatus = ?, isCleared = ?, gateClearanceDate = ?, mealsClearanceDate = ?, remarks = ?, photo = ?, photoOriginal = ?, photoEnhanced = ?, printStatus = ?, parentName = ?, parentContact = ?`,
+       adminNo = ?, name = ?, aliases = ?, gender = ?, dob = ?, gradeClass = ?, boardingStatus = ?, isCleared = ?, gateClearanceDate = ?, mealsClearanceDate = ?, remarks = ?, photo = ?, photoOriginal = ?, photoEnhanced = ?, printStatus = ?, parentName = ?, parentContact = ?`,
       [
-        s.id, s.adminNo, s.name, s.aliases ? JSON.stringify(s.aliases) : null, s.gender, s.gradeClass, s.boardingStatus, s.isCleared ? 1 : 0, s.gateClearanceDate || null, s.mealsClearanceDate || null, s.remarks || null, s.photo || null, s.photoOriginal || null, s.photoEnhanced || null, s.printStatus || 'Not Printed', s.parentName || null, s.parentContact || null,
-        s.adminNo, s.name, s.aliases ? JSON.stringify(s.aliases) : null, s.gender, s.gradeClass, s.boardingStatus, s.isCleared ? 1 : 0, s.gateClearanceDate || null, s.mealsClearanceDate || null, s.remarks || null, s.photo || null, s.photoOriginal || null, s.photoEnhanced || null, s.printStatus || 'Not Printed', s.parentName || null, s.parentContact || null
+        s.id, s.adminNo, s.name, s.aliases ? JSON.stringify(s.aliases) : null, s.gender, formattedDob, s.gradeClass, s.boardingStatus, s.isCleared ? 1 : 0, s.gateClearanceDate || null, s.mealsClearanceDate || null, s.remarks || null, s.photo || null, s.photoOriginal || null, s.photoEnhanced || null, s.printStatus || 'Not Printed', s.parentName || null, s.parentContact || null,
+        s.adminNo, s.name, s.aliases ? JSON.stringify(s.aliases) : null, s.gender, formattedDob, s.gradeClass, s.boardingStatus, s.isCleared ? 1 : 0, s.gateClearanceDate || null, s.mealsClearanceDate || null, s.remarks || null, s.photo || null, s.photoOriginal || null, s.photoEnhanced || null, s.printStatus || 'Not Printed', s.parentName || null, s.parentContact || null
       ]
     );
     await ensureStudentAccount(pool, s.id);
@@ -1388,23 +2087,39 @@ app.put('/api/students/:id', async (req, res) => {
     if (!s.adminNo) {
       return res.status(400).json({ error: 'Admission number (adminNo) is required.' });
     }
-    // Check duplicate
-    const [existing] = await pool.query('SELECT id, name FROM students WHERE adminNo = ? AND id != ?', [s.adminNo, req.params.id]);
+    // Check duplicate (OPTIMIZED: LIMIT 1)
+    const [existing] = await pool.query('SELECT id, name FROM students WHERE adminNo = ? AND id != ? LIMIT 1', [s.adminNo, req.params.id]);
     if (existing.length > 0) {
       return res.status(400).json({ error: `Registration number "${s.adminNo}" is already assigned to student "${existing[0].name}".` });
     }
 
     try {
-      s.photo = await uploadToCloudinaryIfNeeded(s.photo, `student_${req.params.id}_photo`);
-      s.photoOriginal = await uploadToCloudinaryIfNeeded(s.photoOriginal, `student_${req.params.id}_original`);
-      s.photoEnhanced = await uploadToCloudinaryIfNeeded(s.photoEnhanced, `student_${req.params.id}_enhanced`);
+      // Parallelize image compression (keep original/enhanced high-res for zoom/cropping)
+      const [compPhoto, compOriginal, compEnhanced] = await Promise.all([
+        s.photo ? compressImageIfNeeded(s.photo, 150, 150, 75, true) : Promise.resolve(s.photo),
+        s.photoOriginal ? compressImageIfNeeded(s.photoOriginal, 800, 1000, 85, true) : Promise.resolve(s.photoOriginal),
+        s.photoEnhanced ? compressImageIfNeeded(s.photoEnhanced, 800, 1000, 85, true) : Promise.resolve(s.photoEnhanced)
+      ]);
+
+      // Parallelize Cloudinary uploads
+      const [photoUrl, originalUrl, enhancedUrl] = await Promise.all([
+        uploadToCloudinaryIfNeeded(compPhoto, `student_${req.params.id}_photo`),
+        uploadToCloudinaryIfNeeded(compOriginal, `student_${req.params.id}_original`),
+        uploadToCloudinaryIfNeeded(compEnhanced, `student_${req.params.id}_enhanced`)
+      ]);
+
+      s.photo = photoUrl;
+      s.photoOriginal = originalUrl;
+      s.photoEnhanced = enhancedUrl;
     } catch (e) {
-      console.warn('Cloudinary upload warning:', e);
+      console.warn('Image processing or Cloudinary upload warning:', e);
     }
 
+    const formattedDob = s.dob && s.dob.trim() !== '' ? s.dob.trim() : null;
+
     await pool.query(
-      `UPDATE students SET adminNo = ?, name = ?, aliases = ?, gender = ?, gradeClass = ?, boardingStatus = ?, isCleared = ?, gateClearanceDate = ?, mealsClearanceDate = ?, remarks = ?, photo = ?, photoOriginal = ?, photoEnhanced = ?, printStatus = ?, parentName = ?, parentContact = ? WHERE id = ?`,
-      [s.adminNo, s.name, s.aliases ? JSON.stringify(s.aliases) : null, s.gender, s.gradeClass, s.boardingStatus, s.isCleared ? 1 : 0, s.gateClearanceDate || null, s.mealsClearanceDate || null, s.remarks || null, s.photo || null, s.photoOriginal || null, s.photoEnhanced || null, s.printStatus || 'Not Printed', s.parentName || null, s.parentContact || null, req.params.id]
+      `UPDATE students SET adminNo = ?, name = ?, aliases = ?, gender = ?, dob = ?, gradeClass = ?, boardingStatus = ?, isCleared = ?, gateClearanceDate = ?, mealsClearanceDate = ?, remarks = ?, photo = ?, photoOriginal = ?, photoEnhanced = ?, printStatus = ?, parentName = ?, parentContact = ? WHERE id = ?`,
+      [s.adminNo, s.name, s.aliases ? JSON.stringify(s.aliases) : null, s.gender, formattedDob, s.gradeClass, s.boardingStatus, s.isCleared ? 1 : 0, s.gateClearanceDate || null, s.mealsClearanceDate || null, s.remarks || null, s.photo || null, s.photoOriginal || null, s.photoEnhanced || null, s.printStatus || 'Not Printed', s.parentName || null, s.parentContact || null, req.params.id]
     );
     await ensureStudentAccount(pool, req.params.id);
     await writeAuditLog('Update Student', `Updated student "${s.name}" (${s.adminNo})`);
@@ -1471,12 +2186,12 @@ app.post('/api/students/bulk', async (req, res) => {
   try {
     const students = req.body.students || [];
     
-    // Upload student photos to Cloudinary before starting the database transaction
-    for (const s of students) {
+    // Upload student photos to Cloudinary in parallel before starting the database transaction
+    await Promise.all(students.map(async (s) => {
       try {
         s.photo = await uploadToCloudinaryIfNeeded(s.photo, `student_${s.id}_photo`);
       } catch (e) {}
-    }
+    }));
 
     await connection.beginTransaction();
     for (const s of students) {
@@ -2268,9 +2983,10 @@ app.post('/api/pdf/generate', async (req, res) => {
       filePath: null,
       error: null
     };
+    await dbSavePdfTask(taskId, 'processing', 0, finalStudentIds.length);
 
-    // Run PDF generation in the background
-    (async () => {
+    // Run PDF generation function
+    const runGeneration = async () => {
       try {
         // Load student records from DB (specifically select required fields only, avoids photoOriginal/photoEnhanced)
         const [students] = await pool.query(
@@ -2286,19 +3002,23 @@ app.post('/api/pdf/generate', async (req, res) => {
         const studentMap = new Map(Array.isArray(students) ? students.map(s => [s.id, { ...s, isCleared: !!s.isCleared }]) : []);
         const orderedStudents = finalStudentIds.map(id => studentMap.get(id)).filter(Boolean);
 
-        // Pre-resolve school logo (URL, path, or base64)
+        // Pre-resolve school logo (URL, path, or base64) and compress it
         let activeLogo = schoolLogoBase64;
         if (activeLogo) {
           activeLogo = await getLogoAsBase64(activeLogo) || activeLogo;
+          activeLogo = await compressImageIfNeeded(activeLogo, 200, 200, 75);
         }
 
-        // Pre-resolve student photos if they are URLs (in batches of 30 in parallel)
+        // Pre-resolve student photos if they are URLs (in batches of 30 in parallel) and compress them
         const batchSize = 30;
         for (let i = 0; i < orderedStudents.length; i += batchSize) {
           const batch = orderedStudents.slice(i, i + batchSize);
           await Promise.all(batch.map(async (student) => {
             if (student.photo && student.photo.startsWith('http')) {
               student.photo = await getBase64ImageFromUrl(student.photo) || student.photo;
+            }
+            if (student.photo) {
+              student.photo = await compressImageIfNeeded(student.photo, 150, 150, 75, true);
             }
           }));
         }
@@ -2314,11 +3034,12 @@ app.post('/api/pdf/generate', async (req, res) => {
           increasePdfBrightness,
           showWatermark,
           watermarkOpacity,
-          onProgress: (current, total) => {
+          onProgress: async (current, total) => {
             if (pdfTasks[taskId]) {
               pdfTasks[taskId].progress = current;
               pdfTasks[taskId].total = total;
             }
+            await dbSavePdfTask(taskId, 'processing', current, total);
           }
         });
         
@@ -2358,14 +3079,24 @@ app.post('/api/pdf/generate', async (req, res) => {
           pdfTasks[taskId].filePath = filePath;
           pdfTasks[taskId].historyId = result.insertId;
         }
+        await dbSavePdfTask(taskId, 'completed', finalStudentIds.length, finalStudentIds.length, filename, null, pdfBuffer.toString('base64'));
       } catch (bgErr) {
         console.error('Background PDF generation error:', bgErr);
         if (pdfTasks[taskId]) {
           pdfTasks[taskId].status = 'failed';
           pdfTasks[taskId].error = bgErr.message;
         }
+        await dbSavePdfTask(taskId, 'failed', 0, finalStudentIds.length, null, bgErr.message);
       }
-    })();
+    };
+
+    if (process.env.VERCEL) {
+      // Synchronous execution on Vercel to prevent background termination/freezing
+      await runGeneration();
+    } else {
+      // Background execution for local/offline
+      runGeneration();
+    }
 
     // Respond immediately
     res.json({
@@ -2378,13 +3109,29 @@ app.post('/api/pdf/generate', async (req, res) => {
   }
 });
 // GET download PDF file
-app.get('/api/pdf/download/:filename', (req, res) => {
+app.get('/api/pdf/download/:filename', async (req, res) => {
   const fs = require('fs');
   const path = require('path');
   const filename = req.params.filename;
   const filePath = path.join(getExportsDir(), filename);
   
   if (!fs.existsSync(filePath)) {
+    // Attempt to load from database
+    try {
+      const [rows] = await pool.query('SELECT pdf_data FROM pdf_tasks WHERE filename = ?', [filename]);
+      if (rows.length > 0 && rows[0].pdf_data) {
+        const pdfBuffer = Buffer.from(rows[0].pdf_data, 'base64');
+        res.setHeader('Content-Type', 'application/pdf');
+        if (req.query.preview === 'true') {
+          res.setHeader('Content-Disposition', 'inline; filename="' + filename + '"');
+        } else {
+          res.setHeader('Content-Disposition', 'attachment; filename="' + filename + '"');
+        }
+        return res.send(pdfBuffer);
+      }
+    } catch (dbErr) {
+      console.error('Failed to retrieve PDF from database:', dbErr);
+    }
     return res.status(404).json({ error: 'PDF file not found' });
   }
   
@@ -2398,12 +3145,21 @@ app.get('/api/pdf/download/:filename', (req, res) => {
 });
 
 // GET PDF generation status
-app.get('/api/pdf/status/:taskId', (req, res) => {
-  const task = pdfTasks[req.params.taskId];
-  if (!task) {
-    return res.status(404).json({ error: 'PDF generation task not found.' });
+app.get('/api/pdf/status/:taskId', async (req, res) => {
+  try {
+    const taskId = req.params.taskId;
+    let task = pdfTasks[taskId];
+    if (!task) {
+      task = await dbGetPdfTask(taskId);
+    }
+    if (!task) {
+      return res.status(404).json({ error: 'PDF generation task not found.' });
+    }
+    res.json(task);
+  } catch (err) {
+    console.error('Failed to get PDF status:', err);
+    res.status(500).json({ error: err.message });
   }
-  res.json(task);
 });
 
 // ==========================================
@@ -2428,7 +3184,14 @@ app.get('/api/settings', async (req, res) => {
 app.post('/api/settings', async (req, res) => {
   try {
     const settings = req.body;
-    for (const [key, value] of Object.entries(settings)) {
+    for (let [key, value] of Object.entries(settings)) {
+      if (key === 'school_logo') {
+        value = await compressImageIfNeeded(value, 200, 200, 75, false);
+      } else if (key === 'school_stamp') {
+        value = await compressImageIfNeeded(value, 150, 150, 75, true);
+      } else if (key === 'head_teacher_signature') {
+        value = await compressImageIfNeeded(value, 200, 100, 75, true);
+      }
       await pool.query(
         'INSERT INTO settings (key_name, val_value) VALUES (?, ?) ON DUPLICATE KEY UPDATE val_value = ?',
         [key, value, value]
@@ -2747,8 +3510,9 @@ app.post('/api/teacher/marks', async (req, res) => {
       const allowedSubjects = typeof teacherRec.subjects === 'string' ? JSON.parse(teacherRec.subjects || '[]') : (teacherRec.subjects || []);
       const allowedClasses = typeof teacherRec.classes === 'string' ? JSON.parse(teacherRec.classes || '[]') : (teacherRec.classes || []);
       // Allow if teacher is assigned to the subject and the gradeClass matches any allowed class prefix
-      const subjectAllowed = allowedSubjects.length === 0 || allowedSubjects.includes(subject);
-      const classAllowed = allowedClasses.length === 0 || allowedClasses.some(c => gradeClass.startsWith(c));
+      // Note: Allow all teachers to enter, edit, and save marks as requested.
+      const subjectAllowed = true;
+      const classAllowed = true;
       if (!subjectAllowed || !classAllowed) {
         await connection.rollback();
         return res.status(403).json({ error: 'You are not allowed to edit marks for this subject or class.' });
@@ -2794,14 +3558,28 @@ app.post('/api/teacher/marks', async (req, res) => {
 
     for (const m of marksList) {
       if (isUACE) {
-        const botVal = m.bot !== undefined && m.bot !== null && m.bot !== '' ? parseFloat(m.bot) : 0;
-        const motVal = m.mot !== undefined && m.mot !== null && m.mot !== '' ? parseFloat(m.mot) : 0;
-        const eotVal = m.eot !== undefined && m.eot !== null && m.eot !== '' ? parseFloat(m.eot) : 0;
-        if (isNaN(botVal) || botVal < 0 || botVal > 100 ||
-            isNaN(motVal) || motVal < 0 || motVal > 100 ||
-            isNaN(eotVal) || eotVal < 0 || eotVal > 100) {
+        const checkRange = (val, label) => {
+          if (val === undefined || val === null || val === '') return null;
+          const num = parseFloat(val);
+          if (isNaN(num) || num < 0 || num > 100) {
+            return `${label} must be between 0 and 100.`;
+          }
+          return null;
+        };
+        let err = checkRange(m.bot, 'BOT');
+        if (err) {
           await connection.rollback();
-          return res.status(400).json({ error: `Invalid UACE marks for student ${m.student_id || 'unknown'}. BOT, MOT, and EOT scores must be between 0 and 100.` });
+          return res.status(400).json({ error: `${err} (student ${m.student_id || 'unknown'})` });
+        }
+        err = checkRange(m.mot, 'MOT');
+        if (err) {
+          await connection.rollback();
+          return res.status(400).json({ error: `${err} (student ${m.student_id || 'unknown'})` });
+        }
+        err = checkRange(m.eot, 'EOT');
+        if (err) {
+          await connection.rollback();
+          return res.status(400).json({ error: `${err} (student ${m.student_id || 'unknown'})` });
         }
       } else {
         const maxAI = 3; // Strictly capped at 3
@@ -2843,24 +3621,34 @@ app.post('/api/teacher/marks', async (req, res) => {
 
     for (const m of marksList) {
       if (isUACE) {
-        const botVal = m.bot !== undefined && m.bot !== null && m.bot !== '' ? parseFloat(m.bot) : 0;
-        const motVal = m.mot !== undefined && m.mot !== null && m.mot !== '' ? parseFloat(m.mot) : 0;
-        const eotVal = m.eot !== undefined && m.eot !== null && m.eot !== '' ? parseFloat(m.eot) : 0;
+        const botVal = m.bot !== undefined && m.bot !== null && m.bot !== '' ? parseFloat(m.bot) : null;
+        const motVal = m.mot !== undefined && m.mot !== null && m.mot !== '' ? parseFloat(m.mot) : null;
+        const eotVal = m.eot !== undefined && m.eot !== null && m.eot !== '' ? parseFloat(m.eot) : null;
         
-        const score = Math.round(botVal * 0.3 + motVal * 0.3 + eotVal * 0.4);
+        let score = null;
+        let grInfo = { grade: null, points: null };
+        const hasNoMarks = (botVal === null) && (motVal === null) && (eotVal === null);
+        
         const subType = m.subject_type || 'Principal';
-        const pNum = m.paper !== undefined && m.paper !== null && m.paper !== '' ? parseInt(m.paper, 10) : paperNum;
+        if (!hasNoMarks) {
+          score = Math.round(
+            (botVal !== null ? botVal : 0) * 0.3 +
+            (motVal !== null ? motVal : 0) * 0.3 +
+            (eotVal !== null ? eotVal : 0) * 0.4
+          );
+          grInfo = isSubsidiarySubject(subject, subType) ? getUACESubGPGrade(score) : getUACEPrincipalGrade(score);
+        }
         
-        const grInfo = (subType === 'General Paper' || subType === 'Subsidiary') ? getUACESubGPGrade(score) : getUACEPrincipalGrade(score);
+        const pNum = m.paper !== undefined && m.paper !== null && m.paper !== '' ? parseInt(m.paper, 10) : paperNum;
         const targetStatus = 'Approved';
 
         await connection.query(
           `INSERT INTO uace_marks (student_id, subject, subject_type, paper, bot, mot, eot, score, grade, points, term, year, teacher_id, status) 
            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?) 
-           ON DUPLICATE KEY UPDATE bot = ?, mot = ?, eot = ?, score = ?, grade = ?, points = ?, teacher_id = ?, status = ?`,
+           ON DUPLICATE KEY UPDATE subject_type = ?, bot = ?, mot = ?, eot = ?, score = ?, grade = ?, points = ?, teacher_id = ?, status = ?`,
           [
             m.student_id, subject, subType, pNum, botVal, motVal, eotVal, score, grInfo.grade, grInfo.points, term, parseInt(year, 10), teacherId, targetStatus,
-            botVal, motVal, eotVal, score, grInfo.grade, grInfo.points, teacherId, targetStatus
+            subType, botVal, motVal, eotVal, score, grInfo.grade, grInfo.points, teacherId, targetStatus
           ]
         );
       } else {
@@ -3139,6 +3927,112 @@ app.post('/api/admin/students/search-with-marks', async (req, res) => {
   }
 });
 
+// GET suspected duplicate students
+app.get('/api/admin/students/suspected-duplicates', async (req, res) => {
+  try {
+    const [students] = await pool.query(
+      `SELECT id, adminNo, name, aliases, gender, dob, gradeClass, boardingStatus, printStatus,
+              IF(photo IS NOT NULL AND photo != '', 1, 0) as hasPhoto
+       FROM students`
+    );
+
+    const groups = [];
+    const visited = new Set();
+
+    const getSortedTokens = (nameStr) => {
+      return (nameStr || '')
+        .toLowerCase()
+        .replace(/[^a-z0-9\s]/g, '')
+        .split(/\s+/)
+        .filter(Boolean)
+        .sort()
+        .join(' ');
+    };
+
+    for (let i = 0; i < students.length; i++) {
+      const s1 = students[i];
+      if (visited.has(s1.id)) continue;
+
+      const group = [s1];
+      const norm1 = getSortedTokens(s1.name);
+
+      for (let j = i + 1; j < students.length; j++) {
+        const s2 = students[j];
+        if (visited.has(s2.id)) continue;
+
+        let isSuspect = false;
+
+        // 1. Exact match on adminNo (non-empty)
+        if (s1.adminNo && s2.adminNo && s1.adminNo.trim().toLowerCase() === s2.adminNo.trim().toLowerCase()) {
+          isSuspect = true;
+        }
+
+        // 2. Similar name and same class/stream
+        if (!isSuspect && norm1 && norm1 === getSortedTokens(s2.name) && s1.gradeClass === s2.gradeClass) {
+          isSuspect = true;
+        }
+
+        // 3. Same DOB and similar name
+        if (!isSuspect && s1.dob && s2.dob && s1.dob === s2.dob && norm1 === getSortedTokens(s2.name)) {
+          isSuspect = true;
+        }
+
+        if (isSuspect) {
+          group.push(s2);
+        }
+      }
+
+      if (group.length > 1) {
+        group.forEach(s => visited.add(s.id));
+        groups.push(group);
+      }
+    }
+
+    // Now populate counts of related data for each suspected student
+    const enrichedGroups = [];
+    for (const group of groups) {
+      const enrichedSuspects = [];
+      for (const s of group) {
+        // Count marks
+        const [marksCountRows] = await pool.query(
+          `SELECT 
+            (SELECT COUNT(*) FROM marks WHERE student_id = ?) +
+            (SELECT COUNT(*) FROM olevel_marks WHERE student_id = ?) +
+            (SELECT COUNT(*) FROM uace_marks WHERE student_id = ?) as total`,
+          [s.id, s.id, s.id]
+        );
+        const marksCount = marksCountRows[0]?.total || 0;
+
+        // Count attendance
+        const [attCountRows] = await pool.query('SELECT COUNT(*) as count FROM attendance WHERE student_id = ?', [s.id]);
+        const attendanceCount = attCountRows[0]?.count || 0;
+
+        // Count fees
+        const [feesCountRows] = await pool.query('SELECT COUNT(*) as count FROM fees WHERE student_id = ?', [s.id]);
+        const feesCount = feesCountRows[0]?.count || 0;
+
+        enrichedSuspects.push({
+          ...s,
+          aliases: s.aliases ? JSON.parse(s.aliases) : null,
+          hasPhoto: !!s.hasPhoto,
+          marksCount,
+          attendanceCount,
+          feesCount
+        });
+      }
+      enrichedGroups.push({
+        id: `group-${group[0].id}`,
+        suspects: enrichedSuspects
+      });
+    }
+
+    res.json({ success: true, groups: enrichedGroups });
+  } catch (err) {
+    console.error('Error fetching suspected duplicates:', err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
 app.post('/api/admin/students/merge-duplicates', async (req, res) => {
   const connection = await pool.getConnection();
   try {
@@ -3184,6 +4078,9 @@ app.post('/api/admin/students/merge-duplicates', async (req, res) => {
     for (const duplicateStudent of duplicateRows) {
       if ((!keepStudent.gender || keepStudent.gender === '') && duplicateStudent.gender) {
         mergedFields.gender = duplicateStudent.gender;
+      }
+      if ((!keepStudent.dob || keepStudent.dob === null || keepStudent.dob === '') && duplicateStudent.dob) {
+        mergedFields.dob = duplicateStudent.dob;
       }
       if ((!keepStudent.gradeClass || keepStudent.gradeClass === '') && duplicateStudent.gradeClass) {
         mergedFields.gradeClass = duplicateStudent.gradeClass;
@@ -3370,9 +4267,10 @@ app.post('/api/pdf/generate-reports', async (req, res) => {
       filePath: null,
       error: null
     };
+    await dbSavePdfTask(taskId, 'processing', 0, studentIds.length);
 
-    // Spawn background task
-    (async () => {
+    // Run PDF generation function
+    const runReportsGeneration = async () => {
       try {
         // Load student records from DB (specifically select required fields only, avoids photoOriginal/photoEnhanced)
         const [students] = await pool.query(
@@ -3431,7 +4329,7 @@ app.post('/api/pdf/generate-reports', async (req, res) => {
         const [htRows] = await pool.query("SELECT name, signature FROM teachers WHERE position = 'Head Teacher' OR position = 'Headteacher' LIMIT 1");
         const htTeacher = htRows[0] || null;
 
-        // Pre-resolve student photos in parallel (batches of 30)
+        // Pre-resolve student photos in parallel (batches of 30) and compress them
         const batchSize = 30;
         for (let i = 0; i < students.length; i += batchSize) {
           const batch = students.slice(i, i + batchSize);
@@ -3439,31 +4337,53 @@ app.post('/api/pdf/generate-reports', async (req, res) => {
             if (student.photo && student.photo.startsWith('http')) {
               student.photo = await getBase64ImageFromUrl(student.photo) || student.photo;
             }
+            if (student.photo) {
+              student.photo = await compressImageIfNeeded(student.photo, 150, 150, 75, true);
+            }
           }));
         }
 
         settings.school_logo = await getLogoAsBase64(settings.school_logo);
+        settings.school_logo = await compressImageIfNeeded(settings.school_logo, 200, 200, 75);
 
-        if (settings.school_stamp && settings.school_stamp.startsWith('http')) {
-          settings.school_stamp = await getBase64ImageFromUrl(settings.school_stamp) || settings.school_stamp;
+        if (settings.school_stamp) {
+          if (settings.school_stamp.startsWith('http')) {
+            settings.school_stamp = await getBase64ImageFromUrl(settings.school_stamp) || settings.school_stamp;
+          }
+          settings.school_stamp = await compressImageIfNeeded(settings.school_stamp, 150, 150, 75, true);
         }
 
-        // Pre-resolve all teacher signatures in parallel
+        // Pre-resolve all teacher signatures in parallel and compress them
         await Promise.all([
           ...Object.keys(classTeachersMap).map(async (gradeClass) => {
             const ct = classTeachersMap[gradeClass];
-            if (ct && ct.signature && ct.signature.startsWith('http')) {
-              ct.signature = await getBase64ImageFromUrl(ct.signature) || ct.signature;
+            if (ct) {
+              if (ct.signature && ct.signature.startsWith('http')) {
+                ct.signature = await getBase64ImageFromUrl(ct.signature) || ct.signature;
+              }
+              if (ct.signature) {
+                ct.signature = await compressImageIfNeeded(ct.signature, 200, 100, 75, true);
+              }
             }
           }),
           (async () => {
-            if (dosTeacher && dosTeacher.signature && dosTeacher.signature.startsWith('http')) {
-              dosTeacher.signature = await getBase64ImageFromUrl(dosTeacher.signature) || dosTeacher.signature;
+            if (dosTeacher) {
+              if (dosTeacher.signature && dosTeacher.signature.startsWith('http')) {
+                dosTeacher.signature = await getBase64ImageFromUrl(dosTeacher.signature) || dosTeacher.signature;
+              }
+              if (dosTeacher.signature) {
+                dosTeacher.signature = await compressImageIfNeeded(dosTeacher.signature, 200, 100, 75, true);
+              }
             }
           })(),
           (async () => {
-            if (htTeacher && htTeacher.signature && htTeacher.signature.startsWith('http')) {
-              htTeacher.signature = await getBase64ImageFromUrl(htTeacher.signature) || htTeacher.signature;
+            if (htTeacher) {
+              if (htTeacher.signature && htTeacher.signature.startsWith('http')) {
+                htTeacher.signature = await getBase64ImageFromUrl(htTeacher.signature) || htTeacher.signature;
+              }
+              if (htTeacher.signature) {
+                htTeacher.signature = await compressImageIfNeeded(htTeacher.signature, 200, 100, 75, true);
+              }
             }
           })()
         ]);
@@ -3623,9 +4543,7 @@ app.post('/api/pdf/generate-reports', async (req, res) => {
             const sMarks = uaceMarks.filter(m => m.student_id === student.id);
             sMarks.forEach(m => {
               const score = parseFloat(m.score || 0);
-              const isGP = m.subject_type === 'General Paper';
-              const isSub = m.subject_type === 'Subsidiary';
-              const grInfo = (isGP || isSub) ? getUACESubGPGrade(score) : getUACEPrincipalGrade(score);
+              const grInfo = isSubsidiarySubject(m.subject, m.subject_type) ? getUACESubGPGrade(score) : getUACEPrincipalGrade(score);
               let initials = 'N/A';
               try {
                 const teacherName = teachersMap[m.teacher_id];
@@ -3701,11 +4619,12 @@ app.post('/api/pdf/generate-reports', async (req, res) => {
           verificationTokens: studentTokensMap,
           dosTeacher,
           htTeacher,
-          onProgress: (current, total) => {
+          onProgress: async (current, total) => {
             if (pdfTasks[taskId]) {
               pdfTasks[taskId].progress = current;
               pdfTasks[taskId].total = total;
             }
+            await dbSavePdfTask(taskId, 'processing', current, total);
           }
         });
 
@@ -3729,14 +4648,24 @@ app.post('/api/pdf/generate-reports', async (req, res) => {
           pdfTasks[taskId].filename = filename;
           pdfTasks[taskId].filePath = filePath;
         }
+        await dbSavePdfTask(taskId, 'completed', studentIds.length, studentIds.length, filename, null, pdfBuffer.toString('base64'));
       } catch (bgErr) {
         console.error('Background report cards compilation error:', bgErr);
         if (pdfTasks[taskId]) {
           pdfTasks[taskId].status = 'failed';
           pdfTasks[taskId].error = bgErr.message;
         }
+        await dbSavePdfTask(taskId, 'failed', 0, studentIds.length, null, bgErr.message);
       }
-    })();
+    };
+
+    if (process.env.VERCEL) {
+      // Synchronous execution on Vercel to prevent background termination/freezing
+      await runReportsGeneration();
+    } else {
+      // Background execution for local/offline
+      runReportsGeneration();
+    }
 
     res.json({
       success: true,
@@ -3853,6 +4782,8 @@ app.post('/api/teachers', async (req, res) => {
     // Parallel Cloudinary Uploads for Photo and Signature
     const tUploadStart = Date.now();
     try {
+      if (photo) photo = await compressImageIfNeeded(photo, 150, 150, 75, true);
+      if (signature) signature = await compressImageIfNeeded(signature, 200, 100, 75, true);
       console.log(`[SAVE_TEACHER][POST] Base64 Photo length: ${photo ? photo.length : 0}, Signature length: ${signature ? signature.length : 0}`);
       const [uploadedPhoto, uploadedSignature] = await Promise.all([
         uploadToCloudinaryIfNeeded(photo, `teacher_${id}_photo`),
@@ -3950,6 +4881,8 @@ app.put('/api/teachers/:id', async (req, res) => {
     // Parallel Cloudinary Uploads for Photo and Signature
     const tUploadStart = Date.now();
     try {
+      if (photo) photo = await compressImageIfNeeded(photo, 150, 150, 75, true);
+      if (signature) signature = await compressImageIfNeeded(signature, 200, 100, 75, true);
       console.log(`[SAVE_TEACHER][PUT] Base64 Photo length: ${photo ? photo.length : 0}, Signature length: ${signature ? signature.length : 0}`);
       const [uploadedPhoto, uploadedSignature] = await Promise.all([
         uploadToCloudinaryIfNeeded(photo, `teacher_${id}_photo`),
@@ -4502,6 +5435,23 @@ app.delete('/api/admin/announcements/:id', async (req, res) => {
 const { registerAiAssistantRoutes } = require('./aiAssistant.js');
 registerAiAssistantRoutes(app, () => pool);
 
+// Serve static files from the build directory (for local node production and SPA support)
+const fs = require('fs');
+const path = require('path');
+const buildPath = path.join(__dirname, '..', 'build');
+if (fs.existsSync(buildPath)) {
+  app.use(express.static(buildPath));
+  
+  // All other GET requests that don't match an API route will serve the index.html (client-side routing fallback)
+  app.get('*', (req, res) => {
+    if (!req.path.startsWith('/api/')) {
+      res.sendFile(path.join(buildPath, 'index.html'));
+    } else {
+      res.status(404).json({ error: 'API route not found' });
+    }
+  });
+}
+
 let serverInstance = null;
 
 // Function to start the Express server
@@ -4580,59 +5530,7 @@ module.exports = {
 };
 
 if (require.main === module) {
-  const fs = require('fs');
-  const path = require('path');
-  
-  const isCloudProd = process.env.NODE_ENV === 'production' || !!process.env.VERCEL;
-  
-  let dbConfig = null;
-  if (process.env.MYSQL_PUBLIC_URL) {
-    dbConfig = process.env.MYSQL_PUBLIC_URL;
-  } else if (process.env.DATABASE_URL) {
-    dbConfig = process.env.DATABASE_URL;
-  } else if (process.env.DB_HOST) {
-    dbConfig = {
-      host: process.env.DB_HOST,
-      port: parseInt(process.env.DB_PORT || '3306', 10),
-      user: process.env.DB_USER || 'root',
-      password: process.env.DB_PASSWORD || '',
-      database: process.env.DB_DATABASE || process.env.DB_NAME || 'school_system'
-    };
-  } else if (!isCloudProd) {
-    // Local development fallback
-    dbConfig = {
-      host: 'localhost',
-      port: 3306,
-      user: 'root',
-      password: '',
-      database: 'school_system'
-    };
-
-    // Check possible paths for db_config.json
-    const possiblePaths = [
-      path.join(process.env.APPDATA || '', 'students-clearance-cards', 'db_config.json'),
-      path.join(__dirname, '..', 'db_config.json'),
-      path.join(process.cwd(), 'db_config.json')
-    ];
-
-    for (const p of possiblePaths) {
-      if (fs.existsSync(p)) {
-        try {
-          const fullConfig = JSON.parse(fs.readFileSync(p, 'utf8'));
-          const normalized = normalizeDbConfig(fullConfig);
-          if (normalized) {
-            dbConfig = normalized;
-            console.log(`Loaded DB configuration from: ${p}`);
-            break;
-          }
-        } catch (err) {
-          // ignore
-        }
-      }
-    }
-  } else {
-    console.error('[Cloud-Mode] No cloud database credentials found in environment variables!');
-  }
+  const dbConfig = loadDbConfig();
 
   console.log('[Startup] Resolving Database Configuration for Startup:');
   console.log(`  - NODE_ENV: ${process.env.NODE_ENV}`);
@@ -4650,5 +5548,98 @@ if (require.main === module) {
   }).catch(err => {
     console.error('Failed to start server:', err);
   });
+}
+
+// Background migration to compress existing large base64 images stored in DB
+async function runOneTimeImageMigration() {
+  console.log('[MIGRATION] Starting one-time image compression migration...');
+  try {
+    // 1. Settings (logo, stamp, ht_signature)
+    const [settings] = await pool.query("SELECT key_name, val_value FROM settings WHERE key_name IN ('school_logo', 'school_stamp', 'head_teacher_signature')");
+    for (const r of settings) {
+      if (r.val_value && r.val_value.startsWith('data:') && r.val_value.length > 50000) {
+        console.log(`[MIGRATION] Compressing setting: ${r.key_name} (length: ${r.val_value.length})`);
+        const maxW = r.key_name === 'school_logo' ? 200 : (r.key_name === 'school_stamp' ? 150 : 200);
+        const maxH = r.key_name === 'school_logo' ? 200 : (r.key_name === 'school_stamp' ? 150 : 100);
+        const forceJ = r.key_name !== 'school_logo';
+        const compressed = await compressImageIfNeeded(r.val_value, maxW, maxH, 75, forceJ);
+        if (compressed && compressed.length < r.val_value.length) {
+          await pool.query('UPDATE settings SET val_value = ? WHERE key_name = ?', [compressed, r.key_name]);
+          console.log(`[MIGRATION] Setting ${r.key_name} compressed to ${compressed.length} bytes`);
+        }
+      }
+    }
+
+    // 2. Teacher signatures and photos
+    const [teachers] = await pool.query("SELECT id, name, signature, photo FROM teachers WHERE (signature IS NOT NULL AND LENGTH(signature) > 50000) OR (photo IS NOT NULL AND LENGTH(photo) > 50000)");
+    for (const t of teachers) {
+      let updateSig = t.signature;
+      let updatePhoto = t.photo;
+      let changed = false;
+
+      if (t.signature && t.signature.startsWith('data:') && t.signature.length > 50000) {
+        console.log(`[MIGRATION] Compressing signature for teacher: ${t.name}`);
+        const compressedSig = await compressImageIfNeeded(t.signature, 200, 100, 75, true);
+        if (compressedSig && compressedSig.length < t.signature.length) {
+          updateSig = compressedSig;
+          changed = true;
+        }
+      }
+
+      if (t.photo && t.photo.startsWith('data:') && t.photo.length > 50000) {
+        console.log(`[MIGRATION] Compressing photo for teacher: ${t.name}`);
+        const compressedPhoto = await compressImageIfNeeded(t.photo, 150, 150, 75, true);
+        if (compressedPhoto && compressedPhoto.length < t.photo.length) {
+          updatePhoto = compressedPhoto;
+          changed = true;
+        }
+      }
+
+      if (changed) {
+        await pool.query('UPDATE teachers SET signature = ?, photo = ? WHERE id = ?', [updateSig, updatePhoto, t.id]);
+        console.log(`[MIGRATION] Teacher ${t.name} images updated.`);
+      }
+    }
+
+    // 3. Student photos
+    const [students] = await pool.query("SELECT id, name, photo, photoOriginal, photoEnhanced FROM students WHERE (photo IS NOT NULL AND LENGTH(photo) > 50000) OR (photoOriginal IS NOT NULL AND LENGTH(photoOriginal) > 50000) OR (photoEnhanced IS NOT NULL AND LENGTH(photoEnhanced) > 50000)");
+    console.log(`[MIGRATION] Found ${students.length} students with large photos to inspect/compress.`);
+    for (const s of students) {
+      let updatePhoto = s.photo;
+      let updatePhotoOrig = s.photoOriginal;
+      let updatePhotoEnh = s.photoEnhanced;
+      let changed = false;
+
+      if (s.photo && s.photo.startsWith('data:') && s.photo.length > 50000) {
+        const comp = await compressImageIfNeeded(s.photo, 150, 150, 75, true);
+        if (comp && comp.length < s.photo.length) {
+          updatePhoto = comp;
+          changed = true;
+        }
+      }
+      if (s.photoOriginal && s.photoOriginal.startsWith('data:') && s.photoOriginal.length > 50000) {
+        const comp = await compressImageIfNeeded(s.photoOriginal, 150, 150, 75, true);
+        if (comp && comp.length < s.photoOriginal.length) {
+          updatePhotoOrig = comp;
+          changed = true;
+        }
+      }
+      if (s.photoEnhanced && s.photoEnhanced.startsWith('data:') && s.photoEnhanced.length > 50000) {
+        const comp = await compressImageIfNeeded(s.photoEnhanced, 150, 150, 75, true);
+        if (comp && comp.length < s.photoEnhanced.length) {
+          updatePhotoEnh = comp;
+          changed = true;
+        }
+      }
+
+      if (changed) {
+        await pool.query('UPDATE students SET photo = ?, photoOriginal = ?, photoEnhanced = ? WHERE id = ?', [updatePhoto, updatePhotoOrig, updatePhotoEnh, s.id]);
+        console.log(`[MIGRATION] Student ${s.name} photos compressed.`);
+      }
+    }
+    console.log('[MIGRATION] One-time image compression migration completed.');
+  } catch (err) {
+    console.error('[MIGRATION] Error in one-time image migration:', err);
+  }
 }
 

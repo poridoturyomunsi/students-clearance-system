@@ -235,6 +235,10 @@ export async function mergeDuplicateStudentsInDb(
   });
 }
 
+export async function fetchSuspectedDuplicates(): Promise<{ success: boolean; groups: any[] }> {
+  return await apiCall('/api/admin/students/suspected-duplicates');
+}
+
 export async function fetchSchoolLogoFromDb(): Promise<{ logo: string | null }> {
   return await apiCall('/api/branding');
 }
@@ -735,6 +739,13 @@ export async function triggerFileDownload(url: string, filename: string): Promis
     link.click();
     document.body.removeChild(link);
   }
+}
+
+export async function uploadImage(base64Image: string, publicId?: string): Promise<{ success: boolean; url: string }> {
+  return await apiCall('/api/upload', {
+    method: 'POST',
+    body: JSON.stringify({ image: base64Image, publicId }),
+  });
 }
 
 

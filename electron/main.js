@@ -1,3 +1,9 @@
+try {
+  const path = require('path');
+  require('dotenv').config({ path: path.join(__dirname, '..', '.env') });
+} catch (e) {
+  // ignore
+}
 const { app, BrowserWindow, ipcMain, dialog } = require('electron')
 const os = require('os')
 const path = require('path')
@@ -78,32 +84,99 @@ function getDbConfigPath() {
   return path.join(getUserDataPath(), CONFIG_FILE)
 }
 
+function getDbConfigFromEnv() {
+  if (process.env.DATABASE_URL) return process.env.DATABASE_URL;
+  if (process.env.MYSQL_PUBLIC_URL) return process.env.MYSQL_PUBLIC_URL;
+  if (process.env.MYSQL_URL) return process.env.MYSQL_URL;
+  
+  const host = process.env.DB_HOST || process.env.MYSQLHOST;
+  if (host) {
+    return {
+      host: host,
+      port: parseInt(process.env.DB_PORT || process.env.MYSQLPORT || '3306', 10),
+      user: process.env.DB_USER || process.env.MYSQLUSER || 'root',
+      password: process.env.DB_PASSWORD || process.env.MYSQLPASSWORD || '',
+      database: process.env.DB_DATABASE || process.env.MYSQLDATABASE || process.env.DB_NAME || 'school_system'
+    };
+  }
+  return null;
+}
+
 function normalizeDbConfig(rawConfig) {
-  if (!rawConfig || typeof rawConfig !== 'object') return null
+  if (!rawConfig) return null;
+  if (typeof rawConfig === 'string') {
+    return {
+      mode: 'network',
+      serverUrl: 'http://localhost:3000',
+      db: rawConfig
+    };
+  }
 
-  const serverIp = rawConfig.serverIp || rawConfig.host || ''
-  const serverPort = parseInt(String(rawConfig.serverPort || rawConfig.port || 3000), 10) || 3000
+  // Handle case where rawConfig is a connection URL directly or wrapped inside an object
+  if (typeof rawConfig.connectionString === 'string' && rawConfig.connectionString) {
+    return {
+      mode: rawConfig.mode || 'network',
+      serverUrl: rawConfig.serverUrl || 'http://localhost:3000',
+      db: rawConfig.connectionString
+    };
+  }
+  if (typeof rawConfig.databaseUrl === 'string' && rawConfig.databaseUrl) {
+    return {
+      mode: rawConfig.mode || 'network',
+      serverUrl: rawConfig.serverUrl || 'http://localhost:3000',
+      db: rawConfig.databaseUrl
+    };
+  }
+  if (typeof rawConfig.mysqlUrl === 'string' && rawConfig.mysqlUrl) {
+    return {
+      mode: rawConfig.mode || 'network',
+      serverUrl: rawConfig.serverUrl || 'http://localhost:3000',
+      db: rawConfig.mysqlUrl
+    };
+  }
 
-  const dbHost = rawConfig.db?.host || rawConfig.host || rawConfig.databaseHost || ''
-  const dbPort = parseInt(String(rawConfig.db?.port || rawConfig.port || rawConfig.databasePort || 3306), 10) || 3306
-  const dbUser = rawConfig.db?.user || rawConfig.user || rawConfig.databaseUsername || ''
-  const dbPassword = rawConfig.db?.password || rawConfig.password || rawConfig.databasePassword || ''
-  const dbName = rawConfig.db?.database || rawConfig.database || rawConfig.databaseName || 'school_system'
+  // Handle the format sent by the frontend UI:
+  // { mode: 'network', db: { host: '...', port: 3306, ... } }
+  const dbData = rawConfig.db || rawConfig;
+
+  // If the host field itself is a connection URI (like mysql://...), return it directly
+  if (typeof dbData.host === 'string' && (dbData.host.startsWith('mysql://') || dbData.host.startsWith('mysql2://'))) {
+    return {
+      mode: rawConfig.mode || 'network',
+      serverUrl: rawConfig.serverUrl || 'http://localhost:3000',
+      db: dbData.host
+    };
+  }
+
+  const host = dbData.host || dbData.databaseHost || '';
+  const port = parseInt(String(dbData.port || dbData.databasePort || 3306), 10) || 3306;
+  const user = dbData.user || dbData.databaseUsername || '';
+  const password = dbData.password || dbData.databasePassword || '';
+  const database = dbData.database || dbData.databaseName || 'school_system';
 
   return {
     mode: rawConfig.mode || 'network',
-    serverUrl: rawConfig.serverUrl || `http://${serverIp}:${serverPort}`,
+    serverUrl: rawConfig.serverUrl || `http://${host}:${port === 3306 ? 3000 : port}`,
     db: {
-      host: dbHost || '192.168.0.155',
-      port: dbPort,
-      user: dbUser || 'root',
-      password: dbPassword,
-      database: dbName
+      host,
+      port,
+      user,
+      password,
+      database
     }
-  }
+  };
 }
 
 function loadDbConfig() {
+  const envConfig = getDbConfigFromEnv();
+  if (envConfig) {
+    return {
+      mode: 'network',
+      serverUrl: 'http://localhost:3000',
+      db: envConfig
+    };
+  }
+
   try {
     const filePath = getDbConfigPath()
     if (fs.existsSync(filePath)) {
@@ -132,7 +205,7 @@ function loadDbConfig() {
   }
   
   saveDbConfig(defaultConfig)
-  return defaultConfig
+  return defaultConfig;
 }
 
 function saveDbConfig(config) {
