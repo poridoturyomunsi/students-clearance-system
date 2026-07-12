@@ -2640,6 +2640,66 @@ function broadcastGateScan(data) {
   });
 }
 
+// Twilio WhatsApp API Dispatcher
+async function sendTwilioWhatsApp(toPhone, messageBody) {
+  const accountSid = process.env.TWILIO_ACCOUNT_SID;
+  const authToken = process.env.TWILIO_AUTH_TOKEN;
+  let fromPhone = process.env.TWILIO_WHATSAPP_FROM || 'whatsapp:+14155238886';
+
+  if (!accountSid || !authToken) {
+    console.log('[Notification] Twilio credentials missing. Skipping real WhatsApp dispatch (logged to DB).');
+    return { success: false, error: 'Credentials missing' };
+  }
+
+  // Standardize the recipient phone format
+  let formattedTo = toPhone.trim();
+  if (!formattedTo.startsWith('whatsapp:')) {
+    if (formattedTo.startsWith('+')) {
+      formattedTo = `whatsapp:${formattedTo}`;
+    } else {
+      formattedTo = `whatsapp:+${formattedTo}`;
+    }
+  }
+
+  // Ensure from phone starts with 'whatsapp:'
+  if (!fromPhone.startsWith('whatsapp:')) {
+    fromPhone = `whatsapp:${fromPhone}`;
+  }
+
+  console.log(`[Notification] Sending Twilio WhatsApp notification to ${formattedTo}...`);
+
+  const url = `https://api.twilio.com/2010-04-01/Accounts/${accountSid}/Messages.json`;
+  const authHeader = 'Basic ' + Buffer.from(`${accountSid}:${authToken}`).toString('base64');
+
+  const params = new URLSearchParams();
+  params.append('From', fromPhone);
+  params.append('To', formattedTo);
+  params.append('Body', messageBody);
+
+  try {
+    const res = await fetch(url, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/x-www-form-urlencoded',
+        'Authorization': authHeader
+      },
+      body: params.toString()
+    });
+
+    const data = await res.json();
+    if (res.ok) {
+      console.log(`[Notification] Twilio WhatsApp successfully sent to ${formattedTo}. SID: ${data.sid}`);
+      return { success: true, sid: data.sid };
+    } else {
+      console.error(`[Notification] Twilio WhatsApp API returned error: ${data.message || JSON.stringify(data)}`);
+      return { success: false, error: data.message || 'Unknown Twilio API error' };
+    }
+  } catch (err) {
+    console.error(`[Notification] Failed to execute Twilio fetch request:`, err.message);
+    return { success: false, error: err.message };
+  }
+}
+
 // Background notifier
 async function sendParentNotification(studentId, logId, type, studentName, gradeClass, timeString) {
   try {
@@ -2671,7 +2731,19 @@ async function sendParentNotification(studentId, logId, type, studentName, grade
       const hasWhatsApp = pc.father_whatsapp || pc.mother_whatsapp || pc.guardian_whatsapp;
       if (hasWhatsApp) {
         channel = 'WhatsApp';
-        status = 'Delivered';
+        
+        // Trigger Twilio sending if credentials exist
+        const twilioResult = await sendTwilioWhatsApp(recipientPhone, message);
+        if (process.env.TWILIO_ACCOUNT_SID && process.env.TWILIO_AUTH_TOKEN) {
+          if (twilioResult.success) {
+            status = 'Delivered';
+          } else {
+            status = 'Failed';
+            errorMessage = twilioResult.error;
+          }
+        } else {
+          status = 'Delivered'; // Simulated/Mock delivery when no credentials
+        }
       } else {
         channel = 'SMS';
         status = 'Delivered'; // Fallback
@@ -2695,6 +2767,7 @@ async function sendParentNotification(studentId, logId, type, studentName, grade
     console.error('[Notification] Failed to send parent alert:', err.message);
   }
 }
+
 
 // --- ATTENDANCE ENDPOINTS ---
 
