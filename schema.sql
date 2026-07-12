@@ -174,3 +174,127 @@ CREATE TABLE IF NOT EXISTS class_teachers (
   createdAt TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
   FOREIGN KEY (teacher_id) REFERENCES teachers(id) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+-- Create parent_contacts table for storing parents/guardians information
+CREATE TABLE IF NOT EXISTS parent_contacts (
+  student_id VARCHAR(50) PRIMARY KEY,
+  father_name VARCHAR(100) NULL,
+  father_phone VARCHAR(20) NULL,
+  father_whatsapp VARCHAR(20) NULL,
+  mother_name VARCHAR(100) NULL,
+  mother_phone VARCHAR(20) NULL,
+  mother_whatsapp VARCHAR(20) NULL,
+  guardian_name VARCHAR(100) NULL,
+  guardian_phone VARCHAR(20) NULL,
+  guardian_whatsapp VARCHAR(20) NULL,
+  relationship VARCHAR(50) NULL,
+  home_address TEXT NULL,
+  email VARCHAR(100) NULL,
+  emergency_contact VARCHAR(100) NULL,
+  occupation VARCHAR(100) NULL,
+  preferred_notification VARCHAR(20) NOT NULL DEFAULT 'SMS',
+  createdAt TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  updatedAt TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  FOREIGN KEY (student_id) REFERENCES students(id) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+-- Create gate_locations table
+CREATE TABLE IF NOT EXISTS gate_locations (
+  id INT AUTO_INCREMENT PRIMARY KEY,
+  name VARCHAR(100) NOT NULL UNIQUE,
+  status VARCHAR(20) NOT NULL DEFAULT 'Active',
+  createdAt TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+-- Create gate_devices table
+CREATE TABLE IF NOT EXISTS gate_devices (
+  id VARCHAR(50) PRIMARY KEY,
+  name VARCHAR(100) NOT NULL,
+  device_type VARCHAR(50) NOT NULL,
+  status VARCHAR(20) NOT NULL DEFAULT 'Active',
+  createdAt TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+-- Create attendance_logs table for scanning logs
+CREATE TABLE IF NOT EXISTS attendance_logs (
+  id INT AUTO_INCREMENT PRIMARY KEY,
+  student_id VARCHAR(50) NOT NULL,
+  date DATE NOT NULL,
+  time_in TIME NULL,
+  time_out TIME NULL,
+  gate_in_id INT NULL,
+  gate_out_id INT NULL,
+  device_in VARCHAR(50) NULL,
+  device_out VARCHAR(50) NULL,
+  operator_in VARCHAR(100) NULL,
+  operator_out VARCHAR(100) NULL,
+  gps_in VARCHAR(50) NULL,
+  gps_out VARCHAR(50) NULL,
+  status ENUM('Present', 'Late', 'Very Late', 'Absent') NOT NULL DEFAULT 'Present',
+  departure_status ENUM('Normal Departure', 'Permission', 'Medical', 'Sports', 'Trip', 'Suspension', 'Emergency', 'Other') NULL,
+  reason_for_leaving VARCHAR(255) NULL,
+  remarks VARCHAR(255) NULL,
+  createdAt TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  updatedAt TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  FOREIGN KEY (student_id) REFERENCES students(id) ON DELETE CASCADE,
+  FOREIGN KEY (gate_in_id) REFERENCES gate_locations(id) ON DELETE SET NULL,
+  FOREIGN KEY (gate_out_id) REFERENCES gate_locations(id) ON DELETE SET NULL,
+  FOREIGN KEY (device_in) REFERENCES gate_devices(id) ON DELETE SET NULL,
+  FOREIGN KEY (device_out) REFERENCES gate_devices(id) ON DELETE SET NULL,
+  UNIQUE KEY unique_student_date (student_id, date),
+  INDEX idx_student_date (student_id, date),
+  INDEX idx_date (date),
+  INDEX idx_status (status)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+-- Create attendance_notifications table
+CREATE TABLE IF NOT EXISTS attendance_notifications (
+  id INT AUTO_INCREMENT PRIMARY KEY,
+  student_id VARCHAR(50) NOT NULL,
+  log_id INT NOT NULL,
+  type ENUM('ClockIn', 'ClockOut') NOT NULL,
+  channel ENUM('SMS', 'WhatsApp', 'Email', 'Both') NOT NULL,
+  recipient_type VARCHAR(20) NOT NULL,
+  recipient_phone VARCHAR(20) NULL,
+  message TEXT NOT NULL,
+  status ENUM('Sent', 'Delivered', 'Failed', 'Pending') NOT NULL DEFAULT 'Pending',
+  error_message TEXT NULL,
+  sent_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  FOREIGN KEY (student_id) REFERENCES students(id) ON DELETE CASCADE,
+  FOREIGN KEY (log_id) REFERENCES attendance_logs(id) ON DELETE CASCADE,
+  INDEX idx_student_notification (student_id),
+  INDEX idx_status (status)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+-- Create student_permissions table
+CREATE TABLE IF NOT EXISTS student_permissions (
+  id INT AUTO_INCREMENT PRIMARY KEY,
+  student_id VARCHAR(50) NOT NULL,
+  reason TEXT NOT NULL,
+  approved_by VARCHAR(100) NOT NULL,
+  time_out DATETIME NOT NULL,
+  expected_return DATETIME NOT NULL,
+  actual_return DATETIME NULL,
+  status ENUM('Returned', 'Not Returned') NOT NULL DEFAULT 'Not Returned',
+  remarks TEXT NULL,
+  createdAt TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  updatedAt TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  FOREIGN KEY (student_id) REFERENCES students(id) ON DELETE CASCADE,
+  INDEX idx_student (student_id),
+  INDEX idx_status (status)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+-- Create attendance_settings table
+CREATE TABLE IF NOT EXISTS attendance_settings (
+  key_name VARCHAR(50) PRIMARY KEY,
+  val_value LONGTEXT NULL,
+  updatedAt TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+-- Create attendance_reports_cache table
+CREATE TABLE IF NOT EXISTS attendance_reports_cache (
+  cache_key VARCHAR(100) PRIMARY KEY,
+  data LONGTEXT NOT NULL,
+  expires_at TIMESTAMP NOT NULL,
+  createdAt TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;

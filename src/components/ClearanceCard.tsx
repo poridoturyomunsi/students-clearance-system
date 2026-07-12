@@ -20,7 +20,7 @@ export default function ClearanceCard({
   interactive = false,
   logoBase64,
   showWatermark = true,
-  watermarkOpacity = 0.25,
+  watermarkOpacity = 0.08,
 }: ClearanceCardProps) {
   // Read class color configuration dynamically
   const classTheme = getClassTheme(student.gradeClass);
@@ -107,120 +107,107 @@ export default function ClearanceCard({
     >
       {/* Watermark Logo behind content */}
       <div 
-        className="absolute inset-x-0 top-11 bottom-7 flex items-center justify-center pointer-events-none select-none overflow-hidden z-[0]"
+        className="absolute inset-0 flex items-center justify-center pointer-events-none select-none overflow-hidden z-[0]"
         style={{ opacity: showWatermark ? watermarkOpacity : 0 }}
       >
-        <SchoolLogo className="w-44 h-44 scale-[1.3] rotate-12" logoBase64={logoBase64} />
+        <SchoolLogo className="w-40 h-40 scale-[1.2] rotate-12" logoBase64={logoBase64} />
       </div>
 
       {/* Top Header stripe */}
-      <div className="pl-3 pr-3 py-1 text-[var(--theme-title-text)] flex justify-between items-center relative z-10 theme-gradient-bar h-[92px] min-h-[92px] select-none">
+      <div className="pl-3.5 pr-3.5 text-[var(--theme-title-text)] flex justify-between items-center relative z-10 theme-gradient-bar h-[70px] min-h-[70px] select-none">
         {/* Left: Crest */}
         <div className="shrink-0 flex items-center justify-center">
-          <SchoolLogo className="w-[86px] h-[86px] object-contain scale-[1.1] origin-left" logoBase64={logoBase64} />
+          <SchoolLogo className="w-[50px] h-[50px] object-contain" logoBase64={logoBase64} />
         </div>
 
         {/* Center: School Info */}
-        <div className="flex-1 flex flex-col items-center justify-center text-center px-1 min-w-0">
-          <span className="text-[10px] font-black tracking-wide uppercase leading-tight font-sans text-center">ST. PAUL SECONDARY SCHOOL, NASUTI</span>
-          <span className="text-[6.8px] opacity-100 font-bold tracking-wider leading-none uppercase text-center mt-1">P.O.BOX 678, NASUTI IGANGA</span>
-          <div className="bg-white/20 text-white border border-white/25 px-1.5 py-0.5 rounded-[4px] text-[7px] font-mono font-black uppercase shrink-0 tracking-widest text-center mt-1 shadow-3xs">
-            TERM 2, 2026
-          </div>
+        <div className="flex-1 flex flex-col items-center justify-center text-center px-2 min-w-0">
+          <span className="text-[11px] font-black tracking-wide uppercase leading-tight text-center text-white">
+            ST. PAUL SECONDARY SCHOOL, NASUTI
+          </span>
+          <span className="text-[7.5px] opacity-90 font-medium tracking-wider leading-none uppercase text-center mt-1 text-white">
+            P.O.BOX 678, NASUTI IGANGA
+          </span>
         </div>
 
-        {/* Right: Passport Photo */}
+        {/* Right: Term Badge */}
         <div className="shrink-0 flex items-center justify-center">
-          <div className="bg-white/25 border border-white/30 rounded-md p-0.5 shadow-3xs flex items-center justify-center shrink-0 w-[68px] h-[86px] overflow-hidden">
-            <div className="w-full h-full bg-white rounded border border-slate-200 flex items-center justify-center overflow-hidden shrink-0">
-              {photoUrl ? (
-                <img
-                  src={photoUrl}
-                  alt={student.name}
-                  referrerPolicy="no-referrer"
-                  loading="lazy"
-                  className="w-full h-full object-cover brightness-[1.08] contrast-[1.08] saturate-[1.05]"
-                  style={{ imageRendering: 'auto' }}
-                />
-              ) : (
-                <div className="flex flex-col items-center justify-center text-center p-1">
-                  <svg className="w-6 h-6 text-slate-400" fill="currentColor" viewBox="0 0 20 20">
-                    <path fillRule="evenodd" d="M10 9a3 3 0 100-6 3 3 0 000 6zm-7 9a7 7 0 1114 0H3z" clipRule="evenodd" />
-                  </svg>
-                  <span className="text-[5.5px] text-slate-500 font-extrabold tracking-widest uppercase mt-0.5 leading-none">NO PHOTO</span>
-                </div>
-              )}
-            </div>
+          <div className="bg-white/20 text-white border border-white/25 px-2 py-1 rounded-[6px] text-[7.5px] font-mono font-black uppercase shrink-0 tracking-wider text-center shadow-3xs">
+            TERM 2, 2026
           </div>
         </div>
       </div>
 
       {/* Main Card Content */}
-      <div className="flex-1 pt-2.5 px-3.5 pb-2.5 flex flex-col justify-between bg-white text-slate-800 z-10 select-none animate-fade-in">
+      <div className="flex-1 pt-2 px-3.5 pb-2 flex flex-col justify-between bg-white text-slate-800 z-10 select-none animate-fade-in">
         {/* Badge Heading: STUDENT CLEARANCE CARD */}
-        <div className="relative bg-[var(--theme-badge-bg)] border-[1.8px] border-[var(--theme-border)] rounded-lg py-1 px-2.5 select-none shrink-0 shadow-3xs flex items-center justify-between w-full h-[22px]">
-          <span className="text-[7.5px] font-black uppercase text-[var(--theme-text)] tracking-wider font-sans">
+        <div className="relative bg-[var(--theme-badge-bg)] border border-[var(--theme-border)] rounded-md py-0.5 select-none shrink-0 shadow-3xs flex items-center justify-center w-full h-[20px]">
+          <span className="text-[8px] font-black uppercase text-[var(--theme-text)] tracking-wider">
             STUDENT CLEARANCE CARD
-          </span>
-          <span className="text-[7.5px] font-mono font-black bg-[var(--theme-primary)] text-[var(--theme-title-text)] px-1.5 py-0.5 rounded shrink-0">
-            ID: {student.adminNo}
           </span>
         </div>
 
         {/* Student Info Container */}
-        <div className="flex-1 flex flex-col justify-center min-w-0 mt-1 relative">
-          <div className="grid grid-cols-2 gap-x-4 gap-y-1.5 text-[8.5px] font-sans font-black text-slate-800">
-            {/* NAME Row (Spans full width) */}
-            <div className="col-span-2 flex items-center border-b border-slate-100 pb-1">
-              <span className="w-16 shrink-0 uppercase tracking-widest text-[7.2px] text-[var(--theme-text)] select-none">
-                NAME
-              </span>
-              <span className="text-[var(--theme-text)] mr-1.5 select-none">:</span>
-              <span className="font-sans font-black uppercase text-black truncate select-all leading-none tracking-wide text-[10.5px]">
-                {student.name}
-              </span>
+        <div className="flex-1 flex items-center gap-3.5 mt-1.5 min-w-0">
+          {/* Left: Passport Photo Frame */}
+          <div className="shrink-0 flex items-center justify-center">
+            <div className="bg-white border border-[var(--theme-border)] rounded-[8px] p-[3px] shadow-[0_2px_4px_rgba(0,0,0,0.08)] w-[72px] h-[90px] flex items-center justify-center overflow-hidden">
+              <div className="w-full h-full bg-white rounded-[5px] flex items-center justify-center overflow-hidden shrink-0">
+                {photoUrl ? (
+                  <img
+                    src={photoUrl}
+                    alt={student.name}
+                    referrerPolicy="no-referrer"
+                    loading="lazy"
+                    className="w-full h-full object-cover brightness-[1.08] contrast-[1.08] saturate-[1.05]"
+                    style={{ imageRendering: 'auto' }}
+                  />
+                ) : (
+                  <div className="flex flex-col items-center justify-center text-center p-1">
+                    <svg className="w-6 h-6 text-slate-400" fill="currentColor" viewBox="0 0 20 20">
+                      <path fillRule="evenodd" d="M10 9a3 3 0 100-6 3 3 0 000 6zm-7 9a7 7 0 1114 0H3z" clipRule="evenodd" />
+                    </svg>
+                    <span className="text-[5px] text-slate-500 font-extrabold tracking-widest uppercase mt-0.5 leading-none">NO PHOTO</span>
+                  </div>
+                )}
+              </div>
             </div>
+          </div>
 
-            {/* CLASS Row */}
-            <div className="flex items-center border-b border-slate-100 pb-1">
-              <span className="w-16 shrink-0 uppercase tracking-widest text-[7.2px] text-[var(--theme-text)] select-none">
-                CLASS
-              </span>
-              <span className="text-[var(--theme-text)] mr-1.5 select-none">:</span>
-              <span className="font-sans font-black uppercase text-black truncate select-all leading-none tracking-wide text-[9.5px]">
-                {student.gradeClass}
-              </span>
-            </div>
+          {/* Right: Student Information Section */}
+          <div className="flex-1 flex flex-col justify-center min-w-0 h-full">
+            <div className="grid grid-cols-[65px_8px_1fr] gap-y-[4px] text-[8.5px] items-center text-black font-sans leading-none">
+              {/* Student No. */}
+              <span className="font-extrabold text-[var(--theme-text)] text-[7px] uppercase tracking-wider">STUDENT NO.</span>
+              <span className="font-bold text-[var(--theme-text)] text-[7px] text-center">:</span>
+              <span className="font-bold text-black text-[8.5px] uppercase truncate">{student.studentNo || student.adminNo}</span>
 
-            {/* GENDER Row */}
-            <div className="flex items-center border-b border-slate-100 pb-1">
-              <span className="w-16 shrink-0 uppercase tracking-widest text-[7.2px] text-[var(--theme-text)] select-none">
-                GENDER
-              </span>
-              <span className="text-[var(--theme-text)] mr-1.5 select-none">:</span>
-              <span className="font-sans font-bold uppercase text-black truncate select-all leading-none tracking-wide text-[9.5px]">
-                {student.gender || 'Male'}
-              </span>
-            </div>
+              {/* Name */}
+              <span className="font-extrabold text-[var(--theme-text)] text-[7px] uppercase tracking-wider">NAME</span>
+              <span className="font-bold text-[var(--theme-text)] text-[7px] text-center">:</span>
+              <span className="font-bold text-black text-[9px] uppercase truncate">{student.name}</span>
 
-            {/* STATUS Row */}
-            <div className="flex items-center border-b border-slate-100 pb-1">
-              <span className="w-16 shrink-0 uppercase tracking-widest text-[7.2px] text-[var(--theme-text)] select-none">
-                STATUS
-              </span>
-              <span className="text-[var(--theme-text)] mr-1.5 select-none">:</span>
-              <span className="font-sans font-bold uppercase text-black truncate select-all leading-none tracking-wide text-[9.5px]">
-                {student.boardingStatus === 'Boarder' ? 'HOSTELLER' : 'DAY SCHOLAR'}
-              </span>
-            </div>
+              {/* Class */}
+              <span className="font-extrabold text-[var(--theme-text)] text-[7px] uppercase tracking-wider">CLASS</span>
+              <span className="font-bold text-[var(--theme-text)] text-[7px] text-center">:</span>
+              <span className="font-bold text-black text-[8.5px] uppercase truncate">{student.gradeClass}</span>
 
-            {/* ELIGIBILITY Row */}
-            <div className="flex items-center border-b border-slate-100 pb-1">
-              <span className="w-16 shrink-0 uppercase tracking-widest text-[7.2px] text-[var(--theme-text)] select-none">
-                ELIGIBILITY
+              {/* Status */}
+              <span className="font-extrabold text-[var(--theme-text)] text-[7px] uppercase tracking-wider">STATUS</span>
+              <span className="font-bold text-[var(--theme-text)] text-[7px] text-center">:</span>
+              <span className="font-bold text-black text-[8.5px] uppercase truncate">
+                {student.boardingStatus === 'Hosteller' ? 'HOSTELLER' : 'DAY SCHOLAR'}
               </span>
-              <span className="text-[var(--theme-text)] mr-1.5 select-none">:</span>
-              <span className={`font-sans font-extrabold uppercase truncate select-all leading-none tracking-wide text-[9.5px] ${student.isCleared ? 'text-emerald-600' : 'text-rose-600 font-black'}`}>
+
+              {/* Gender */}
+              <span className="font-extrabold text-[var(--theme-text)] text-[7px] uppercase tracking-wider">GENDER</span>
+              <span className="font-bold text-[var(--theme-text)] text-[7px] text-center">:</span>
+              <span className="font-bold text-black text-[8.5px] uppercase truncate">{student.gender || 'Male'}</span>
+
+              {/* Eligibility */}
+              <span className="font-extrabold text-[var(--theme-text)] text-[7px] uppercase tracking-wider">ELIGIBILITY</span>
+              <span className="font-bold text-[var(--theme-text)] text-[7px] text-center">:</span>
+              <span className={`font-bold uppercase truncate text-[8.5px] ${student.isCleared ? 'text-emerald-600' : 'text-rose-600 font-extrabold'}`}>
                 {student.isCleared ? 'CLEARED ✔' : 'ON HOLD ✖'}
               </span>
             </div>
@@ -229,7 +216,7 @@ export default function ClearanceCard({
       </div>
 
       {/* Footer bar */}
-      <div className="bg-slate-50 px-3 py-1.2 border-t border-slate-300 flex justify-center items-center text-[8.5px] font-bold text-slate-950 relative z-10 select-none italic">
+      <div className="bg-slate-50 px-3 py-1 border-t border-slate-200 flex justify-center items-center text-[7px] font-bold text-slate-500 relative z-10 select-none italic">
         If found, please return to the above address.
       </div>
     </div>
@@ -242,51 +229,52 @@ export default function ClearanceCard({
     >
       {/* Watermark Logo behind content */}
       <div 
-        className="absolute inset-x-0 top-11 bottom-7 flex items-center justify-center pointer-events-none select-none overflow-hidden z-[0]"
+        className="absolute inset-0 flex items-center justify-center pointer-events-none select-none overflow-hidden z-[0]"
         style={{ opacity: showWatermark ? watermarkOpacity : 0 }}
       >
-        <SchoolLogo className="w-44 h-44 scale-[1.3] rotate-12" logoBase64={logoBase64} />
+        <SchoolLogo className="w-40 h-40 scale-[1.2] rotate-12" logoBase64={logoBase64} />
       </div>
 
       {/* Header */}
-      <div className="pl-3 pr-3 py-1 text-[var(--theme-title-text)] flex justify-between items-center relative z-10 theme-gradient-bar h-[92px] min-h-[92px]">
+      <div className="pl-3.5 pr-3.5 text-[var(--theme-title-text)] flex justify-between items-center relative z-10 theme-gradient-bar h-[70px] min-h-[70px] select-none">
         {/* Left: Crest */}
         <div className="shrink-0 flex items-center justify-center">
-          <SchoolLogo className="w-[86px] h-[86px] object-contain scale-[1.1] origin-left" logoBase64={logoBase64} />
+          <SchoolLogo className="w-[50px] h-[50px] object-contain" logoBase64={logoBase64} />
         </div>
 
         {/* Center: School Info */}
-        <div className="flex-1 flex flex-col items-center justify-center text-center px-1 min-w-0">
-          <span className="text-[10px] font-black tracking-wide uppercase leading-tight font-sans text-center">ST. PAUL SECONDARY SCHOOL, NASUTI</span>
-          <span className="text-[6.8px] opacity-100 font-bold tracking-wider leading-none uppercase text-center mt-1">P.O.BOX 678, NASUTI</span>
-          <div className="bg-white/20 text-white border border-white/25 px-1.5 py-0.5 rounded-[4px] text-[7px] font-mono font-black uppercase shrink-0 tracking-widest text-center mt-1 shadow-3xs">
-            MEALS VALIDATION
-          </div>
+        <div className="flex-1 flex flex-col items-center justify-center text-center px-2 min-w-0">
+          <span className="text-[11px] font-black tracking-wide uppercase leading-tight font-sans text-center text-white">
+            ST. PAUL SECONDARY SCHOOL, NASUTI
+          </span>
+          <span className="text-[7.5px] opacity-90 font-medium tracking-wider leading-none uppercase text-center mt-1 text-white">
+            P.O.BOX 678, NASUTI
+          </span>
         </div>
 
         {/* Right: Meals Badge */}
         <div className="shrink-0 flex items-center justify-center">
-          <div className="bg-white text-[var(--theme-text)] border border-slate-200/30 rounded-md w-[68px] h-[52px] flex flex-col items-center justify-center shadow-2xs font-sans select-none">
-            <span className="text-[9px] font-black tracking-wider leading-none">MEALS</span>
-            <span className="text-[5px] font-bold text-slate-500 mt-1 uppercase tracking-widest">RECORD</span>
+          <div className="bg-white text-[var(--theme-text)] border border-slate-205/30 rounded-lg px-2 py-1 flex flex-col items-center justify-center shadow-2xs font-sans select-none">
+            <span className="text-[8px] font-black tracking-wider leading-none">MEALS</span>
+            <span className="text-[5px] font-bold text-slate-500 mt-0.5 uppercase tracking-widest">RECORD</span>
           </div>
         </div>
       </div>
 
       {/* Upgraded Student Metadata Header */}
-      <div className="bg-[var(--theme-badge-bg)] border-b border-slate-300 px-3 py-1.5 flex justify-center items-center text-[8px] font-sans font-black text-[var(--theme-text)] tracking-widest relative z-10 shrink-0">
+      <div className="bg-[var(--theme-badge-bg)] border-b border-slate-200 px-3 py-1 flex justify-center items-center text-[7.5px] font-sans font-black text-[var(--theme-text)] tracking-wider relative z-10 shrink-0">
         MEAL RECORD & ATTENDANCE CARD
       </div>
 
       {/* Triple Calendar Grids */}
-      <div className="flex-1 px-2.5 py-2 flex gap-2.5 justify-center items-center bg-white relative z-10">
+      <div className="flex-1 px-2.5 py-1.5 flex gap-2.5 justify-center items-center bg-white relative z-10">
         {renderCalendar('June', 1, 30)}
         {renderCalendar('July', 3, 31)}
       </div>
 
       {/* Footer authorization details */}
-      <div className="bg-slate-50 px-2.5 py-1.5 border-t border-slate-200 flex flex-col justify-center items-center relative z-10 shrink-0 select-none">
-        <div className="text-center font-sans text-[7.5px] italic font-black text-[var(--theme-text)] select-none">
+      <div className="bg-slate-50 px-2.5 py-1 border-t border-slate-205 flex flex-col justify-center items-center relative z-10 shrink-0 select-none">
+        <div className="text-center font-sans text-[7px] italic font-black text-[var(--theme-text)] select-none">
           "God is Our Guide"
         </div>
       </div>
@@ -300,79 +288,80 @@ export default function ClearanceCard({
     >
       {/* Watermark Logo behind content */}
       <div 
-        className="absolute inset-x-0 top-11 bottom-7 flex items-center justify-center pointer-events-none select-none overflow-hidden z-[0]"
+        className="absolute inset-0 flex items-center justify-center pointer-events-none select-none overflow-hidden z-[0]"
         style={{ opacity: showWatermark ? watermarkOpacity : 0 }}
       >
-        <SchoolLogo className="w-44 h-44 scale-[1.3] rotate-12" logoBase64={logoBase64} />
+        <SchoolLogo className="w-40 h-40 scale-[1.2] rotate-12" logoBase64={logoBase64} />
       </div>
 
       {/* Top Bar with School Name */}
-      <div className="pl-3 pr-3 py-1 text-[var(--theme-title-text)] flex justify-between items-center relative z-10 theme-gradient-bar h-[92px] min-h-[92px]">
+      <div className="pl-3.5 pr-3.5 text-[var(--theme-title-text)] flex justify-between items-center relative z-10 theme-gradient-bar h-[70px] min-h-[70px] select-none">
         {/* Left: Crest */}
         <div className="shrink-0 flex items-center justify-center">
-          <SchoolLogo className="w-[86px] h-[86px] object-contain scale-[1.1] origin-left" logoBase64={logoBase64} />
+          <SchoolLogo className="w-[50px] h-[50px] object-contain" logoBase64={logoBase64} />
         </div>
 
         {/* Center: School Info */}
-        <div className="flex-1 flex flex-col items-center justify-center text-center px-1 min-w-0">
-          <span className="text-[10px] font-black tracking-wide uppercase leading-tight font-sans text-center">ST. PAUL SECONDARY SCHOOL, NASUTI</span>
-          <span className="text-[6.8px] opacity-100 font-bold tracking-wider leading-none uppercase text-center mt-1">P.O.BOX 678, NASUTI IGANGA</span>
-          <div className="bg-white/20 text-white border border-white/25 px-1.5 py-0.5 rounded-[4px] text-[7px] font-mono font-black uppercase shrink-0 tracking-widest text-center mt-1 shadow-3xs">
-            FINANCIAL LEDGER
-          </div>
+        <div className="flex-1 flex flex-col items-center justify-center text-center px-2 min-w-0">
+          <span className="text-[11px] font-black tracking-wide uppercase leading-tight font-sans text-center text-white">
+            ST. PAUL SECONDARY SCHOOL, NASUTI
+          </span>
+          <span className="text-[7.5px] opacity-90 font-medium tracking-wider leading-none uppercase text-center mt-1 text-white">
+            P.O.BOX 678, NASUTI IGANGA
+          </span>
         </div>
 
         {/* Right: Payment Badge */}
         <div className="shrink-0 flex items-center justify-center">
-          <div className="bg-white text-[var(--theme-text)] border border-slate-200/30 rounded-md w-[68px] h-[52px] flex flex-col items-center justify-center shadow-2xs font-sans select-none">
-            <span className="text-[9px] font-black tracking-wider leading-none">FEES</span>
-            <span className="text-[5px] font-bold text-slate-500 mt-1 uppercase tracking-widest">PAYMENT</span>
+          <div className="bg-white text-[var(--theme-text)] border border-slate-205/30 rounded-lg px-2 py-1 flex flex-col items-center justify-center shadow-2xs font-sans select-none">
+            <span className="text-[8px] font-black tracking-wider leading-none">FEES</span>
+            <span className="text-[5px] font-bold text-slate-500 mt-0.5 uppercase tracking-widest">PAYMENT</span>
           </div>
         </div>
       </div>
 
       {/* Student Details Row */}
-      <div className="bg-[var(--theme-badge-bg)] border-b border-slate-350 px-2.5 py-1.5 flex justify-center items-center text-[7.5px] font-sans font-black text-[var(--theme-text)] tracking-widest relative z-10 shrink-0">
+      <div className="bg-[var(--theme-badge-bg)] border-b border-slate-200 px-2.5 py-1 flex justify-center items-center text-[7.5px] font-sans font-black text-[var(--theme-text)] tracking-wider relative z-10 shrink-0">
         OFFICIAL SCHOOL FEES PAYMENT LEDGER
       </div>
 
       {/* Main Area: Table */}
-      <div className="flex-1 px-1 py-1 relative z-10 flex flex-col justify-center min-h-0 overflow-hidden bg-white/95">
+      <div className="flex-1 px-2.5 py-1 relative z-10 flex flex-col justify-center min-h-0 overflow-hidden bg-white/95">
         <table className="w-full border-collapse border border-slate-950 text-[7px] text-black bg-white shadow-3xs">
           <thead>
             <tr className="bg-slate-200 font-bold uppercase text-center text-black tracking-wider text-[7px] border-b border-slate-950">
-              <th className="border border-slate-950 py-2 px-2 w-[22%] font-black text-left truncate">Installment</th>
-              <th className="border border-slate-950 py-2 px-1.5 w-[24%] font-black text-center truncate">Amount (UGX)</th>
-              <th className="border border-slate-950 py-2 px-1.5 w-[23%] font-black text-center truncate">Balance (UGX)</th>
-              <th className="border border-slate-950 py-2 px-2 w-[31%] font-black text-left truncate">Bursar's Sign</th>
+              <th className="border border-slate-950 py-1.5 px-2 w-[22%] font-black text-left truncate">Installment</th>
+              <th className="border border-slate-950 py-1.5 px-1.5 w-[24%] font-black text-center truncate">Amount (UGX)</th>
+              <th className="border border-slate-950 py-1.5 px-1.5 w-[23%] font-black text-center truncate">Balance (UGX)</th>
+              <th className="border border-slate-950 py-1.5 px-2 w-[31%] font-black text-left truncate">Bursar's Sign</th>
             </tr>
           </thead>
           <tbody>
             <tr className="bg-white">
-              <td className="border border-slate-950 py-[16px] px-2 font-black font-sans text-[7.8px] text-black truncate">1st Installment</td>
-              <td className="border border-slate-950 py-[16px] px-1.5"></td>
-              <td className="border border-slate-950 py-[16px] px-1.5"></td>
-              <td className="border border-slate-950 py-[16px] px-2"></td>
+              <td className="border border-slate-950 py-[12px] px-2 font-black font-sans text-[7.8px] text-black truncate">1st Installment</td>
+              <td className="border border-slate-950 py-[12px] px-1.5"></td>
+              <td className="border border-slate-950 py-[12px] px-1.5"></td>
+              <td className="border border-slate-950 py-[12px] px-2"></td>
             </tr>
             <tr className="bg-slate-50">
-              <td className="border border-slate-950 py-[16px] px-2 font-black font-sans text-[7.8px] text-black truncate">2nd Installment</td>
-              <td className="border border-slate-950 py-[16px] px-1.5"></td>
-              <td className="border border-slate-950 py-[16px] px-1.5"></td>
-              <td className="border border-slate-950 py-[16px] px-2"></td>
+              <td className="border border-slate-950 py-[12px] px-2 font-black font-sans text-[7.8px] text-black truncate">2nd Installment</td>
+              <td className="border border-slate-950 py-[12px] px-1.5"></td>
+              <td className="border border-slate-950 py-[12px] px-1.5"></td>
+              <td className="border border-slate-950 py-[12px] px-2"></td>
             </tr>
             <tr className="bg-white">
-              <td className="border border-slate-950 py-[16px] px-2 font-black font-sans text-[7.8px] text-black truncate">3rd Installment</td>
-              <td className="border border-slate-950 py-[16px] px-1.5"></td>
-              <td className="border border-slate-950 py-[16px] px-1.5"></td>
-              <td className="border border-slate-950 py-[16px] px-2"></td>
+              <td className="border border-slate-950 py-[12px] px-2 font-black font-sans text-[7.8px] text-black truncate">3rd Installment</td>
+              <td className="border border-slate-950 py-[12px] px-1.5"></td>
+              <td className="border border-slate-950 py-[12px] px-1.5"></td>
+              <td className="border border-slate-950 py-[12px] px-2"></td>
             </tr>
           </tbody>
         </table>
       </div>
 
       {/* Footer bar */}
-      <div className="bg-slate-50 px-2.5 py-1.5 border-t border-slate-350 flex flex-col justify-center items-center relative z-10 shrink-0 select-none">
-        <div className="text-center font-sans text-[7.5px] italic font-black text-[var(--theme-text)] select-none">
+      <div className="bg-slate-50 px-2.5 py-1 border-t border-slate-205 flex flex-col justify-center items-center relative z-10 shrink-0 select-none">
+        <div className="text-center font-sans text-[7px] italic font-black text-[var(--theme-text)] select-none">
           "God is Our Guide"
         </div>
       </div>
@@ -386,65 +375,66 @@ export default function ClearanceCard({
     >
       {/* Watermark Logo behind content */}
       <div 
-        className="absolute inset-x-0 top-11 bottom-7 flex items-center justify-center pointer-events-none select-none overflow-hidden z-[0]"
+        className="absolute inset-0 flex items-center justify-center pointer-events-none select-none overflow-hidden z-[0]"
         style={{ opacity: showWatermark ? watermarkOpacity : 0 }}
       >
-        <SchoolLogo className="w-44 h-44 scale-[1.3] rotate-12" logoBase64={logoBase64} />
+        <SchoolLogo className="w-40 h-40 scale-[1.2] rotate-12" logoBase64={logoBase64} />
       </div>
 
       {/* Top Bar with School Name */}
-      <div className="pl-3 pr-3 py-1 text-[var(--theme-title-text)] flex justify-between items-center relative z-10 theme-gradient-bar h-[92px] min-h-[92px]">
+      <div className="pl-3.5 pr-3.5 text-[var(--theme-title-text)] flex justify-between items-center relative z-10 theme-gradient-bar h-[70px] min-h-[70px] select-none">
         {/* Left: Crest */}
         <div className="shrink-0 flex items-center justify-center">
-          <SchoolLogo className="w-[86px] h-[86px] object-contain scale-[1.1] origin-left" logoBase64={logoBase64} />
+          <SchoolLogo className="w-[50px] h-[50px] object-contain" logoBase64={logoBase64} />
         </div>
 
         {/* Center: School Info */}
-        <div className="flex-1 flex flex-col items-center justify-center text-center px-1 min-w-0">
-          <span className="text-[10px] font-black tracking-wide uppercase leading-tight font-sans text-center">ST. PAUL SECONDARY SCHOOL, NASUTI</span>
-          <span className="text-[6.8px] opacity-100 font-bold tracking-wider leading-none uppercase text-center mt-1">P.O.BOX 678, NASUTI IGANGA</span>
-          <div className="bg-white/20 text-white border border-white/25 px-1.5 py-0.5 rounded-[4px] text-[7px] font-mono font-black uppercase shrink-0 tracking-widest text-center mt-1 shadow-3xs">
-            AUGUST VALIDATION
-          </div>
+        <div className="flex-1 flex flex-col items-center justify-center text-center px-2 min-w-0">
+          <span className="text-[11px] font-black tracking-wide uppercase leading-tight font-sans text-center text-white">
+            ST. PAUL SECONDARY SCHOOL, NASUTI
+          </span>
+          <span className="text-[7.5px] opacity-90 font-medium tracking-wider leading-none uppercase text-center mt-1 text-white">
+            P.O.BOX 678, NASUTI IGANGA
+          </span>
         </div>
 
         {/* Right: Meals Badge */}
         <div className="shrink-0 flex items-center justify-center">
-          <div className="bg-white text-[var(--theme-text)] border border-slate-200/30 rounded-md w-[68px] h-[52px] flex flex-col items-center justify-center shadow-2xs font-sans select-none">
-            <span className="text-[9px] font-black tracking-wider leading-none">MEALS</span>
-            <span className="text-[5px] font-bold text-slate-500 mt-1 uppercase tracking-widest">AUGUST</span>
+          <div className="bg-white text-[var(--theme-text)] border border-slate-205/30 rounded-lg px-2 py-1 flex flex-col items-center justify-center shadow-2xs font-sans select-none">
+            <span className="text-[8px] font-black tracking-wider leading-none">MEALS</span>
+            <span className="text-[5px] font-bold text-slate-500 mt-0.5 uppercase tracking-widest">AUGUST</span>
           </div>
         </div>
       </div>
 
       {/* Student Details Row */}
-      <div className="bg-[var(--theme-badge-bg)] border-b border-slate-350 px-2.5 py-1.5 flex justify-center items-center text-[7.5px] font-sans font-black text-[var(--theme-text)] tracking-widest relative z-10 shrink-0">
+      <div className="bg-[var(--theme-badge-bg)] border-b border-slate-200 px-2.5 py-1 flex justify-center items-center text-[7.5px] font-sans font-black text-[var(--theme-text)] tracking-wider relative z-10 shrink-0">
         AUGUST STUDENT MEALS VALIDATION CARD
       </div>
 
       {/* Main Area: Side-By-Side Calendar */}
-      <div className="flex-1 px-2.5 py-1.5 relative z-10 flex gap-3 items-center justify-between min-h-0 overflow-hidden bg-white/95">
-        <div className="w-[175px] shrink-0">
+      <div className="flex-1 px-2.5 py-1 relative z-10 flex gap-3 items-center justify-between min-h-0 overflow-hidden bg-white/95">
+        <div className="w-[170px] shrink-0">
           {renderCalendar('August', 6, 31, true)}
         </div>
 
-        <div className="flex-1 h-full flex flex-col justify-center bg-slate-50 border border-slate-300 rounded-lg p-2.5 min-w-0">
+        <div className="flex-1 h-full flex flex-col justify-center bg-slate-50 border border-slate-300 rounded-lg p-2 min-w-0">
           <div>
-            <div className="flex items-center gap-1.5 text-[10.5px] font-black text-[var(--theme-text)] uppercase tracking-wider border-b border-slate-300 pb-1.5 mb-2 select-none font-sans">
-              <Utensils className="w-3.5 h-3.5 text-[var(--theme-primary)] shrink-0 stroke-[2.8]" />
+            <div className="flex items-center gap-1.5 text-[9.5px] font-black text-[var(--theme-text)] uppercase tracking-wider border-b border-slate-300 pb-1 mb-1.5 select-none font-sans">
+              <Utensils className="w-3 h-3 text-[var(--theme-primary)] shrink-0 stroke-[2.8]" />
               CAFETERIA GUIDE
             </div>
-            <ul className="space-y-1.5 text-[8.5px] text-slate-900 font-black font-sans">
-              <li className="flex gap-1.5 items-start">
-                <span className="text-[var(--theme-primary)] shrink-0 font-black text-[9.5px] leading-none">•</span>
+            <ul className="space-y-1 text-[8px] text-slate-905 font-bold font-sans">
+              <li className="flex gap-1 items-start">
+                <span className="text-[var(--theme-primary)] shrink-0 font-black text-[9px] leading-none">•</span>
                 <span>Present card on request.</span>
               </li>
-              <li className="flex gap-1.5 items-start">
-                <span className="text-[var(--theme-primary)] shrink-0 font-black text-[9.5px] leading-none">•</span>
+              <li className="flex gap-1 items-start">
+                <span className="text-[var(--theme-primary)] shrink-0 font-black text-[9px] leading-none">•</span>
                 <span>Strictly non-transferable.</span>
               </li>
-              <li className="flex gap-1.5 items-start">
-                <span className="text-[var(--theme-primary)] shrink-0 font-black text-[9.5px] leading-none">•</span>
+              <li className="flex gap-1 items-start">
+                <span className="text-[var(--theme-primary)] shrink-0 font-black text-[9px] leading-none">•</span>
                 <span>Report loss immediately.</span>
               </li>
             </ul>
@@ -453,8 +443,8 @@ export default function ClearanceCard({
       </div>
 
       {/* Footer bar */}
-      <div className="bg-slate-50 px-2.5 py-1.5 border-t border-slate-350 flex flex-col justify-center items-center relative z-10 shrink-0 select-none">
-        <div className="text-center font-sans text-[7.5px] italic font-black text-[var(--theme-text)] select-none">
+      <div className="bg-slate-50 px-2.5 py-1 border-t border-slate-205 flex flex-col justify-center items-center relative z-10 shrink-0 select-none">
+        <div className="text-center font-sans text-[7px] italic font-black text-[var(--theme-text)] select-none">
           "God is Our Guide"
         </div>
       </div>
@@ -464,6 +454,8 @@ export default function ClearanceCard({
   return (
     <div className="flex flex-col gap-6 items-center w-full print:p-0 print:m-0 print:gap-0 print:block" id={`card-container-${student.id}`}>
       <style>{`
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap');
+        
         #card-container-${student.id} {
           --theme-primary: ${classTheme.primary};
           --theme-gradient-start: ${classTheme.gradientStart};
@@ -472,7 +464,13 @@ export default function ClearanceCard({
           --theme-badge-bg: ${classTheme.badgeBg};
           --theme-border: ${classTheme.border};
           --theme-title-text: ${classTheme.titleText};
+          font-family: 'Inter', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
         }
+
+        #card-container-${student.id} * {
+          font-family: 'Inter', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+        }
+
         #card-container-${student.id} .theme-gradient-bar {
           background: linear-gradient(90deg, var(--theme-gradient-start), var(--theme-gradient-end));
         }

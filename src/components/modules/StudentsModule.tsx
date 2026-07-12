@@ -202,7 +202,7 @@ export default function StudentsModule({ onOpenStudent }: StudentsModuleProps) {
 
         <select value={boardingFilter} onChange={(e) => setBoardingFilter(e.target.value)} className="bg-slate-900 border border-slate-800 rounded px-3 py-2 text-sm">
           <option value="All">All Boarding</option>
-          <option value="Boarder">Boarder</option>
+          <option value="Hosteller">Hostellers</option>
           <option value="Day Scholar">Day Scholar</option>
         </select>
 

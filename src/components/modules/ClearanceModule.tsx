@@ -19,7 +19,7 @@ const DEFAULT_ADD_FORM = {
   name: '',
   gender: 'Male',
   gradeClass: '',
-  boardingStatus: 'Boarder',
+  boardingStatus: 'Hosteller',
   isCleared: true,
   remarks: ''
 };
@@ -41,6 +41,7 @@ export default function ClearanceModule() {
   const [isExporting, setIsExporting] = useState(false);
   const [filterClass, setFilterClass] = useState<string>('All');
   const [filterStream, setFilterStream] = useState<string>('All');
+  const [filterBoarding, setFilterBoarding] = useState<string>('All');
   const fileInputRef = useRef<HTMLInputElement | null>(null);
 
   const [duplicatePrompt, setDuplicatePrompt] = useState<any>(null);
@@ -93,6 +94,11 @@ export default function ClearanceModule() {
       const { className, streamName } = parseGradeClass(gradeClass);
       if (filterClass !== 'All' && className !== filterClass) return false;
       if (filterStream !== 'All' && streamName !== filterStream) return false;
+      if (filterClass !== 'All' && filterBoarding !== 'All') {
+        const studentBoarding = student.boardingStatus;
+        if (filterBoarding === 'Hosteller' && (studentBoarding !== 'Hosteller' && studentBoarding !== 'Boarder')) return false;
+        if (filterBoarding === 'Day Scholar' && studentBoarding !== 'Day Scholar') return false;
+      }
 
       if (!search) return true;
       const haystack = [student.name, student.adminNo, student.gradeClass, student.remarks]
@@ -101,7 +107,7 @@ export default function ClearanceModule() {
         .toLowerCase();
       return haystack.includes(search);
     });
-  }, [students, searchTerm, filterClass, filterStream]);
+  }, [students, searchTerm, filterClass, filterStream, filterBoarding]);
 
   const filteredStats = useMemo(() => {
     const total = filteredStudents.length;
@@ -196,7 +202,7 @@ export default function ClearanceModule() {
         name: addForm.name.trim(),
         gender: addForm.gender as 'Male' | 'Female',
         gradeClass: addForm.gradeClass.trim(),
-        boardingStatus: addForm.boardingStatus as 'Boarder' | 'Day Scholar',
+        boardingStatus: addForm.boardingStatus as 'Hosteller' | 'Day Scholar',
         isCleared: addForm.isCleared,
         remarks: addForm.remarks.trim(),
         printStatus: 'Not Printed' as const,
@@ -307,9 +313,9 @@ export default function ClearanceModule() {
         if (/^f$/i.test(genderValue) || /^female/i.test(genderValue)) gender = 'Female';
         if (/^m$/i.test(genderValue) || /^male/i.test(genderValue)) gender = 'Male';
 
-        let boardingStatus: 'Boarder' | 'Day Scholar' = 'Boarder';
+        let boardingStatus: 'Hosteller' | 'Day Scholar' = 'Hosteller';
         if (/^d$/i.test(boardingValue) || /day/i.test(boardingValue)) boardingStatus = 'Day Scholar';
-        if (/^b$/i.test(boardingValue) || /boarder/i.test(boardingValue)) boardingStatus = 'Boarder';
+        if (/^b$/i.test(boardingValue) || /boarder/i.test(boardingValue) || /host/i.test(boardingValue)) boardingStatus = 'Hosteller';
 
         // Check if a duplicate already exists (same number or similar name in same class/stream)
         const existingSimilar = students.find((s: any) => {
@@ -555,7 +561,10 @@ export default function ClearanceModule() {
           <div className="flex flex-col sm:flex-row gap-2 w-full sm:w-auto">
             <select
               value={filterClass}
-              onChange={(e) => setFilterClass(e.target.value)}
+              onChange={(e) => {
+                setFilterClass(e.target.value);
+                setFilterBoarding('All');
+              }}
               className="bg-slate-950 border border-slate-800 rounded-lg px-3 py-2 text-sm text-slate-100 focus:outline-none"
             >
               {uniqueClasses.map((c) => (
@@ -571,6 +580,17 @@ export default function ClearanceModule() {
                 <option key={s} value={s}>{s === 'All' ? 'All Streams' : s}</option>
               ))}
             </select>
+            {filterClass !== 'All' && (
+              <select
+                value={filterBoarding}
+                onChange={(e) => setFilterBoarding(e.target.value)}
+                className="bg-slate-950 border border-slate-800 rounded-lg px-3 py-2 text-sm text-slate-100 focus:outline-none uppercase font-semibold"
+              >
+                <option value="All">All Students</option>
+                <option value="Hosteller">Hostellers</option>
+                <option value="Day Scholar">Day Scholars</option>
+              </select>
+            )}
           </div>
         </div>
           <div className="flex items-center gap-2">
@@ -739,8 +759,8 @@ export default function ClearanceModule() {
                     onChange={(e) => setAddForm((prev) => ({ ...prev, boardingStatus: e.target.value }))}
                     className="mt-2 w-full rounded-2xl border border-slate-700 bg-slate-950 px-3 py-2 text-sm text-slate-100 outline-none focus:border-indigo-500"
                   >
-                    <option>Boarder</option>
-                    <option>Day Scholar</option>
+                    <option value="Hosteller">Hosteller</option>
+                    <option value="Day Scholar">Day Scholar</option>
                   </select>
                 </label>
               </div>

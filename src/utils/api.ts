@@ -521,6 +521,7 @@ export async function searchStudentsWithMarks(payload: {
   gender?: string;
   performanceGrade?: string;
   reportStatus?: string;
+  boardingStatus?: string;
 }): Promise<{ data: any[] }> {
   return await apiCall('/api/admin/students/search-with-marks', {
     method: 'POST',
@@ -707,23 +708,29 @@ export async function testAiConnection(apiKey?: string): Promise<{ success: bool
 }
 
 export async function triggerFileDownload(url: string, filename: string): Promise<void> {
-  if (typeof window !== 'undefined' && (window as any).electron?.saveFileBase64) {
-    try {
-      const token = typeof window !== 'undefined' ? localStorage.getItem('spss_token') : null;
-      const headers: Record<string, string> = {};
-      if (token) {
-        headers['Authorization'] = `Bearer ${token}`;
-      }
-      const response = await fetch(url, { headers });
-      if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
-      const buffer = await response.arrayBuffer();
-      let binary = '';
-      const bytes = new Uint8Array(buffer);
-      const len = bytes.byteLength;
-      for (let i = 0; i < len; i++) {
-        binary += String.fromCharCode(bytes[i]);
-      }
-      const base64Data = window.btoa(binary);
+  try {
+    const token = typeof window !== 'undefined' ? localStorage.getItem('spss_token') : null;
+    const headers: Record<string, string> = {};
+    if (token) {
+      headers['Authorization'] = `Bearer ${token}`;
+    }
+    const response = await fetch(url, { headers });
+    if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
+    
+    const blob = await response.blob();
+    
+    if (typeof window !== 'undefined' && (window as any).electron?.saveFileBase64) {
+      const base64Data = await new Promise<string>((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onloadend = () => {
+          const resultStr = reader.result as string;
+          const base64 = resultStr.substring(resultStr.indexOf(',') + 1);
+          resolve(base64);
+        };
+        reader.onerror = () => reject(reader.error);
+        reader.readAsDataURL(blob);
+      });
+
       const ext = filename.split('.').pop() || 'pdf';
       const result = await (window as any).electron.saveFileBase64(filename, base64Data, [
         { name: `${ext.toUpperCase()} Documents`, extensions: [ext] }
@@ -733,18 +740,20 @@ export async function triggerFileDownload(url: string, filename: string): Promis
       } else if (result.error !== 'Cancelled') {
         alert(`Failed to save file: ${result.error}`);
       }
-    } catch (e: any) {
-      console.error('Failed to save file in Electron:', e);
-      alert(`Failed to save file: ${e.message}`);
+    } else {
+      const blobUrl = URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = blobUrl;
+      link.download = filename;
+      link.target = '_self';
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      setTimeout(() => URL.revokeObjectURL(blobUrl), 100);
     }
-  } else {
-    const link = document.createElement('a');
-    link.href = url;
-    link.download = filename;
-    link.target = '_self';
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
+  } catch (e: any) {
+    console.error('Failed to download file:', e);
+    alert(`Failed to download file: ${e.message}`);
   }
 }
 
@@ -753,6 +762,128 @@ export async function uploadImage(base64Image: string, publicId?: string): Promi
     method: 'POST',
     body: JSON.stringify({ image: base64Image, publicId }),
   });
+}
+
+export async function fetchParentContacts(studentId: string): Promise<any> {
+  return await apiCall(`/api/parent-contacts/${studentId}`);
+}
+
+export async function saveParentContacts(studentId: string, data: any): Promise<{ success: boolean }> {
+  return await apiCall(`/api/parent-contacts/${studentId}`, {
+    method: 'POST',
+    body: JSON.stringify(data),
+  });
+}
+
+export async function scanGateCard(data: {
+  scanValue: string;
+  gateId?: number | null;
+  deviceId?: string | null;
+  operatorName?: string;
+  gps?: string;
+  direction?: 'clock-in' | 'clock-out' | 'auto';
+  departureReason?: string;
+}): Promise<{ success: boolean; direction: 'in' | 'out'; student: any; log: any; message: string }> {
+  return await apiCall('/api/attendance/scan', {
+    method: 'POST',
+    body: JSON.stringify(data),
+  });
+}
+
+export async function fetchAttendanceDashboard(): Promise<any> {
+  return await apiCall('/api/attendance/dashboard');
+}
+
+export async function fetchAttendanceLogs(filters: {
+  startDate?: string;
+  endDate?: string;
+  gradeClass?: string;
+  stream?: string;
+  status?: string;
+  boardingStatus?: string;
+  gender?: string;
+  search?: string;
+}): Promise<any[]> {
+  const queryParams = new URLSearchParams(filters as any).toString();
+  return await apiCall(`/api/attendance/logs?${queryParams}`);
+}
+
+export async function fetchStudentGateHistory(studentId: string): Promise<any[]> {
+  return await apiCall(`/api/attendance/student/${studentId}`);
+}
+
+export async function fetchGatePermissions(): Promise<any[]> {
+  return await apiCall('/api/attendance/permissions');
+}
+
+export async function saveGatePermission(data: {
+  student_id: string;
+  reason: string;
+  approved_by: string;
+  time_out: string;
+  expected_return: string;
+  remarks?: string;
+}): Promise<{ success: boolean; id: number }> {
+  return await apiCall('/api/attendance/permissions', {
+    method: 'POST',
+    body: JSON.stringify(data),
+  });
+}
+
+export async function returnStudentPermission(id: number, data?: { actual_return?: string; status?: string; remarks?: string }): Promise<{ success: boolean }> {
+  return await apiCall(`/api/attendance/permissions/${id}`, {
+    method: 'PUT',
+    body: JSON.stringify(data || {}),
+  });
+}
+
+export async function fetchGateLocations(): Promise<any[]> {
+  return await apiCall('/api/attendance/locations');
+}
+
+export async function saveGateLocation(data: { name: string; status?: string }): Promise<{ success: boolean }> {
+  return await apiCall('/api/attendance/locations', {
+    method: 'POST',
+    body: JSON.stringify(data),
+  });
+}
+
+export async function deleteGateLocation(id: number): Promise<{ success: boolean }> {
+  return await apiCall(`/api/attendance/locations/${id}`, {
+    method: 'DELETE',
+  });
+}
+
+export async function fetchGateDevices(): Promise<any[]> {
+  return await apiCall('/api/attendance/devices');
+}
+
+export async function saveGateDevice(data: { id: string; name: string; device_type: string; status?: string }): Promise<{ success: boolean }> {
+  return await apiCall('/api/attendance/devices', {
+    method: 'POST',
+    body: JSON.stringify(data),
+  });
+}
+
+export async function deleteGateDevice(id: string): Promise<{ success: boolean }> {
+  return await apiCall(`/api/attendance/devices/${id}`, {
+    method: 'DELETE',
+  });
+}
+
+export async function fetchAttendanceSettings(): Promise<any> {
+  return await apiCall('/api/attendance/settings');
+}
+
+export async function saveAttendanceSettings(settings: any): Promise<{ success: boolean }> {
+  return await apiCall('/api/attendance/settings', {
+    method: 'POST',
+    body: JSON.stringify(settings),
+  });
+}
+
+export async function fetchParentPortalData(studentId: string): Promise<any> {
+  return await apiCall(`/api/parent/student-data/${studentId}`);
 }
 
 

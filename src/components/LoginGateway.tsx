@@ -1,16 +1,16 @@
 import React, { useState } from 'react';
-import { Shield, BookOpen, GraduationCap, RefreshCw, AlertCircle, Eye, EyeOff, CheckCircle } from 'lucide-react';
+import { Shield, BookOpen, GraduationCap, Users, RefreshCw, AlertCircle, Eye, EyeOff, CheckCircle } from 'lucide-react';
 import SchoolLogo from './SchoolLogo.tsx';
 import { loginUser } from '../utils/api.ts';
 
 interface LoginGatewayProps {
-  onLogin: (session: { role: 'admin' | 'teacher' | 'student'; user: any }) => void;
+  onLogin: (session: { role: 'admin' | 'teacher' | 'student' | 'parent'; user: any }) => void;
   schoolLogo: string | null;
   dbConnectionError: boolean;
 }
 
 export default function LoginGateway({ onLogin, schoolLogo, dbConnectionError }: LoginGatewayProps) {
-  const [role, setRole] = useState<'admin' | 'teacher' | 'student'>('admin');
+  const [role, setRole] = useState<'admin' | 'teacher' | 'student' | 'parent'>('admin');
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
@@ -75,11 +75,11 @@ export default function LoginGateway({ onLogin, schoolLogo, dbConnectionError }:
         </div>
 
         {/* Roles Selector tabs */}
-        <div className="grid grid-cols-3 gap-1.5 p-1 bg-slate-950/65 rounded-xl border border-slate-850">
+        <div className="grid grid-cols-4 gap-1.5 p-1 bg-slate-950/65 rounded-xl border border-slate-850">
           <button
             type="button"
             onClick={() => { setRole('admin'); setError(null); }}
-            className={`py-2 px-1.5 rounded-lg text-[10px] font-black uppercase tracking-wider flex flex-col items-center gap-1 transition-all cursor-pointer ${
+            className={`py-2 px-1 rounded-lg text-[9px] font-black uppercase tracking-wider flex flex-col items-center gap-1 transition-all cursor-pointer ${
               role === 'admin' ? 'bg-indigo-600 text-white shadow-lg' : 'text-slate-400 hover:text-slate-200'
             }`}
           >
@@ -89,7 +89,7 @@ export default function LoginGateway({ onLogin, schoolLogo, dbConnectionError }:
           <button
             type="button"
             onClick={() => { setRole('teacher'); setError(null); }}
-            className={`py-2 px-1.5 rounded-lg text-[10px] font-black uppercase tracking-wider flex flex-col items-center gap-1 transition-all cursor-pointer ${
+            className={`py-2 px-1 rounded-lg text-[9px] font-black uppercase tracking-wider flex flex-col items-center gap-1 transition-all cursor-pointer ${
               role === 'teacher' ? 'bg-indigo-600 text-white shadow-lg' : 'text-slate-400 hover:text-slate-200'
             }`}
           >
@@ -99,12 +99,22 @@ export default function LoginGateway({ onLogin, schoolLogo, dbConnectionError }:
           <button
             type="button"
             onClick={() => { setRole('student'); setError(null); }}
-            className={`py-2 px-1.5 rounded-lg text-[10px] font-black uppercase tracking-wider flex flex-col items-center gap-1 transition-all cursor-pointer ${
+            className={`py-2 px-1 rounded-lg text-[9px] font-black uppercase tracking-wider flex flex-col items-center gap-1 transition-all cursor-pointer ${
               role === 'student' ? 'bg-indigo-600 text-white shadow-lg' : 'text-slate-400 hover:text-slate-200'
             }`}
           >
             <GraduationCap className="w-3.5 h-3.5" />
             Student
+          </button>
+          <button
+            type="button"
+            onClick={() => { setRole('parent'); setError(null); }}
+            className={`py-2 px-1 rounded-lg text-[9px] font-black uppercase tracking-wider flex flex-col items-center gap-1 transition-all cursor-pointer ${
+              role === 'parent' ? 'bg-indigo-600 text-white shadow-lg' : 'text-slate-400 hover:text-slate-200'
+            }`}
+          >
+            <Users className="w-3.5 h-3.5" />
+            Parent
           </button>
         </div>
 
@@ -113,11 +123,15 @@ export default function LoginGateway({ onLogin, schoolLogo, dbConnectionError }:
         <form onSubmit={handleSubmit} className="space-y-4">
           <div className="space-y-1">
             <label className="text-[10px] text-slate-400 font-bold uppercase tracking-wider">
-              {role === 'student' ? 'Student Number' : 'Username'}
+              {role === 'student' || role === 'parent' ? 'Student Number' : 'Username'}
             </label>
             <input
               type="text"
-              placeholder={role === 'student' ? 'e.g. STU-2026-001 or student' : 'e.g. admin or teacher'}
+              placeholder={
+                role === 'student' ? 'e.g. STU-2026-001 or student' :
+                role === 'parent' ? 'e.g. ADM-2026-001' :
+                'e.g. admin or teacher'
+              }
               value={username}
               onChange={(e) => setUsername(e.target.value)}
               className="w-full bg-slate-950 border border-slate-850 rounded-xl p-3 text-xs text-slate-200 focus:outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 font-medium"
@@ -125,11 +139,13 @@ export default function LoginGateway({ onLogin, schoolLogo, dbConnectionError }:
           </div>
 
           <div className="space-y-1">
-            <label className="text-[10px] text-slate-400 font-bold uppercase tracking-wider">Password</label>
+            <label className="text-[10px] text-slate-400 font-bold uppercase tracking-wider">
+              {role === 'parent' ? 'Parent Phone Number' : 'Password'}
+            </label>
             <div className="relative">
               <input
                 type={showPassword ? 'text' : 'password'}
-                placeholder="••••••••••••"
+                placeholder={role === 'parent' ? 'Registered Phone Number' : '••••••••••••'}
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
                 className="w-full bg-slate-950 border border-slate-850 rounded-xl p-3 pr-10 text-xs text-slate-200 focus:outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 font-medium"

@@ -97,6 +97,7 @@ import ExamsModule from './components/modules/ExamsModule.tsx';
 import ClearanceModule from './components/modules/ClearanceModule.tsx';
 import FeesModule from './components/modules/FeesModule.tsx';
 import AttendanceModule from './components/modules/AttendanceModule.tsx';
+import ParentPortal from './components/ParentPortal.tsx';
 import SettingsModule from './components/modules/SettingsModule.tsx';
 import AiAssistantModule from './components/modules/AiAssistantModule.tsx';
 import {
@@ -123,7 +124,10 @@ import {
   fetchStatsFromDb,
   fetchClassTeachers,
   generateReportCards,
-  triggerFileDownload
+  triggerFileDownload,
+  fetchParentContacts,
+  saveParentContacts,
+  fetchStudentGateHistory
 } from './utils/api.ts';
 
 // Top-level helper so it's available before App renders
@@ -725,7 +729,7 @@ function AppContent() {
           s.name,
           s.gender,
           s.gradeClass,
-          s.boardingStatus === 'Boarder' ? 'Hosteller (Boarding)' : 'Day Scholar',
+          s.boardingStatus === 'Hosteller' ? 'Hosteller (Boarding)' : 'Day Scholar',
           s.isCleared ? 'Cleared' : 'On Hold',
           s.printStatus || 'Not Printed',
           s.hasPhoto ? 'Yes' : 'No',
@@ -791,28 +795,12 @@ function AppContent() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [authSession, dbConnectionError, searchQuery, filterLevel, filterClass, filterStream, filterGender, filterClearance, filterBoarding, filterAcademicYear, filterPhoto, printNewOnly, sortBy, currentPage, pageSize, viewMode, activeBoardClass]);
 
-  // Dev shortcut: directly render TeacherPortal when visiting /_dev_teacher
-  if (typeof window !== 'undefined' && window.location && window.location.pathname === '/_dev_teacher') {
-    return (
-      <Suspense fallback={<Loading message="Loading Teacher Portal..." />}>
-        <TeacherPortal
-          teacherId="dev-teacher-1"
-          teacherName="Dev Teacher"
-          teacherUsername="biirokeneth"
-          assignedClasses={["S.4"]}
-          assignedSubjects={["Mathematics"]}
-          schoolLogo={DEFAULT_SCHOOL_LOGO}
-          onLogout={() => { window.location.href = '/'; }}
-        />
-      </Suspense>
-    );
-  }
 
   // Minimal shell: avoid loading large datasets until user navigates to those modules.
   // Show skeletons while heavy modules load lazily.
 
   // Restored UI state (was accidentally removed) — admin tabs, modals, and core lists
-  const [adminActiveTab, setAdminActiveTab] = useState<'cards' | 'school' | 'profile' | 'database' | 'controls' | 'assistant'>('cards');
+  const [adminActiveTab, setAdminActiveTab] = useState<'cards' | 'school' | 'profile' | 'database' | 'controls' | 'assistant' | 'attendance'>('cards');
   const [showFormModal, setShowFormModal] = useState<boolean>(false);
   const [showDbSettingsModal, setShowDbSettingsModal] = useState<boolean>(false);
   const [showBulkPhotoMatcher, setShowBulkPhotoMatcher] = useState<boolean>(false);
@@ -822,7 +810,19 @@ function AppContent() {
   const [students, setStudents] = useState<Student[]>(INITIAL_STUDENTS || []);
   const [totalStudentsCount, setTotalStudentsCount] = useState<number>(INITIAL_STUDENTS ? INITIAL_STUDENTS.length : 0);
   const [editingStudent, setEditingStudent] = useState<Student | null>(null);
-  const [formInputs, setFormInputs] = useState<any>({ adminNo: '', name: '', aliases: '', gender: 'Male', gradeClass: SCHOOL_CLASSES[0], boardingStatus: 'Boarder', isCleared: true, remarks: '', photo: undefined, printStatus: 'Not Printed' });
+  const [formInputs, setFormInputs] = useState<any>({ adminNo: '', name: '', aliases: '', gender: 'Male', gradeClass: SCHOOL_CLASSES[0], boardingStatus: 'Hosteller', isCleared: true, remarks: '', photo: undefined, printStatus: 'Not Printed' });
+
+  const [modalTab, setModalTab] = useState<'details' | 'parent' | 'attendance'>('details');
+  const [modalParentContacts, setModalParentContacts] = useState<any>({
+    father_name: '', father_phone: '', father_whatsapp: '',
+    mother_name: '', mother_phone: '', mother_whatsapp: '',
+    guardian_name: '', guardian_phone: '', guardian_whatsapp: '',
+    relationship: 'Guardian', home_address: '', email: '',
+    emergency_contact: '', occupation: '', preferred_notification: 'SMS'
+  });
+  const [modalAttendanceHistory, setModalAttendanceHistory] = useState<any[]>([]);
+  const [modalParentSaving, setModalParentSaving] = useState<boolean>(false);
+  const [modalAttendanceLoading, setModalAttendanceLoading] = useState<boolean>(false);
 
   const handleSaveAndSync = async (updatedStudents: Student[]) => {
     // 1. Identify changed/new students and deleted students by comparing with current state
@@ -1791,6 +1791,23 @@ function AppContent() {
     setPrintNewOnly(false);
   }, []);
 
+  // Dev shortcut: directly render TeacherPortal when visiting /_dev_teacher
+  if (typeof window !== 'undefined' && window.location && window.location.pathname === '/_dev_teacher') {
+    return (
+      <Suspense fallback={<Loading message="Loading Teacher Portal..." />}>
+        <TeacherPortal
+          teacherId="dev-teacher-1"
+          teacherName="Dev Teacher"
+          teacherUsername="biirokeneth"
+          assignedClasses={["S.4"]}
+          assignedSubjects={["Mathematics"]}
+          schoolLogo={schoolLogo || DEFAULT_SCHOOL_LOGO}
+          onLogout={() => { window.location.href = '/'; }}
+        />
+      </Suspense>
+    );
+  }
+
   // --- INDIVIDUAL ROW QUICK ACCENT TOGGLERS ---
   const toggleRowStatus = (id: string) => {
     const today = new Date().toISOString().split('T')[0];
@@ -1828,22 +1845,57 @@ function AppContent() {
       console.warn("Failed to save deleted ID to tracking list:", e);
     }
 
-    const updated = students.filter((s) => s.id !== id);
-    setSelectedIds((prev) => prev.filter((item) => item !== id));
-    
-    // Update UI and local storage immediately
-    handleSaveAndSync(updated);
-    if (previewStudentId === id && updated.length > 0) {
-      setPreviewStudentId(updated[0].id);
-    }
+    try {
+      setIsSaving(true);
 
-    // Perform Firestore deletion in background
-    if (isFirebaseConfigured()) {
+      // Delete from MySQL DB directly
       try {
-        await deleteStudentInFirestore(id);
-      } catch (err) {
-        console.error("Failed to delete student from Firestore:", err);
+        await deleteStudentInDb(id);
+      } catch (apiErr) {
+        console.warn("Delete via MySQL API failed, queuing for offline sync:", apiErr);
+        // Fallback to queueing deletes for offline sync
+        let queue: Array<{ type: 'save' | 'delete'; id: string; student?: Student }> = [];
+        try {
+          const queueStr = localStorage.getItem('clearance_printer_sync_queue') || '[]';
+          queue = JSON.parse(queueStr);
+        } catch (e) {}
+        queue = queue.filter(item => !(item.id === id && item.type === 'save'));
+        queue.push({ type: 'delete', id });
+        localStorage.setItem('clearance_printer_sync_queue', JSON.stringify(queue));
+        setSyncQueueCount(queue.length);
+        setDbConnectionError(true);
       }
+
+      // Perform Firestore deletion in background
+      if (isFirebaseConfigured()) {
+        try {
+          await deleteStudentInFirestore(id);
+        } catch (err) {
+          console.error("Failed to delete student from Firestore:", err);
+        }
+      }
+
+      // Update local state and cache immediately
+      const updated = students.filter((s) => s.id !== id);
+      setStudents(updated);
+      setSelectedIds((prev) => prev.filter((item) => item !== id));
+      
+      setTimeout(() => {
+        saveStudentsAsync(updated).catch(e => console.warn('Local cache save failed:', e));
+      }, 50);
+
+      if (previewStudentId === id && updated.length > 0) {
+        setPreviewStudentId(updated[0].id);
+      } else if (updated.length === 0) {
+        setPreviewStudentId(null);
+      }
+
+      alert(`${confirmName} deleted successfully.`);
+    } catch (err: any) {
+      console.error("Deletion failed:", err);
+      alert(`Failed to delete student: ${err.message || err}`);
+    } finally {
+      setIsSaving(false);
     }
   };
 
@@ -2035,7 +2087,7 @@ function AppContent() {
       aliases: '',
       gender: 'Male',
       gradeClass: SCHOOL_CLASSES[0],
-      boardingStatus: 'Boarder',
+      boardingStatus: 'Hosteller',
       isCleared: true,
       remarks: '',
       photo: undefined,
@@ -2049,6 +2101,7 @@ function AppContent() {
     setPhotoAutoCenter(true);
     setPhotoFilter('studio');
     setShowWebcamCapture(false);
+    setModalTab('details');
     setShowFormModal(true);
   };
 
@@ -2092,7 +2145,40 @@ function AppContent() {
     setPhotoBgColor('white'); // Default background to white when editing
     setHasManualBgEdits(false);
     setShowWebcamCapture(false);
+    setModalTab('details');
+    
+    // Clear previous details
+    setModalParentContacts({
+      father_name: '', father_phone: '', father_whatsapp: '',
+      mother_name: '', mother_phone: '', mother_whatsapp: '',
+      guardian_name: '', guardian_phone: '', guardian_whatsapp: '',
+      relationship: 'Guardian', home_address: '', email: '',
+      emergency_contact: '', occupation: '', preferred_notification: 'SMS'
+    });
+    setModalAttendanceHistory([]);
+
     setShowFormModal(true);
+
+    // Fetch parent contacts in background
+    try {
+      const pc = await fetchParentContacts(fullStudent.id);
+      if (pc) {
+        setModalParentContacts(pc);
+      }
+    } catch (err) {
+      console.warn('Failed to fetch parent contacts:', err);
+    }
+
+    // Fetch gate logs history in background
+    try {
+      setModalAttendanceLoading(true);
+      const history = await fetchStudentGateHistory(fullStudent.id);
+      setModalAttendanceHistory(history || []);
+    } catch (err) {
+      console.warn('Failed to fetch gate history:', err);
+    } finally {
+      setModalAttendanceLoading(false);
+    }
   };
 
   const handleFormSubmit = async (e: React.FormEvent) => {
@@ -2290,7 +2376,7 @@ function AppContent() {
         name: '',
         gender: 'Male',
         gradeClass: SCHOOL_CLASSES[0],
-        boardingStatus: 'Boarder',
+        boardingStatus: 'Hosteller',
         isCleared: true,
         remarks: '',
         photo: undefined,
@@ -2418,7 +2504,7 @@ function AppContent() {
         : `ADM-2026-${(students.length + parsedStudents.length + 1).toString().padStart(3, '0')}`;
       
       // Parse Boarder schema
-      let boarding: BoardingStatus = 'Boarder';
+      let boarding: BoardingStatus = 'Hosteller';
       if (parts[boardingIdx] && parts[boardingIdx].toLowerCase().includes('day')) {
         boarding = 'Day Scholar';
       }
@@ -2769,7 +2855,7 @@ function AppContent() {
             stream: filterStream === 'All' ? undefined : filterStream,
             gender: filterGender === 'All' ? undefined : filterGender,
             isCleared: filterClearance === 'All' ? undefined : filterClearance,
-            boardingStatus: 'Boarder',
+            boardingStatus: 'Hosteller',
             photo: filterPhoto === 'All' ? undefined : filterPhoto,
             printStatus: printNewOnly ? 'Not Printed' : undefined,
             academicYear
@@ -2819,7 +2905,7 @@ function AppContent() {
           (filterClearance === 'Cleared' && s.isCleared) ||
           (filterClearance === 'Hold' && !s.isCleared);
           
-        const matchesBoarding = s.boardingStatus === 'Boarder';
+        const matchesBoarding = s.boardingStatus === 'Boarder' || s.boardingStatus === 'Hosteller';
         const matchesAcademicYear = filterAcademicYear === 'All' || getAcademicYear(s) === filterAcademicYear;
         const matchesPrintStatus = !printNewOnly || s.printStatus === 'Not Printed' || !s.printStatus;
         const matchesPhoto =
@@ -2849,7 +2935,7 @@ function AppContent() {
 
       const targetHostellers = [...hostellers];
       markAsPrinted(Array.isArray(targetHostellers) ? targetHostellers.map(s => s.id) : []);
-      setFilterBoarding('Boarder');
+      setFilterBoarding('Hosteller');
 
       setPdfProgress({ current: 0, total: targetHostellers.length });
       
@@ -2945,7 +3031,7 @@ function AppContent() {
         'Full Name': s.name,
         'Gender': s.gender,
         'Class/Form': s.gradeClass,
-        'Boarding Status': s.boardingStatus === 'Boarder' ? 'Hosteller (Boarding)' : 'Day Scholar',
+        'Boarding Status': s.boardingStatus === 'Boarder' || s.boardingStatus === 'Hosteller' ? 'Hosteller (Boarding)' : 'Day Scholar',
         'Clearance Status': s.isCleared ? 'Cleared' : 'On Hold',
         'Print Status': s.printStatus || 'Not Printed',
         'Remarks': s.remarks || ''
@@ -3039,7 +3125,7 @@ function AppContent() {
         'Full Name': s.name,
         'Gender': s.gender,
         'Class/Form': s.gradeClass,
-        'Boarding Status': s.boardingStatus === 'Boarder' ? 'Hosteller (Boarding)' : 'Day Scholar',
+        'Boarding Status': s.boardingStatus === 'Boarder' || s.boardingStatus === 'Hosteller' ? 'Hosteller (Boarding)' : 'Day Scholar',
         'Clearance Status': s.isCleared ? 'Cleared' : 'On Hold',
         'Print Status': s.printStatus || 'Not Printed',
         'Has Photo': s.hasPhoto ? 'Yes' : 'No',
@@ -3891,6 +3977,20 @@ function AppContent() {
     );
   }
 
+  if (authSession.role === 'parent') {
+    return (
+      <Suspense fallback={<Loading message="Loading Parent Portal..." />}>
+        <ParentPortal
+          studentId={authSession.user.studentId || authSession.user.id}
+          studentName={authSession.user.studentName || authSession.user.name}
+          adminNo={authSession.user.adminNo}
+          schoolLogo={schoolLogo}
+          onLogout={handleLogout}
+        />
+      </Suspense>
+    );
+  }
+
   if (authSession.role === 'teacher') {
     return (
       <Suspense fallback={<Loading message="Loading Teacher Portal..." />}>
@@ -3906,6 +4006,7 @@ function AppContent() {
           photo={authSession.user.photo}
           classTeacherFor={authSession.user.classTeacherFor}
           onLogout={handleLogout}
+          position={authSession.user.position}
         />
       </Suspense>
     );
@@ -4129,6 +4230,16 @@ function AppContent() {
             }`}
           >
             <BookOpen className="w-4 h-4" /> School Management & Teachers (Uganda EMIS)
+          </button>
+          <button
+            onClick={() => setAdminActiveTab('attendance')}
+            className={`flex-1 sm:flex-initial px-5 py-2.5 rounded-lg text-xs font-black uppercase tracking-wider flex items-center justify-center gap-2 transition-all duration-200 cursor-pointer whitespace-nowrap ${
+              adminActiveTab === 'attendance'
+                ? 'bg-gradient-to-r from-indigo-600 to-violet-600 text-white shadow-lg shadow-indigo-950/50 scale-[1.02]'
+                : 'text-slate-400 hover:text-slate-200 hover:bg-slate-850/50'
+            }`}
+          >
+            <Clock className="w-4 h-4" /> Gate Attendance Workspace
           </button>
           <button
             onClick={() => setAdminActiveTab('profile')}
@@ -4456,6 +4567,20 @@ function AppContent() {
                               })}
                             </div>
                           )}
+                          {isClsActive && (
+                            <div className="pl-6 py-1.5 pr-2 space-y-1 my-1 border-l border-indigo-500/20 ml-2">
+                              <span className="text-[9px] font-black uppercase text-indigo-400 font-mono tracking-wider block">Boarding Filter</span>
+                              <select
+                                value={filterBoarding}
+                                onChange={(e) => setFilterBoarding(e.target.value)}
+                                className="w-full bg-slate-900 border border-slate-800 rounded px-2 py-1 text-[10px] text-slate-300 font-bold outline-none cursor-pointer uppercase font-mono"
+                              >
+                                <option value="All">All Students</option>
+                                <option value="Hosteller">Hostellers</option>
+                                <option value="Day Scholar">Day Scholars</option>
+                              </select>
+                            </div>
+                          )}
                         </div>
                       );
                     })}
@@ -4557,6 +4682,20 @@ function AppContent() {
                                   </button>
                                 );
                               })}
+                            </div>
+                          )}
+                          {isClsActive && (
+                            <div className="pl-6 py-1.5 pr-2 space-y-1 my-1 border-l border-indigo-500/20 ml-2">
+                              <span className="text-[9px] font-black uppercase text-indigo-400 font-mono tracking-wider block">Boarding Filter</span>
+                              <select
+                                value={filterBoarding}
+                                onChange={(e) => setFilterBoarding(e.target.value)}
+                                className="w-full bg-slate-900 border border-slate-800 rounded px-2 py-1 text-[10px] text-slate-300 font-bold outline-none cursor-pointer uppercase font-mono"
+                              >
+                                <option value="All">All Students</option>
+                                <option value="Hosteller">Hostellers</option>
+                                <option value="Day Scholar">Day Scholars</option>
+                              </select>
                             </div>
                           )}
                         </div>
@@ -4941,7 +5080,7 @@ function AppContent() {
                 className="bg-slate-900 border border-slate-850 py-1 px-2 text-[10px] text-slate-400 font-medium rounded-md focus:outline-none uppercase cursor-pointer"
               >
                 <option value="All">Boarding Status: All Students</option>
-                <option value="Boarder">Hostellers (Boarding Students)</option>
+                <option value="Hosteller">Hostellers</option>
                 <option value="Day Scholar">Day Scholars</option>
               </select>
 
@@ -5492,7 +5631,7 @@ function AppContent() {
                                   )}
                                 </div>
                                 <div className="text-[10px] text-indigo-400 font-semibold mt-0.5">
-                                  {s.boardingStatus === 'Boarder' ? 'Hosteler' : 'Day Scholar'}
+                                  {s.boardingStatus === 'Boarder' || s.boardingStatus === 'Hosteller' ? 'Hosteller' : 'Day Scholar'}
                                 </div>
                               </div>
                             </div>
@@ -5878,7 +6017,7 @@ function AppContent() {
                                   >
                                     {s.name}
                                   </span>
-                                  <span className="text-[9px] text-slate-500 font-bold block">{s.boardingStatus === 'Boarder' ? 'Hosteler' : 'Day Scholar'}</span>
+                                  <span className="text-[9px] text-slate-500 font-bold block">{s.boardingStatus === 'Boarder' || s.boardingStatus === 'Hosteller' ? 'Hosteller' : 'Day Scholar'}</span>
                                 </div>
                               </div>
                             </td>
@@ -6416,7 +6555,7 @@ function AppContent() {
                   className="bg-transparent text-xs font-bold text-slate-200 mt-1 focus:outline-none cursor-pointer"
                 >
                   <option value="All">All Students</option>
-                  <option value="Boarder">Hostellers (Boarding Students)</option>
+                  <option value="Hosteller">Hostellers</option>
                   <option value="Day Scholar">Day Scholars</option>
                 </select>
                 <p className="text-[8.5px] text-slate-500 mt-1 leading-normal">
@@ -6592,6 +6731,14 @@ function AppContent() {
       </main>
       )}
         </>
+      )}
+
+      {adminActiveTab === 'attendance' && (
+        <div className="p-4 md:p-6 bg-slate-900 min-h-screen">
+          <Suspense fallback={<Loading message="Loading Gate Attendance Workspace..." />}>
+            <AttendanceModule />
+          </Suspense>
+        </div>
       )}
 
       {adminActiveTab === 'school' && (
@@ -6796,361 +6943,562 @@ function AppContent() {
             </button>
           </div>
 
-          <form
-            onSubmit={(e) => {
-              e.preventDefault();
-              handleFormSubmit(e);
-            }}
-            className="space-y-4"
-          >
-            {/* Passport Photo Upload & Capture Zone */}
-            <div className="bg-slate-950/45 p-3 rounded-lg border border-slate-850 space-y-3">
-              <div className="flex items-center gap-4">
-                <div className="relative w-14 h-18 bg-slate-950 border-2 border-dashed border-slate-800 hover:border-indigo-500 flex flex-col items-center justify-center rounded cursor-pointer overflow-hidden transition shrink-0 group">
-                  {formInputs.photo ? (
-                    <>
-                      <img src={formInputs.photo} alt="Passport photo" className="w-full h-full object-cover" />
-                      <div className="absolute inset-0 bg-slate-950/70 opacity-0 group-hover:opacity-100 flex items-center justify-center text-[8px] text-slate-300 font-bold transition-opacity">
-                        CHANGE
-                      </div>
-                    </>
-                  ) : (
-                    <div className="flex flex-col items-center justify-center text-center p-1">
-                      <Upload className="w-4 h-4 text-slate-500 group-hover:text-indigo-400 mb-0.5" />
-                      <span className="text-[7.5px] text-slate-500 font-bold uppercase tracking-tight leading-none text-center">ADD PHOTO</span>
-                    </div>
-                  )}
-                  <input
-                    type="file"
-                    accept="image/png, image/jpeg, image/jpg, image/webp"
-                    onChange={async (e) => {
-                      const file = e.target.files?.[0];
-                      await handlePhotoFileChange(file);
-                    }}
-                    className="absolute inset-0 opacity-0 cursor-pointer"
-                  />
-                </div>
-                <div className="flex-1">
-                  <div className="flex items-center justify-between gap-2">
-                    <span className="text-[10px] font-black uppercase tracking-wider text-slate-400 block">
-                      Student Passport Photo
-                    </span>
-                    <button
-                      type="button"
-                      onClick={() => setShowWebcamCapture(!showWebcamCapture)}
-                      className="inline-flex items-center gap-1 px-2 py-0.5 bg-indigo-950 hover:bg-indigo-900 text-indigo-300 hover:text-indigo-200 text-[8.5px] font-black uppercase tracking-wider rounded border border-indigo-850/60 transition cursor-pointer"
-                    >
-                      <Camera className="w-[11px] h-[11px]" />
-                      {showWebcamCapture ? "Use File Upload" : "Webcam Capture"}
-                    </button>
-                  </div>
-                  <p className="text-[9.5px] text-slate-450 leading-snug mt-0.5">
-                    Upload standard size images or use device front camera with real-time automatic studio level enhancements.
-                  </p>
-                  {formInputs.photo && (
-                    <button
-                      type="button"
-                      onClick={handleResetPhoto}
-                      className="text-[9px] text-rose-400 hover:text-rose-300 font-bold uppercase mt-1 inline-block"
-                    >
-                      Remove Photo
-                    </button>
-                  )}
-                </div>
-              </div>
-
-              {showWebcamCapture && (
-                <div className="pt-2 border-t border-slate-850/50">
-                  <WebcamCapture
-                    onCapture={(base64Image, isPassport) => {
-                      setPhotoRaw(base64Image);
-                      setPhotoZoom(1.0);
-                      setPhotoPanX(0);
-                      setPhotoPanY(0);
-                      setPhotoWhiten(45);
-                      setPhotoAutoCenter(true);
-                      setPhotoFilter('studio');
-                      setPhotoBgColor(isPassport ? 'white' : 'none');
-                      setHasManualBgEdits(false);
-                      setShowWebcamCapture(false);
-                    }}
-                    onClose={() => setShowWebcamCapture(false)}
-                  />
-                </div>
-              )}
-
-              {/* Photo Editor Adjustments */}
-              {formInputs.photo && (
-                <div className="pt-3 border-t border-slate-800 grid grid-cols-2 gap-x-4 gap-y-2.5">
-                  <div className="space-y-1">
-                    <div className="flex justify-between text-[9px] font-bold text-slate-400">
-                      <span>ZOOM</span>
-                      <span>{photoZoom.toFixed(2)}x</span>
-                    </div>
-                    <input
-                      type="range"
-                      min="0.5"
-                      max="2.5"
-                      step="0.05"
-                      value={photoZoom}
-                      onChange={(e) => {
-                        setPhotoZoom(parseFloat(e.target.value));
-                        setPhotoAutoCenter(false);
-                      }}
-                      className="w-full h-1 bg-slate-850 rounded-lg appearance-none cursor-pointer accent-indigo-500"
-                    />
-                  </div>
-
-                  <div className="space-y-1">
-                    <label className="text-[9px] font-bold text-slate-400 uppercase tracking-wider block">Background Color</label>
-                    <select
-                      value={photoBgColor}
-                      onChange={(e) => setPhotoBgColor(e.target.value as any)}
-                      className="w-full bg-slate-900 border border-slate-800 rounded px-2 py-0.5 text-[10px] text-slate-200 outline-none focus:border-indigo-500 font-mono"
-                    >
-                      <option value="white">White Background</option>
-                      <option value="light-blue">Light Blue Background</option>
-                      <option value="light-gray">Light Gray Background</option>
-                      <option value="none">Original Background</option>
-                    </select>
-                  </div>
-
-                  <div className="space-y-1">
-                    <div className="flex justify-between text-[9px] font-bold text-slate-400">
-                      <span>PAN X</span>
-                      <span>{photoPanX}px</span>
-                    </div>
-                    <input
-                      type="range"
-                      min="-100"
-                      max="100"
-                      step="1"
-                      value={photoPanX}
-                      onChange={(e) => {
-                        setPhotoPanX(parseInt(e.target.value));
-                        setPhotoAutoCenter(false);
-                      }}
-                      className="w-full h-1 bg-slate-850 rounded-lg appearance-none cursor-pointer accent-indigo-500"
-                    />
-                  </div>
-
-                  <div className="space-y-1">
-                    <div className="flex justify-between text-[9px] font-bold text-slate-400">
-                      <span>PAN Y</span>
-                      <span>{photoPanY}px</span>
-                    </div>
-                    <input
-                      type="range"
-                      min="-100"
-                      max="100"
-                      step="1"
-                      value={photoPanY}
-                      onChange={(e) => {
-                        setPhotoPanY(parseInt(e.target.value));
-                        setPhotoAutoCenter(false);
-                      }}
-                      className="w-full h-1 bg-slate-850 rounded-lg appearance-none cursor-pointer accent-indigo-500"
-                    />
-                  </div>
-
-                  <div className="col-span-2 flex items-center justify-between gap-3 pt-1">
-                    <label className="flex items-center gap-1.5 text-[10px] font-bold text-slate-400 cursor-pointer select-none">
-                      <input
-                        type="checkbox"
-                        checked={photoAutoCenter}
-                        onChange={(e) => setPhotoAutoCenter(e.target.checked)}
-                        className="rounded bg-slate-900 border-slate-800 text-indigo-500 focus:ring-0 focus:ring-offset-0"
-                      />
-                      <span>Auto-Center</span>
-                    </label>
-                    <button
-                      type="button"
-                      onClick={() => setShowManualBgEditor(true)}
-                      className="inline-flex items-center gap-1 px-2 py-0.5 bg-slate-850 hover:bg-slate-800 border border-slate-800 text-[9.5px] font-black uppercase tracking-wider rounded text-indigo-400 hover:text-indigo-300 transition cursor-pointer"
-                    >
-                      <Sparkles className="w-3 h-3 text-indigo-400" /> Manual Backdrop Eraser
-                    </button>
-                  </div>
-                </div>
-              )}
-            </div>
-
-            {/* Name */}
-            <div className="flex flex-col gap-1">
-              <label className="text-[10px] text-slate-400 font-bold uppercase tracking-wider">Student Name *</label>
-              <input
-                type="text"
-                required
-                placeholder="Enter full name"
-                value={formInputs.name}
-                onChange={(e) => setFormInputs(prev => ({ ...prev, name: e.target.value }))}
-                className="w-full bg-slate-950 border border-slate-850 rounded-lg p-2.5 text-xs text-slate-200 focus:outline-none focus:border-indigo-500 font-medium"
-              />
-            </div>
-
-            {/* Alternative Names */}
-            <div className="flex flex-col gap-1">
-              <label className="text-[10px] text-slate-400 font-bold uppercase tracking-wider">Alternative Names</label>
-              <input
-                type="text"
-                placeholder="Enter aliases separated by commas"
-                value={formInputs.aliases}
-                onChange={(e) => setFormInputs(prev => ({ ...prev, aliases: e.target.value }))}
-                className="w-full bg-slate-950 border border-slate-850 rounded-lg p-2.5 text-xs text-slate-200 focus:outline-none focus:border-indigo-500 font-medium"
-              />
-              <p className="text-[10px] text-slate-500">Names like alternate spellings or shortened variants are stored internally and not shown in lists.</p>
-            </div>
-
-            {/* Student Number */}
-            <div className="flex flex-col gap-1">
-              <label className="text-[10px] text-slate-400 font-bold uppercase tracking-wider">Student Number</label>
-              <input
-                type="text"
-                placeholder="Enter student number"
-                value={formInputs.adminNo}
-                onChange={(e) => setFormInputs(prev => ({ ...prev, adminNo: e.target.value }))}
-                className="w-full bg-slate-950 border border-slate-850 rounded-lg p-2.5 text-xs text-slate-200 focus:outline-none focus:border-indigo-500 font-medium"
-              />
-            </div>
-
-            {/* Grid 2 Column for Class and Stream */}
-            <div className="grid grid-cols-2 gap-3">
-              <div className="flex flex-col gap-1">
-                <label className="text-[10px] text-slate-400 font-bold uppercase tracking-wider">Class *</label>
-                <select
-                  value={(formInputs.gradeClass || '').split(' ')[0] || 'S.1'}
-                  onChange={(e) => {
-                    const nextClass = e.target.value;
-                    const currentStream = (formInputs.gradeClass || '').split(' ').slice(1).join(' ') || 'A';
-                    let nextStream = currentStream;
-                    if (['S.5', 'S.6'].includes(nextClass)) {
-                      if (!['Sciences', 'Arts'].includes(nextStream)) {
-                        nextStream = 'Sciences';
-                      }
-                    } else {
-                      if (!['A', 'B', 'C'].includes(nextStream)) {
-                        nextStream = 'A';
-                      }
-                    }
-                    setFormInputs(prev => ({ ...prev, gradeClass: `${nextClass} ${nextStream}`.trim() }));
-                  }}
-                  className="w-full bg-slate-950 border border-slate-850 rounded-lg p-2.5 text-xs text-slate-200 focus:outline-none focus:border-indigo-500 uppercase font-black"
-                >
-                  {['S.1', 'S.2', 'S.3', 'S.4', 'S.5', 'S.6'].map((clsOption) => (
-                    <option key={clsOption} value={clsOption}>{clsOption}</option>
-                  ))}
-                </select>
-              </div>
-
-              <div className="flex flex-col gap-1">
-                <label className="text-[10px] text-slate-400 font-bold uppercase tracking-wider">Stream *</label>
-                <select
-                  value={(formInputs.gradeClass || '').split(' ').slice(1).join(' ') || 'A'}
-                  onChange={(e) => {
-                    const nextStream = e.target.value;
-                    const currentClass = (formInputs.gradeClass || '').split(' ')[0] || 'S.1';
-                    setFormInputs(prev => ({ ...prev, gradeClass: `${currentClass} ${nextStream}`.trim() }));
-                  }}
-                  className="w-full bg-slate-950 border border-slate-850 rounded-lg p-2.2 text-xs text-slate-200 focus:outline-none focus:border-indigo-500 font-bold"
-                >
-                  {['S.1', 'S.2', 'S.3', 'S.4'].includes((formInputs.gradeClass || '').split(' ')[0]) ? (
-                    <>
-                      <option value="A">A</option>
-                      <option value="B">B</option>
-                      <option value="C">C</option>
-                    </>
-                  ) : (
-                    <>
-                      <option value="Sciences">Sciences</option>
-                      <option value="Arts">Arts</option>
-                    </>
-                  )}
-                </select>
-              </div>
-            </div>
-
-            {/* Gender & Boarding */}
-            <div className="grid grid-cols-2 gap-3">
-              <div className="flex flex-col gap-1">
-                <label className="text-[10px] text-slate-400 font-bold uppercase tracking-wider">Gender *</label>
-                <select
-                  value={formInputs.gender || 'Male'}
-                  onChange={(e) => setFormInputs(prev => ({ ...prev, gender: e.target.value as 'Male' | 'Female' }))}
-                  className="w-full bg-slate-950 border border-slate-850 rounded-lg p-2.5 text-xs text-slate-200 focus:outline-none focus:border-indigo-500 font-bold uppercase"
-                >
-                  <option value="Male">Male</option>
-                  <option value="Female">Female</option>
-                </select>
-              </div>
-
-              <div className="flex flex-col gap-1">
-                <label className="text-[10px] text-slate-400 font-bold uppercase tracking-wider">Boarding Status</label>
-                <select
-                  value={formInputs.boardingStatus}
-                  onChange={(e) => setFormInputs(prev => ({ ...prev, boardingStatus: e.target.value as any }))}
-                  className="w-full bg-slate-950 border border-slate-850 rounded-lg p-2.5 text-xs text-slate-350 focus:outline-none focus:border-indigo-500 uppercase font-semibold"
-                >
-                  <option value="Boarder">Hosteler (Boarding)</option>
-                  <option value="Day Scholar">Day Scholar</option>
-                </select>
-              </div>
-            </div>
-
-            {/* Remarks */}
-            <div className="flex flex-col gap-1">
-              <label className="text-[10px] text-slate-400 font-bold uppercase tracking-wider">Remarks / Note</label>
-              <input
-                type="text"
-                placeholder="e.g. Fees fully cleared, special note"
-                value={formInputs.remarks}
-                onChange={(e) => setFormInputs(prev => ({ ...prev, remarks: e.target.value }))}
-                className="w-full bg-slate-950 border border-slate-850 rounded-lg p-2.5 text-xs text-slate-200 focus:outline-none focus:border-indigo-500"
-              />
-            </div>
-
-            {/* Status Selector */}
-            <div className="bg-slate-950 p-4 rounded-lg border border-slate-850 grid grid-cols-2 gap-3">
-              <div className="flex flex-col gap-1.5">
-                <label className="text-[9px] text-slate-500 font-bold uppercase tracking-wider">Overall Clearance Status</label>
-                <select
-                  value={formInputs.isCleared ? "true" : "false"}
-                  onChange={(e) => setFormInputs(prev => ({ ...prev, isCleared: e.target.value === "true" }))}
-                  className="w-full bg-slate-900 border border-slate-800 rounded-lg p-2.2 text-xs text-slate-200 focus:outline-none uppercase font-bold tracking-wider cursor-pointer"
-                >
-                  <option value="true">CLEARED ✔</option>
-                  <option value="false">ON HOLD ✖</option>
-                </select>
-              </div>
-              <div className="flex flex-col gap-1.5">
-                <label className="text-[9px] text-slate-500 font-bold uppercase tracking-wider">Print Status</label>
-                <select
-                  value={formInputs.printStatus || 'Not Printed'}
-                  onChange={(e) => setFormInputs(prev => ({ ...prev, printStatus: e.target.value as any }))}
-                  className="w-full bg-slate-900 border border-slate-800 rounded-lg p-2.2 text-xs text-slate-200 focus:outline-none uppercase font-bold tracking-wider cursor-pointer"
-                >
-                  <option value="Not Printed">NOT PRINTED ✖</option>
-                  <option value="Printed">PRINTED ✔</option>
-                </select>
-              </div>
-            </div>
-
-            <div className="flex gap-2.5 justify-end pt-2">
+          {editingStudent && (
+            <div className="flex bg-slate-950 p-1 rounded-xl border border-slate-850 text-center font-bold text-[9px] select-none gap-1 mb-3">
               <button
                 type="button"
-                onClick={() => setShowFormModal(false)}
-                className="px-4 py-2 bg-slate-800 text-slate-400 border border-slate-700 hover:bg-slate-700 hover:text-slate-200 rounded-lg font-bold text-xs uppercase tracking-wider transition-colors cursor-pointer"
+                onClick={() => setModalTab('details')}
+                className={`flex-1 py-1.5 rounded-lg transition-all duration-150 cursor-pointer uppercase tracking-wider ${
+                  modalTab === 'details' ? 'bg-indigo-600 text-white font-black' : 'text-slate-400 hover:text-slate-200'
+                }`}
               >
-                Cancel
+                Details
               </button>
               <button
-                type="submit"
-                disabled={isSaving}
-                className="px-5 py-2 bg-indigo-600 hover:bg-indigo-500 disabled:opacity-50 disabled:cursor-not-allowed text-white border border-indigo-500 rounded-lg font-bold text-xs uppercase tracking-wider transition-colors shadow-sm cursor-pointer"
+                type="button"
+                onClick={() => setModalTab('parent')}
+                className={`flex-1 py-1.5 rounded-lg transition-all duration-150 cursor-pointer uppercase tracking-wider ${
+                  modalTab === 'parent' ? 'bg-indigo-600 text-white font-black' : 'text-slate-400 hover:text-slate-200'
+                }`}
               >
-                {isSaving ? 'Saving...' : 'Save Student'}
+                Parent Info
+              </button>
+              <button
+                type="button"
+                onClick={() => setModalTab('attendance')}
+                className={`flex-1 py-1.5 rounded-lg transition-all duration-150 cursor-pointer uppercase tracking-wider ${
+                  modalTab === 'attendance' ? 'bg-indigo-600 text-white font-black' : 'text-slate-400 hover:text-slate-200'
+                }`}
+              >
+                Gate History
               </button>
             </div>
-          </form>
+          )}
+
+          {modalTab === 'details' && (
+            <form
+              onSubmit={(e) => {
+                e.preventDefault();
+                handleFormSubmit(e);
+              }}
+              className="space-y-4"
+            >
+              {/* Passport Photo Upload & Capture Zone */}
+              <div className="bg-slate-950/45 p-3 rounded-lg border border-slate-850 space-y-3">
+                <div className="flex items-center gap-4">
+                  <div className="relative w-14 h-18 bg-slate-950 border-2 border-dashed border-slate-800 hover:border-indigo-500 flex flex-col items-center justify-center rounded cursor-pointer overflow-hidden transition shrink-0 group">
+                    {formInputs.photo ? (
+                      <>
+                        <img src={formInputs.photo} alt="Passport photo" className="w-full h-full object-cover" />
+                        <div className="absolute inset-0 bg-slate-950/70 opacity-0 group-hover:opacity-100 flex items-center justify-center text-[8px] text-slate-300 font-bold transition-opacity">
+                          CHANGE
+                        </div>
+                      </>
+                    ) : (
+                      <div className="flex flex-col items-center justify-center text-center p-1">
+                        <Upload className="w-4 h-4 text-slate-500 group-hover:text-indigo-400 mb-0.5" />
+                        <span className="text-[7.5px] text-slate-500 font-bold uppercase tracking-tight leading-none text-center">ADD PHOTO</span>
+                      </div>
+                    )}
+                    <input
+                      type="file"
+                      accept="image/png, image/jpeg, image/jpg, image/webp"
+                      onChange={async (e) => {
+                        const file = e.target.files?.[0];
+                        await handlePhotoFileChange(file);
+                      }}
+                      className="absolute inset-0 opacity-0 cursor-pointer"
+                    />
+                  </div>
+                  <div className="flex-1">
+                    <div className="flex items-center justify-between gap-2">
+                      <span className="text-[10px] font-black uppercase tracking-wider text-slate-400 block">
+                        Student Passport Photo
+                      </span>
+                      <button
+                        type="button"
+                        onClick={() => setShowWebcamCapture(!showWebcamCapture)}
+                        className="inline-flex items-center gap-1 px-2 py-0.5 bg-indigo-950 hover:bg-indigo-900 text-indigo-300 hover:text-indigo-200 text-[8.5px] font-black uppercase tracking-wider rounded border border-indigo-850/60 transition cursor-pointer"
+                      >
+                        <Camera className="w-[11px] h-[11px]" />
+                        {showWebcamCapture ? "Use File Upload" : "Webcam Capture"}
+                      </button>
+                    </div>
+                    <p className="text-[9.5px] text-slate-450 leading-snug mt-0.5">
+                      Upload standard size images or use device front camera with real-time automatic studio level enhancements.
+                    </p>
+                    {formInputs.photo && (
+                      <button
+                        type="button"
+                        onClick={handleResetPhoto}
+                        className="text-[9px] text-rose-400 hover:text-rose-300 font-bold uppercase mt-1 inline-block"
+                      >
+                        Remove Photo
+                      </button>
+                    )}
+                  </div>
+                </div>
+
+                {showWebcamCapture && (
+                  <div className="pt-2 border-t border-slate-850/50">
+                    <WebcamCapture
+                      onCapture={(base64Image, isPassport) => {
+                        setPhotoRaw(base64Image);
+                        setPhotoZoom(1.0);
+                        setPhotoPanX(0);
+                        setPhotoPanY(0);
+                        setPhotoWhiten(45);
+                        setPhotoAutoCenter(true);
+                        setPhotoFilter('studio');
+                        setPhotoBgColor(isPassport ? 'white' : 'none');
+                        setHasManualBgEdits(false);
+                        setShowWebcamCapture(false);
+                      }}
+                      onClose={() => setShowWebcamCapture(false)}
+                    />
+                  </div>
+                )}
+
+                {/* Photo Editor Adjustments */}
+                {formInputs.photo && (
+                  <div className="pt-3 border-t border-slate-800 grid grid-cols-2 gap-x-4 gap-y-2.5">
+                    <div className="space-y-1">
+                      <div className="flex justify-between text-[9px] font-bold text-slate-400">
+                        <span>ZOOM</span>
+                        <span>{photoZoom.toFixed(2)}x</span>
+                      </div>
+                      <input
+                        type="range"
+                        min="0.5"
+                        max="2.5"
+                        step="0.05"
+                        value={photoZoom}
+                        onChange={(e) => {
+                          setPhotoZoom(parseFloat(e.target.value));
+                          setPhotoAutoCenter(false);
+                        }}
+                        className="w-full h-1 bg-slate-850 rounded-lg appearance-none cursor-pointer accent-indigo-500"
+                      />
+                    </div>
+
+                    <div className="space-y-1">
+                      <label className="text-[9px] font-bold text-slate-400 uppercase tracking-wider block">Background Color</label>
+                      <select
+                        value={photoBgColor}
+                        onChange={(e) => setPhotoBgColor(e.target.value as any)}
+                        className="w-full bg-slate-900 border border-slate-800 rounded px-2 py-0.5 text-[10px] text-slate-200 outline-none focus:border-indigo-500 font-mono"
+                      >
+                        <option value="white">White Background</option>
+                        <option value="light-blue">Light Blue Background</option>
+                        <option value="light-gray">Light Gray Background</option>
+                        <option value="none">Original Background</option>
+                      </select>
+                    </div>
+
+                    <div className="space-y-1">
+                      <div className="flex justify-between text-[9px] font-bold text-slate-400">
+                        <span>PAN X</span>
+                        <span>{photoPanX}px</span>
+                      </div>
+                      <input
+                        type="range"
+                        min="-100"
+                        max="100"
+                        step="1"
+                        value={photoPanX}
+                        onChange={(e) => {
+                          setPhotoPanX(parseInt(e.target.value));
+                          setPhotoAutoCenter(false);
+                        }}
+                        className="w-full h-1 bg-slate-850 rounded-lg appearance-none cursor-pointer accent-indigo-500"
+                      />
+                    </div>
+
+                    <div className="space-y-1">
+                      <div className="flex justify-between text-[9px] font-bold text-slate-400">
+                        <span>PAN Y</span>
+                        <span>{photoPanY}px</span>
+                      </div>
+                      <input
+                        type="range"
+                        min="-100"
+                        max="100"
+                        step="1"
+                        value={photoPanY}
+                        onChange={(e) => {
+                          setPhotoPanY(parseInt(e.target.value));
+                          setPhotoAutoCenter(false);
+                        }}
+                        className="w-full h-1 bg-slate-850 rounded-lg appearance-none cursor-pointer accent-indigo-500"
+                      />
+                    </div>
+
+                    <div className="col-span-2 flex items-center justify-between gap-3 pt-1">
+                      <label className="flex items-center gap-1.5 text-[10px] font-bold text-slate-400 cursor-pointer select-none">
+                        <input
+                          type="checkbox"
+                          checked={photoAutoCenter}
+                          onChange={(e) => setPhotoAutoCenter(e.target.checked)}
+                          className="rounded bg-slate-900 border-slate-800 text-indigo-500 focus:ring-0 focus:ring-offset-0"
+                        />
+                        <span>Auto-Center</span>
+                      </label>
+                      <button
+                        type="button"
+                        onClick={() => setShowManualBgEditor(true)}
+                        className="inline-flex items-center gap-1 px-2 py-0.5 bg-slate-850 hover:bg-slate-800 border border-slate-800 text-[9.5px] font-black uppercase tracking-wider rounded text-indigo-400 hover:text-indigo-300 transition cursor-pointer"
+                      >
+                        <Sparkles className="w-3 h-3 text-indigo-400" /> Manual Backdrop Eraser
+                      </button>
+                    </div>
+                  </div>
+                )}
+              </div>
+
+              {/* Name */}
+              <div className="flex flex-col gap-1">
+                <label className="text-[10px] text-slate-400 font-bold uppercase tracking-wider">Student Name *</label>
+                <input
+                  type="text"
+                  required
+                  placeholder="Enter full name"
+                  value={formInputs.name}
+                  onChange={(e) => setFormInputs(prev => ({ ...prev, name: e.target.value }))}
+                  className="w-full bg-slate-950 border border-slate-850 rounded-lg p-2.5 text-xs text-slate-200 focus:outline-none focus:border-indigo-500 font-medium"
+                />
+              </div>
+
+              {/* Alternative Names */}
+              <div className="flex flex-col gap-1">
+                <label className="text-[10px] text-slate-400 font-bold uppercase tracking-wider">Alternative Names</label>
+                <input
+                  type="text"
+                  placeholder="Enter aliases separated by commas"
+                  value={formInputs.aliases}
+                  onChange={(e) => setFormInputs(prev => ({ ...prev, aliases: e.target.value }))}
+                  className="w-full bg-slate-950 border border-slate-850 rounded-lg p-2.5 text-xs text-slate-200 focus:outline-none focus:border-indigo-500 font-medium"
+                />
+                <p className="text-[10px] text-slate-500">Names like alternate spellings or shortened variants are stored internally and not shown in lists.</p>
+              </div>
+
+              {/* Student Number */}
+              <div className="flex flex-col gap-1">
+                <label className="text-[10px] text-slate-400 font-bold uppercase tracking-wider">Student Number</label>
+                <input
+                  type="text"
+                  placeholder="Enter student number"
+                  value={formInputs.adminNo}
+                  onChange={(e) => setFormInputs(prev => ({ ...prev, adminNo: e.target.value }))}
+                  className="w-full bg-slate-950 border border-slate-850 rounded-lg p-2.5 text-xs text-slate-200 focus:outline-none focus:border-indigo-500 font-medium"
+                />
+              </div>
+
+              {/* Grid 2 Column for Class and Stream */}
+              <div className="grid grid-cols-2 gap-3">
+                <div className="flex flex-col gap-1">
+                  <label className="text-[10px] text-slate-400 font-bold uppercase tracking-wider">Class *</label>
+                  <select
+                    value={(formInputs.gradeClass || '').split(' ')[0] || 'S.1'}
+                    onChange={(e) => {
+                      const nextClass = e.target.value;
+                      const currentStream = (formInputs.gradeClass || '').split(' ').slice(1).join(' ') || 'A';
+                      let nextStream = currentStream;
+                      if (['S.5', 'S.6'].includes(nextClass)) {
+                        if (!['Sciences', 'Arts'].includes(nextStream)) {
+                          nextStream = 'Sciences';
+                        }
+                      } else {
+                        if (!['A', 'B', 'C'].includes(nextStream)) {
+                          nextStream = 'A';
+                        }
+                      }
+                      setFormInputs(prev => ({ ...prev, gradeClass: `${nextClass} ${nextStream}`.trim() }));
+                    }}
+                    className="w-full bg-slate-950 border border-slate-850 rounded-lg p-2.5 text-xs text-slate-200 focus:outline-none focus:border-indigo-500 uppercase font-black"
+                  >
+                    {['S.1', 'S.2', 'S.3', 'S.4', 'S.5', 'S.6'].map((clsOption) => (
+                      <option key={clsOption} value={clsOption}>{clsOption}</option>
+                    ))}
+                  </select>
+                </div>
+
+                <div className="flex flex-col gap-1">
+                  <label className="text-[10px] text-slate-400 font-bold uppercase tracking-wider">Stream *</label>
+                  <select
+                    value={(formInputs.gradeClass || '').split(' ').slice(1).join(' ') || 'A'}
+                    onChange={(e) => {
+                      const nextStream = e.target.value;
+                      const currentClass = (formInputs.gradeClass || '').split(' ')[0] || 'S.1';
+                      setFormInputs(prev => ({ ...prev, gradeClass: `${currentClass} ${nextStream}`.trim() }));
+                    }}
+                    className="w-full bg-slate-950 border border-slate-850 rounded-lg p-2.2 text-xs text-slate-200 focus:outline-none focus:border-indigo-500 font-bold"
+                  >
+                    {['S.1', 'S.2', 'S.3', 'S.4'].includes((formInputs.gradeClass || '').split(' ')[0]) ? (
+                      <>
+                        <option value="A">A</option>
+                        <option value="B">B</option>
+                        <option value="C">C</option>
+                      </>
+                    ) : (
+                      <>
+                        <option value="Sciences">Sciences</option>
+                        <option value="Arts">Arts</option>
+                      </>
+                    )}
+                  </select>
+                </div>
+              </div>
+
+              {/* Gender & Boarding */}
+              <div className="grid grid-cols-2 gap-3">
+                <div className="flex flex-col gap-1">
+                  <label className="text-[10px] text-slate-400 font-bold uppercase tracking-wider">Gender *</label>
+                  <select
+                    value={formInputs.gender || 'Male'}
+                    onChange={(e) => setFormInputs(prev => ({ ...prev, gender: e.target.value as 'Male' | 'Female' }))}
+                    className="w-full bg-slate-950 border border-slate-850 rounded-lg p-2.5 text-xs text-slate-200 focus:outline-none focus:border-indigo-500 font-bold uppercase"
+                  >
+                    <option value="Male">Male</option>
+                    <option value="Female">Female</option>
+                  </select>
+                </div>
+
+                <div className="flex flex-col gap-1">
+                  <label className="text-[10px] text-slate-400 font-bold uppercase tracking-wider">Boarding Status</label>
+                  <select
+                    value={formInputs.boardingStatus}
+                    onChange={(e) => setFormInputs(prev => ({ ...prev, boardingStatus: e.target.value as any }))}
+                    className="w-full bg-slate-950 border border-slate-850 rounded-lg p-2.5 text-xs text-slate-355 focus:outline-none focus:border-indigo-500 uppercase font-semibold"
+                  >
+                    <option value="Hosteller">Hosteller</option>
+                    <option value="Day Scholar">Day Scholar</option>
+                  </select>
+                </div>
+              </div>
+
+              {/* Remarks */}
+              <div className="flex flex-col gap-1">
+                <label className="text-[10px] text-slate-400 font-bold uppercase tracking-wider">Remarks / Note</label>
+                <input
+                  type="text"
+                  placeholder="e.g. Fees fully cleared, special note"
+                  value={formInputs.remarks}
+                  onChange={(e) => setFormInputs(prev => ({ ...prev, remarks: e.target.value }))}
+                  className="w-full bg-slate-950 border border-slate-850 rounded-lg p-2.5 text-xs text-slate-200 focus:outline-none focus:border-indigo-500"
+                />
+              </div>
+
+              {/* Status Selector */}
+              <div className="bg-slate-955 p-4 rounded-lg border border-slate-850 grid grid-cols-2 gap-3">
+                <div className="flex flex-col gap-1.5">
+                  <label className="text-[9px] text-slate-500 font-bold uppercase tracking-wider">Overall Clearance Status</label>
+                  <select
+                    value={formInputs.isCleared ? "true" : "false"}
+                    onChange={(e) => setFormInputs(prev => ({ ...prev, isCleared: e.target.value === "true" }))}
+                    className="w-full bg-slate-900 border border-slate-800 rounded-lg p-2.2 text-xs text-slate-200 focus:outline-none uppercase font-bold tracking-wider cursor-pointer"
+                  >
+                    <option value="true">CLEARED ✔</option>
+                    <option value="false">ON HOLD ✖</option>
+                  </select>
+                </div>
+                <div className="flex flex-col gap-1.5">
+                  <label className="text-[9px] text-slate-500 font-bold uppercase tracking-wider">Print Status</label>
+                  <select
+                    value={formInputs.printStatus || 'Not Printed'}
+                    onChange={(e) => setFormInputs(prev => ({ ...prev, printStatus: e.target.value as any }))}
+                    className="w-full bg-slate-900 border border-slate-800 rounded-lg p-2.2 text-xs text-slate-200 focus:outline-none uppercase font-bold tracking-wider cursor-pointer"
+                  >
+                    <option value="Not Printed">NOT PRINTED ✖</option>
+                    <option value="Printed">PRINTED ✔</option>
+                  </select>
+                </div>
+              </div>
+
+              <div className="flex gap-2.5 justify-end pt-2">
+                <button
+                  type="button"
+                  onClick={() => setShowFormModal(false)}
+                  className="px-4 py-2 bg-slate-800 text-slate-400 border border-slate-700 hover:bg-slate-700 hover:text-slate-200 rounded-lg font-bold text-xs uppercase tracking-wider transition-colors cursor-pointer"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  disabled={isSaving}
+                  className="px-5 py-2 bg-indigo-600 hover:bg-indigo-500 disabled:opacity-50 disabled:cursor-not-allowed text-white border border-indigo-500 rounded-lg font-bold text-xs uppercase tracking-wider transition-colors shadow-sm cursor-pointer"
+                >
+                  {isSaving ? 'Saving...' : 'Save Student'}
+                </button>
+              </div>
+            </form>
+          )}
+
+          {modalTab === 'parent' && editingStudent && (
+            <div className="space-y-4 text-xs text-left animate-fade-in">
+              <div className="bg-slate-950/45 p-3 rounded-lg border border-slate-850 space-y-2">
+                <h4 className="text-[10px] text-indigo-400 font-black uppercase tracking-wider">Father Details</h4>
+                <input
+                  type="text"
+                  placeholder="Father Name"
+                  value={modalParentContacts.father_name || ''}
+                  onChange={(e) => setModalParentContacts(prev => ({ ...prev, father_name: e.target.value }))}
+                  className="w-full bg-slate-950 border border-slate-850 rounded p-2 text-xs text-slate-250 outline-none focus:border-indigo-500"
+                />
+                <div className="grid grid-cols-2 gap-2">
+                  <input
+                    type="text"
+                    placeholder="Father Phone"
+                    value={modalParentContacts.father_phone || ''}
+                    onChange={(e) => setModalParentContacts(prev => ({ ...prev, father_phone: e.target.value }))}
+                    className="w-full bg-slate-950 border border-slate-850 rounded p-2 text-xs text-slate-255 font-mono outline-none focus:border-indigo-500"
+                  />
+                  <input
+                    type="text"
+                    placeholder="Father WhatsApp"
+                    value={modalParentContacts.father_whatsapp || ''}
+                    onChange={(e) => setModalParentContacts(prev => ({ ...prev, father_whatsapp: e.target.value }))}
+                    className="w-full bg-slate-950 border border-slate-850 rounded p-2 text-xs text-slate-255 font-mono outline-none focus:border-indigo-500"
+                  />
+                </div>
+              </div>
+
+              <div className="bg-slate-950/45 p-3 rounded-lg border border-slate-850 space-y-2">
+                <h4 className="text-[10px] text-indigo-400 font-black uppercase tracking-wider">Mother Details</h4>
+                <input
+                  type="text"
+                  placeholder="Mother Name"
+                  value={modalParentContacts.mother_name || ''}
+                  onChange={(e) => setModalParentContacts(prev => ({ ...prev, mother_name: e.target.value }))}
+                  className="w-full bg-slate-950 border border-slate-850 rounded p-2 text-xs text-slate-255 outline-none focus:border-indigo-500"
+                />
+                <div className="grid grid-cols-2 gap-2">
+                  <input
+                    type="text"
+                    placeholder="Mother Phone"
+                    value={modalParentContacts.mother_phone || ''}
+                    onChange={(e) => setModalParentContacts(prev => ({ ...prev, mother_phone: e.target.value }))}
+                    className="w-full bg-slate-950 border border-slate-850 rounded p-2 text-xs text-slate-255 font-mono outline-none focus:border-indigo-500"
+                  />
+                  <input
+                    type="text"
+                    placeholder="Mother WhatsApp"
+                    value={modalParentContacts.mother_whatsapp || ''}
+                    onChange={(e) => setModalParentContacts(prev => ({ ...prev, mother_whatsapp: e.target.value }))}
+                    className="w-full bg-slate-950 border border-slate-850 rounded p-2 text-xs text-slate-255 font-mono outline-none focus:border-indigo-500"
+                  />
+                </div>
+              </div>
+
+              <div className="bg-slate-950/45 p-3 rounded-lg border border-slate-850 space-y-2">
+                <h4 className="text-[10px] text-indigo-400 font-black uppercase tracking-wider">Guardian / Emergency Contact</h4>
+                <div className="grid grid-cols-2 gap-2">
+                  <input
+                    type="text"
+                    placeholder="Guardian Name"
+                    value={modalParentContacts.guardian_name || ''}
+                    onChange={(e) => setModalParentContacts(prev => ({ ...prev, guardian_name: e.target.value }))}
+                    className="w-full bg-slate-950 border border-slate-850 rounded p-2 text-xs text-slate-255 outline-none focus:border-indigo-500"
+                  />
+                  <input
+                    type="text"
+                    placeholder="Relationship"
+                    value={modalParentContacts.relationship || 'Guardian'}
+                    onChange={(e) => setModalParentContacts(prev => ({ ...prev, relationship: e.target.value }))}
+                    className="w-full bg-slate-955 border border-slate-850 rounded p-2 text-xs text-slate-255 outline-none focus:border-indigo-500"
+                  />
+                </div>
+                <input
+                  type="text"
+                  placeholder="Guardian Phone"
+                  value={modalParentContacts.guardian_phone || ''}
+                  onChange={(e) => setModalParentContacts(prev => ({ ...prev, guardian_phone: e.target.value }))}
+                  className="w-full bg-slate-950 border border-slate-850 rounded p-2 text-xs text-slate-255 font-mono outline-none focus:border-indigo-500"
+                />
+              </div>
+
+              <div className="bg-slate-950/45 p-3 rounded-lg border border-slate-850 space-y-2">
+                <h4 className="text-[10px] text-indigo-400 font-black uppercase tracking-wider">Address &amp; Config</h4>
+                <input
+                  type="text"
+                  placeholder="Home Address"
+                  value={modalParentContacts.home_address || ''}
+                  onChange={(e) => setModalParentContacts(prev => ({ ...prev, home_address: e.target.value }))}
+                  className="w-full bg-slate-950 border border-slate-850 rounded p-2 text-xs text-slate-255 outline-none focus:border-indigo-500"
+                />
+                <input
+                  type="email"
+                  placeholder="Parent Email"
+                  value={modalParentContacts.email || ''}
+                  onChange={(e) => setModalParentContacts(prev => ({ ...prev, email: e.target.value }))}
+                  className="w-full bg-slate-955 border border-slate-850 rounded p-2 text-xs text-slate-255 font-mono outline-none focus:border-indigo-500"
+                />
+                <div className="flex items-center justify-between pt-1 font-bold text-[9px] uppercase tracking-wider text-slate-500">
+                  <span>Preferred Channel</span>
+                  <select
+                    value={modalParentContacts.preferred_notification || 'SMS'}
+                    onChange={(e) => setModalParentContacts(prev => ({ ...prev, preferred_notification: e.target.value }))}
+                    className="px-2 py-1 bg-slate-950 border border-slate-850 rounded font-mono text-slate-250 outline-none cursor-pointer"
+                  >
+                    <option value="SMS">SMS Alerts</option>
+                    <option value="WhatsApp">WhatsApp</option>
+                    <option value="Both">Both (WhatsApp + SMS)</option>
+                    <option value="Email">Email</option>
+                  </select>
+                </div>
+              </div>
+
+              <button
+                type="button"
+                disabled={modalParentSaving}
+                onClick={async () => {
+                  setModalParentSaving(true);
+                  try {
+                    const res = await saveParentContacts(editingStudent.id, modalParentContacts);
+                    if (res.success) {
+                      alert('Parent contacts registry synchronized.');
+                    }
+                  } catch (err: any) {
+                    alert('Sync failed: ' + err.message);
+                  } finally {
+                    setModalParentSaving(false);
+                  }
+                }}
+                className="w-full py-2.5 bg-indigo-650 hover:bg-indigo-600 disabled:bg-slate-800 disabled:text-slate-500 text-white text-xs font-black uppercase tracking-wider rounded-lg transition cursor-pointer"
+              >
+                {modalParentSaving ? 'SAVING...' : 'SAVE PARENT CONTACTS'}
+              </button>
+            </div>
+          )}
+
+          {modalTab === 'attendance' && (
+            <div className="space-y-4 text-xs text-left font-mono animate-fade-in max-h-[50vh] overflow-y-auto pr-1">
+              <h4 className="text-[10px] text-indigo-400 font-black uppercase tracking-wider font-sans border-b border-slate-850 pb-2">Student Gate Logs</h4>
+              {modalAttendanceLoading ? (
+                <div className="text-center py-8 text-slate-500 font-bold uppercase tracking-wider animate-pulse">Syncing logs history...</div>
+              ) : modalAttendanceHistory.length === 0 ? (
+                <p className="text-center py-8 text-slate-550 italic font-bold uppercase tracking-wide font-sans">No gate logs recorded.</p>
+              ) : (
+                <div className="space-y-2">
+                  {modalAttendanceHistory.map((log: any, idx: number) => (
+                    <div key={idx} className="p-2.5 bg-slate-950/60 border border-slate-850 rounded flex items-center justify-between gap-3">
+                      <div>
+                        <p className="text-slate-200 font-bold font-sans text-xs">{new Date(log.date).toLocaleDateString()}</p>
+                        <p className="text-[10px] text-slate-500 mt-0.5 leading-none">In: {log.time_in || '--:--'} &bull; Out: {log.time_out || '--:--'}</p>
+                      </div>
+                      <div className="text-right">
+                        <span className={`inline-block px-1.5 py-0.5 rounded text-[8.5px] font-black uppercase tracking-wider ${
+                          log.status === 'Present' ? 'bg-emerald-950 text-emerald-400 border border-emerald-900/30' :
+                          'bg-amber-950 text-amber-400 border border-amber-900/30'
+                        }`}>
+                          {log.status}
+                        </span>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
         </div>
       </div>
     )}

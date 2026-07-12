@@ -1,7 +1,8 @@
 import React, { useEffect, useState } from 'react';
-import { BookOpen, LogOut, CheckCircle2, Save, AlertCircle, RefreshCw, ClipboardList, Search, ChevronDown, Check, Upload, User, Smile, Award, Clock, ChevronRight, Calendar } from 'lucide-react';
+import { BookOpen, LogOut, CheckCircle2, Save, AlertCircle, RefreshCw, ClipboardList, Search, ChevronDown, Check, Upload, User, Smile, Award, Clock, ChevronRight, Calendar, MessageSquare, Phone } from 'lucide-react';
 import * as XLSX from 'xlsx';
 import SchoolLogo from './SchoolLogo.tsx';
+import AttendanceModule from './modules/AttendanceModule.tsx';
 import { 
   fetchTeacherStudents, 
   fetchTeacherMarks, 
@@ -9,7 +10,9 @@ import {
   submitTeacherMarks,
   fetchClassesFromDb,
   fetchStreamsFromDb,
-  fetchSettings
+  fetchSettings,
+  fetchAttendanceLogs,
+  fetchParentContacts
 } from '../utils/api.ts';
 
 interface TeacherPortalProps {
@@ -24,6 +27,7 @@ interface TeacherPortalProps {
   photo?: string;
   classTeacherFor?: string[];
   onLogout: () => void;
+  position?: string;
 }
 
 export default function TeacherPortal({
@@ -37,9 +41,10 @@ export default function TeacherPortal({
   gender = '',
   photo = '',
   classTeacherFor = [],
-  onLogout
+  onLogout,
+  position = 'Teacher'
 }: TeacherPortalProps) {
-  const [activeView, setActiveView] = useState<'dashboard' | 'marks'>('dashboard');
+  const [activeView, setActiveView] = useState<'dashboard' | 'marks' | 'class-attendance' | 'gate-attendance'>('dashboard');
   const [allSubjects, setAllSubjects] = useState<string[]>([]);
   const [selectedSubjects, setSelectedSubjects] = useState<string[]>([]);
   const [activeSubject, setActiveSubject] = useState<string>('');
@@ -68,6 +73,49 @@ export default function TeacherPortal({
     olevel: { integration_max: 3, exam_max: 100 },
     uace: { score_max: 100 }
   });
+
+  const [classAttendanceList, setClassAttendanceList] = useState<any[]>([]);
+  const [classAttendanceLoading, setClassAttendanceLoading] = useState<boolean>(false);
+
+  const loadClassAttendance = async () => {
+    if (!classTeacherFor || classTeacherFor.length === 0) return;
+    setClassAttendanceLoading(true);
+    try {
+      const today = new Date().toISOString().split('T')[0];
+      const studentsRes = await fetchTeacherStudents({ gradeClass: classTeacherFor[0], limit: 100 });
+      const roster = studentsRes.students || studentsRes.data || [];
+      const logsRes = await fetchAttendanceLogs({ gradeClass: classTeacherFor[0], startDate: today, endDate: today });
+      
+      const compiled = [];
+      for (const student of roster) {
+        const log = logsRes.find((l: any) => l.student_id === student.id) || null;
+        let pContacts = null;
+        try {
+          pContacts = await fetchParentContacts(student.id);
+        } catch (e) {
+          console.warn('Failed to load parent contacts for student', student.id, e);
+        }
+        compiled.push({
+          ...student,
+          time_in: log?.time_in || null,
+          time_out: log?.time_out || null,
+          status: log ? log.status : 'Absent',
+          parent: pContacts
+        });
+      }
+      setClassAttendanceList(compiled);
+    } catch (err) {
+      console.error('Failed to load class attendance logs', err);
+    } finally {
+      setClassAttendanceLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    if (activeView === 'class-attendance') {
+      loadClassAttendance();
+    }
+  }, [activeView]);
 
   const isUACE = selectedClassVal.startsWith('S.5') || selectedClassVal.startsWith('S.6');
 
@@ -1024,9 +1072,17 @@ export default function TeacherPortal({
         return;
       }
       
-      // Save all marks directly with Approved status
-      const marksList = Object.values(marksMap)
-        .map((m: any) => ({ ...m, status: 'Approved' }));
+      // Save only currently displayed (filtered) students
+      const marksList = filteredStudents.map((s: any) => {
+        const m = marksMap[s.id];
+        return { ...m, status: 'Approved' };
+      });
+      
+      if (marksList.length === 0) {
+        setError('No student records displayed to save.');
+        setSaving(false);
+        return;
+      }
       
       await saveTeacherMarks({
         gradeClass: combinedClass,
@@ -1036,13 +1092,16 @@ export default function TeacherPortal({
         teacherId,
         marksList,
         paper: selectedPaper,
-        status: 'Approved'
+        status: 'Approved',
+        expectedCount: marksList.length
       });
       
-      // Update local marksMap state to Approved
+      // Update local marksMap state to Approved for the saved records
       const updatedMarksMap = { ...marksMap };
-      Object.keys(updatedMarksMap).forEach(key => {
-        updatedMarksMap[key] = { ...updatedMarksMap[key], status: 'Approved' };
+      marksList.forEach((m: any) => {
+        if (updatedMarksMap[m.student_id]) {
+          updatedMarksMap[m.student_id] = { ...updatedMarksMap[m.student_id], status: 'Approved' };
+        }
       });
       setMarksMap(updatedMarksMap);
 
@@ -1148,7 +1207,8 @@ export default function TeacherPortal({
         teacherId,
         marksList: [updatedRecord],
         paper: selectedPaper,
-        status: 'Approved'
+        status: 'Approved',
+        expectedCount: 1
       });
 
       setMarksMap(prev => ({
@@ -1303,11 +1363,37 @@ export default function TeacherPortal({
         >
           Marks Entry Worksheets
         </button>
+
+        {classTeacherFor && classTeacherFor.length > 0 && (
+          <button
+            onClick={() => setActiveView('class-attendance')}
+            className={`px-4 py-2 text-xs font-black uppercase tracking-wider border-b-2 transition cursor-pointer ${
+              activeView === 'class-attendance'
+                ? 'border-indigo-500 text-indigo-400'
+                : 'border-transparent text-slate-400 hover:text-slate-300'
+            }`}
+          >
+            Class Attendance ({classTeacherFor[0]})
+          </button>
+        )}
+
+        {(position.includes('Deputy') || position.includes('Dean') || position.includes('Warden') || position.includes('Gate') || position.includes('Admin')) && (
+          <button
+            onClick={() => setActiveView('gate-attendance')}
+            className={`px-4 py-2 text-xs font-black uppercase tracking-wider border-b-2 transition cursor-pointer ${
+              activeView === 'gate-attendance'
+                ? 'border-indigo-500 text-indigo-400'
+                : 'border-transparent text-slate-400 hover:text-slate-300'
+            }`}
+          >
+            Gate Workspace
+          </button>
+        )}
       </div>
 
       {/* Main Workspace */}
       <main className="flex-1 max-w-7xl w-full mx-auto p-4 md:p-6 space-y-6">
-        {activeView === 'dashboard' ? (
+        {activeView === 'dashboard' && (
           <div className="space-y-6 animate-fade-in text-slate-100">
             {/* Welcome Banner Card */}
             <div className="bg-slate-950 border border-slate-850 p-6 rounded-2xl shadow-xl flex flex-col md:flex-row items-center gap-6 relative overflow-hidden">
@@ -1469,7 +1555,9 @@ export default function TeacherPortal({
               </div>
             </div>
           </div>
-        ) : (
+        )}
+
+        {activeView === 'marks' && (
           <>
             {/* Form Selection Card */}
             <div className="bg-slate-950 border border-slate-850 p-5 rounded-2xl shadow-xl space-y-5">
@@ -1997,7 +2085,158 @@ export default function TeacherPortal({
             </p>
           </div>
         )}
-        </>)}
+        </>
+      )}
+
+      {activeView === 'class-attendance' && classTeacherFor && classTeacherFor.length > 0 && (
+        <div className="space-y-6 animate-fade-in text-slate-100">
+          <div className="bg-slate-955 border border-slate-850 p-6 rounded-2xl shadow-xl flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+            <div className="space-y-1">
+              <h2 className="text-xl font-black text-slate-150 uppercase tracking-tight">Class Attendance Monitor - {classTeacherFor[0]}</h2>
+              <p className="text-xs text-slate-450 font-medium">Real-time gate scan records for your assigned classroom roster.</p>
+            </div>
+            <button
+              onClick={loadClassAttendance}
+              disabled={classAttendanceLoading}
+              className="inline-flex items-center gap-1.5 px-4 py-2 bg-indigo-600 hover:bg-indigo-500 text-white rounded-lg text-xs font-black uppercase tracking-wider transition cursor-pointer"
+            >
+              <RefreshCw className={`w-3.5 h-3.5 ${classAttendanceLoading ? 'animate-spin' : ''}`} /> Sync logs
+            </button>
+          </div>
+
+          {classAttendanceLoading ? (
+            <div className="flex flex-col items-center justify-center py-20 gap-3">
+              <RefreshCw className="w-8 h-8 text-indigo-400 animate-spin" />
+              <p className="text-xs text-slate-400 font-bold uppercase tracking-wider">Syncing class attendance logs...</p>
+            </div>
+          ) : (
+            <div className="space-y-6">
+              {/* Stats overview */}
+              <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                <div className="bg-slate-950/45 p-4 rounded-xl border border-slate-850">
+                  <span className="text-[9px] text-slate-500 font-black uppercase tracking-wider block font-mono">Class Roster</span>
+                  <span className="text-xl font-black text-slate-200 block mt-1">{classAttendanceList.length}</span>
+                </div>
+                <div className="bg-slate-950/45 p-4 rounded-xl border border-slate-850">
+                  <span className="text-[9px] text-slate-500 font-black uppercase tracking-wider block font-mono">Present Today</span>
+                  <span className="text-xl font-black text-emerald-450 block mt-1">
+                    {classAttendanceList.filter(s => s.status === 'Present' || s.status === 'Late' || s.status === 'Very Late').length}
+                  </span>
+                </div>
+                <div className="bg-slate-950/45 p-4 rounded-xl border border-slate-850">
+                  <span className="text-[9px] text-slate-500 font-black uppercase tracking-wider block font-mono">Late Arrivals</span>
+                  <span className="text-xl font-black text-amber-500 block mt-1 font-mono">
+                    {classAttendanceList.filter(s => s.status === 'Late' || s.status === 'Very Late').length}
+                  </span>
+                </div>
+                <div className="bg-slate-950/45 p-4 rounded-xl border border-slate-850">
+                  <span className="text-[9px] text-slate-500 font-black uppercase tracking-wider block font-mono">Absentees</span>
+                  <span className="text-xl font-black text-rose-500 block mt-1">
+                    {classAttendanceList.filter(s => s.status === 'Absent').length}
+                  </span>
+                </div>
+              </div>
+
+              {/* Roster logs grid */}
+              <div className="bg-slate-950/45 border border-slate-850 rounded-xl p-4 md:p-5">
+                <h3 className="text-xs font-black uppercase text-indigo-400 tracking-wider mb-4">Roster Scans &amp; Parent Contact Links</h3>
+                <div className="overflow-x-auto">
+                  <table className="w-full text-left text-xs leading-normal">
+                    <thead>
+                      <tr className="text-slate-500 font-bold uppercase text-[9px] font-mono border-b border-slate-850">
+                        <th className="py-2.5 px-3">Student Name</th>
+                        <th className="py-2.5 px-3">Admin No</th>
+                        <th className="py-2.5 px-3">Gate In</th>
+                        <th className="py-2.5 px-3">Gate Out</th>
+                        <th className="py-2.5 px-3">Status</th>
+                        <th className="py-2.5 px-3">Parent Details</th>
+                        <th className="py-2.5 px-3 text-center">Alert Parent</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-slate-850/50">
+                      {classAttendanceList.map((st: any, idx: number) => {
+                        const parentPhone = st.parent?.father_phone || st.parent?.mother_phone || st.parent?.guardian_phone || '';
+                        const parentName = st.parent?.father_name || st.parent?.mother_name || st.parent?.guardian_name || 'Parent';
+                        
+                        let alertMsg = '';
+                        if (st.status === 'Absent') {
+                          alertMsg = `Dear Parent, your child ${st.name} has not checked in at the school gate today. Please verify if they are at home. Thank you. St Paul Secondary School`;
+                        } else if (st.status === 'Late' || st.status === 'Very Late') {
+                          alertMsg = `Dear Parent, your child ${st.name} arrived late at school today at ${st.time_in}. Thank you. St Paul Secondary School`;
+                        }
+                        
+                        const waLink = `https://wa.me/${parentPhone.replace(/\D/g, '')}?text=${encodeURIComponent(alertMsg)}`;
+                        const smsLink = `sms:${parentPhone}?body=${encodeURIComponent(alertMsg)}`;
+
+                        return (
+                          <tr key={idx} className="hover:bg-slate-900/40 transition font-mono">
+                            <td className="py-3 px-3 text-slate-200 font-bold font-sans uppercase">{st.name}</td>
+                            <td className="py-3 px-3 text-slate-455">{st.adminNo}</td>
+                            <td className="py-3 px-3 text-slate-350">{st.time_in || '--:--'}</td>
+                            <td className="py-3 px-3 text-slate-350">{st.time_out || '--:--'}</td>
+                            <td className="py-3 px-3">
+                              <span className={`px-1.5 py-0.5 rounded text-[8.5px] font-black uppercase tracking-wider ${
+                                st.status === 'Present' ? 'bg-emerald-950 text-emerald-400 border border-emerald-900/30' :
+                                st.status === 'Late' || st.status === 'Very Late' ? 'bg-amber-950 text-amber-400 border border-amber-900/30' :
+                                'bg-rose-950 text-rose-400 border border-rose-900/30'
+                              }`}>
+                                {st.status}
+                              </span>
+                            </td>
+                            <td className="py-3 px-3 text-slate-400 font-sans text-[11px]">
+                              {st.parent ? (
+                                <div>
+                                  <p className="font-bold text-slate-300">{parentName}</p>
+                                  <p className="text-[10px] text-slate-500 font-mono">{parentPhone}</p>
+                                </div>
+                              ) : (
+                                <span className="text-slate-550">Not Registered</span>
+                              )}
+                            </td>
+                            <td className="py-3 px-3 text-center">
+                              {st.parent && parentPhone && (st.status === 'Absent' || st.status === 'Late' || st.status === 'Very Late') ? (
+                                <div className="flex justify-center gap-1.5 font-sans">
+                                  <a
+                                    href={waLink}
+                                    target="_blank"
+                                    rel="noreferrer"
+                                    className="inline-flex items-center gap-1 px-2.5 py-1 bg-emerald-950 hover:bg-emerald-900 text-emerald-400 hover:text-emerald-300 border border-emerald-900/60 rounded text-[9px] font-black uppercase tracking-wider transition cursor-pointer font-bold animate-pulse"
+                                  >
+                                    <MessageSquare className="w-3.5 h-3.5" /> WhatsApp
+                                  </a>
+                                  <a
+                                    href={smsLink}
+                                    className="inline-flex items-center gap-1 px-2.5 py-1 bg-blue-950 hover:bg-blue-900 text-blue-400 hover:text-blue-300 border border-blue-900/60 rounded text-[9px] font-black uppercase tracking-wider transition cursor-pointer font-bold"
+                                  >
+                                    <Phone className="w-3.5 h-3.5" /> SMS
+                                  </a>
+                                </div>
+                              ) : (
+                                <span className="text-slate-600 font-sans font-bold">--</span>
+                              )}
+                            </td>
+                          </tr>
+                        );
+                      })}
+                      {classAttendanceList.length === 0 && (
+                        <tr>
+                          <td colSpan={7} className="py-8 text-center text-slate-500 font-bold uppercase">No students registered in this class.</td>
+                        </tr>
+                      )}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            </div>
+          )}
+        </div>
+      )}
+
+      {activeView === 'gate-attendance' && (
+        <div className="animate-fade-in text-slate-100">
+          <AttendanceModule />
+        </div>
+      )}
       </main>
     </div>
   );

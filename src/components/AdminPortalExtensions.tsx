@@ -108,7 +108,8 @@ export default function AdminPortalExtensions({ schoolLogo, onLogoRefresh, authS
     stream: 'All',
     gender: 'All',
     performanceGrade: 'All',
-    reportStatus: 'All'
+    reportStatus: 'All',
+    boardingStatus: 'All'
   });
   const [searchResults, setSearchResults] = useState<any[]>([]);
   const [searchingStudents, setSearchingStudents] = useState(false);
@@ -147,7 +148,8 @@ export default function AdminPortalExtensions({ schoolLogo, onLogoRefresh, authS
         stream: studentSearchFilters.stream === 'All' ? undefined : studentSearchFilters.stream,
         gender: studentSearchFilters.gender === 'All' ? undefined : studentSearchFilters.gender,
         performanceGrade: studentSearchFilters.performanceGrade === 'All' ? undefined : studentSearchFilters.performanceGrade,
-        reportStatus: studentSearchFilters.reportStatus === 'All' ? undefined : studentSearchFilters.reportStatus
+        reportStatus: studentSearchFilters.reportStatus === 'All' ? undefined : studentSearchFilters.reportStatus,
+        boardingStatus: studentSearchFilters.boardingStatus === 'All' ? undefined : studentSearchFilters.boardingStatus
       });
       setSearchResults(res.data || []);
       // Reset selected IDs
@@ -334,7 +336,7 @@ export default function AdminPortalExtensions({ schoolLogo, onLogoRefresh, authS
     try {
       const streamVal = reportParams.stream === 'All' ? undefined : reportParams.stream;
       const boardingVal = reportParams.boardingStatus === 'All' ? undefined : 
-        (reportParams.boardingStatus === 'Hostellers' ? 'Boarder' : 'Day Scholar');
+        (reportParams.boardingStatus === 'Hostellers' ? 'Hosteller' : 'Day Scholar');
       
       const res = await fetchStudentsFromDb({
         gradeClass: reportParams.gradeClass,
@@ -638,9 +640,9 @@ export default function AdminPortalExtensions({ schoolLogo, onLogoRefresh, authS
   };
 
   // Compile Report Cards
-  const handleCompileReports = async (boardingFilterOverride?: 'All' | 'Day Scholar' | 'Boarder') => {
+  const handleCompileReports = async (boardingFilterOverride?: 'All' | 'Day Scholar' | 'Hosteller') => {
     const boardingStatus = boardingFilterOverride !== undefined ? boardingFilterOverride : 
-      (reportParams.boardingStatus === 'All' ? 'All' : (reportParams.boardingStatus === 'Hostellers' ? 'Boarder' : 'Day Scholar'));
+      (reportParams.boardingStatus === 'All' ? 'All' : (reportParams.boardingStatus === 'Hostellers' ? 'Hosteller' : 'Day Scholar'));
 
     const streamVal = reportParams.stream === 'All' ? undefined : reportParams.stream;
     const boardingVal = boardingStatus === 'All' ? undefined : boardingStatus;
@@ -662,14 +664,14 @@ export default function AdminPortalExtensions({ schoolLogo, onLogoRefresh, authS
 
       if (studentIds.length === 0) {
         const fullClassName = streamVal ? `${reportParams.gradeClass} ${streamVal}` : reportParams.gradeClass;
-        const boardingLabel = boardingStatus === 'All' ? 'students' : (boardingStatus === 'Boarder' ? 'hosteller students' : 'day scholar students');
+        const boardingLabel = boardingStatus === 'All' ? 'students' : (boardingStatus === 'Hosteller' ? 'hosteller students' : 'day scholar students');
         alert(`No ${boardingLabel} found in ${fullClassName} to compile report cards for.`);
         setCompilingReports(false);
         return;
       }
 
       // Confirmation message
-      const boardingLabelPlural = boardingStatus === 'All' ? 'student(s)' : (boardingStatus === 'Boarder' ? 'hosteller(s)' : 'day scholar(s)');
+      const boardingLabelPlural = boardingStatus === 'All' ? 'student(s)' : (boardingStatus === 'Hosteller' ? 'hosteller(s)' : 'day scholar(s)');
       const confirmed = window.confirm(`You are about to generate report cards for ${studentIds.length} ${boardingLabelPlural}. Continue?`);
       if (!confirmed) {
         setCompilingReports(false);
@@ -1540,7 +1542,7 @@ export default function AdminPortalExtensions({ schoolLogo, onLogoRefresh, authS
                       <div key={st.id} className="flex justify-between items-center text-[11px] px-2.5 py-1.5 hover:bg-slate-900/60 rounded-lg font-semibold text-slate-350 transition-colors border border-slate-900">
                         <span className="text-slate-100 uppercase tracking-tight">{st.name}</span>
                         <span className="text-[9px] text-slate-500 font-bold font-mono uppercase bg-slate-950/60 px-2 py-0.5 rounded border border-slate-850">
-                          {st.gradeClass} | {st.boardingStatus === 'Boarder' ? 'Hosteller' : 'Day Scholar'}
+                          {st.gradeClass} | {st.boardingStatus === 'Hosteller' || st.boardingStatus === 'Boarder' ? 'Hosteller' : 'Day Scholar'}
                         </span>
                       </div>
                     ))}
@@ -1568,7 +1570,7 @@ export default function AdminPortalExtensions({ schoolLogo, onLogoRefresh, authS
                 </button>
                 <button
                   type="button"
-                  onClick={() => handleCompileReports('Boarder')}
+                  onClick={() => handleCompileReports('Hosteller')}
                   disabled={compilingReports}
                   className="px-4 py-2.5 bg-indigo-650 hover:bg-indigo-600 disabled:opacity-50 text-white border border-indigo-500 text-xs font-black uppercase tracking-wider rounded-lg cursor-pointer flex items-center gap-1.5 shadow"
                 >
@@ -1806,7 +1808,7 @@ export default function AdminPortalExtensions({ schoolLogo, onLogoRefresh, authS
                 <label className="text-[8.5px] text-slate-500 font-bold uppercase tracking-wider">Grade/Class</label>
                 <select
                   value={studentSearchFilters.gradeClass}
-                  onChange={(e) => setStudentSearchFilters(prev => ({ ...prev, gradeClass: e.target.value }))}
+                  onChange={(e) => setStudentSearchFilters(prev => ({ ...prev, gradeClass: e.target.value, boardingStatus: 'All' }))}
                   className="bg-slate-900 border border-slate-800 rounded-lg p-2 text-xs text-slate-200 font-bold cursor-pointer uppercase"
                 >
                   <option value="All">All Classes</option>
@@ -1818,6 +1820,21 @@ export default function AdminPortalExtensions({ schoolLogo, onLogoRefresh, authS
                   <option value="S.6">S.6</option>
                 </select>
               </div>
+
+              {studentSearchFilters.gradeClass !== 'All' && (
+                <div className="flex flex-col gap-1 border border-indigo-500/25 rounded-lg p-1 bg-indigo-950/20 shadow-sm transition-all duration-200">
+                  <label className="text-[8.5px] text-indigo-400 font-black uppercase tracking-wider font-mono">Boarding Filter</label>
+                  <select
+                    value={studentSearchFilters.boardingStatus || 'All'}
+                    onChange={(e) => setStudentSearchFilters(prev => ({ ...prev, boardingStatus: e.target.value }))}
+                    className="bg-slate-900 border border-indigo-500/30 rounded-lg p-1.5 text-xs text-slate-200 font-bold cursor-pointer uppercase font-mono"
+                  >
+                    <option value="All">All Students</option>
+                    <option value="Hosteller">Hostellers</option>
+                    <option value="Day Scholar">Day Scholars</option>
+                  </select>
+                </div>
+              )}
 
               <div className="flex flex-col gap-1">
                 <label className="text-[8.5px] text-slate-500 font-bold uppercase tracking-wider">Stream</label>

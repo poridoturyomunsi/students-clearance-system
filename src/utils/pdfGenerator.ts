@@ -460,7 +460,7 @@ function drawCardFrontPdf(
   doc.setFont('helvetica', 'bold');
   doc.setFontSize(9.0);
   doc.setTextColor(0, 0, 0);
-  const boardLabel = (student.boardingStatus === 'Boarder' ? 'HOSTELLER' : 'DAY SCHOLAR').toUpperCase();
+  const boardLabel = (student.boardingStatus === 'Hosteller' ? 'HOSTELLER' : 'DAY SCHOLAR').toUpperCase();
   doc.text(boardLabel, col1X + valueOffset1, r3Y);
 
   doc.setFont('helvetica', 'bold');

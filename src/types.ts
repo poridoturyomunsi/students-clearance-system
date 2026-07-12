@@ -4,7 +4,7 @@
  */
 
 export type ClearanceStatus = 'Cleared' | 'Hold' | 'Denied';
-export type BoardingStatus = 'Boarder' | 'Day Scholar';
+export type BoardingStatus = 'Hosteller' | 'Day Scholar';
 
 export type PrintStatus = 'Printed' | 'Not Printed';
 

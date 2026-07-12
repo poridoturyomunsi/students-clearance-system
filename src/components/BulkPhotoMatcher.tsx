@@ -356,7 +356,7 @@ export default function BulkPhotoMatcher({
             name: row.name || '',
             gradeClass: row.gradeClass || '',
             gender: row.gender || 'Male',
-            boardingStatus: row.boardingStatus || 'Boarder',
+            boardingStatus: row.boardingStatus || 'Hosteller',
             isCleared: row.isCleared,
             sheetName: row.sheetName,
             errors
@@ -554,7 +554,7 @@ export default function BulkPhotoMatcher({
                     name: cellVal,
                     gradeClass: activeClass,
                     gender,
-                    boardingStatus: 'Boarder',
+                    boardingStatus: 'Hosteller',
                     isCleared: false,
                     sheetName
                   });
@@ -661,7 +661,7 @@ export default function BulkPhotoMatcher({
                   }
                 }
 
-                let boardingStatus: BoardingStatus = 'Boarder';
+                let boardingStatus: BoardingStatus = 'Hosteller';
                 if (boardingRaw) {
                   const b = boardingRaw.toLowerCase();
                   if (b.includes('day')) {
@@ -864,7 +864,7 @@ export default function BulkPhotoMatcher({
         name: c.name,
         gender: c.gender,
         gradeClass: c.gradeClass,
-        boardingStatus: c.boardingStatus || 'Boarder',
+        boardingStatus: c.boardingStatus || 'Hosteller',
         isCleared: c.isCleared,
         gateClearanceDate: c.isCleared ? today : undefined,
         mealsClearanceDate: c.isCleared ? today : undefined,

@@ -377,7 +377,7 @@ function drawCardFrontPdf(
   doc.setFont('helvetica', 'bold');
   doc.setFontSize(9.0);
   doc.setTextColor(0, 0, 0);
-  const boardLabel = (student.boardingStatus === 'Boarder' ? 'HOSTELLER' : 'DAY SCHOLAR').toUpperCase();
+  const boardLabel = (student.boardingStatus === 'Boarder' || student.boardingStatus === 'Hosteller' ? 'HOSTELLER' : 'DAY SCHOLAR').toUpperCase();
   doc.text(boardLabel, valX, r3Y);
 
   const r4Y = y + 42.5;
