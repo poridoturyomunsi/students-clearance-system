@@ -604,15 +604,15 @@ async function ensureDbInitialized() {
   }
   initializingDb = true;
 
-  // Fast path: If settings table exists, bypass full migrations (crucial for Vercel serverless cold starts)
+  // Fast path: If parent_contacts table exists, bypass full migrations (crucial for Vercel serverless cold starts)
   try {
-    await pool.query('SELECT 1 FROM settings LIMIT 1');
+    await pool.query('SELECT 1 FROM parent_contacts LIMIT 1');
     dbInitialized = true;
     initializingDb = false;
     console.log('[DB-INIT-LOG] Database is already initialized. Skipping full migration schemas.');
     return true;
   } catch (fastErr) {
-    console.warn('[DB-INIT-LOG] settings table check failed. Running full database schema migration...');
+    console.warn('[DB-INIT-LOG] parent_contacts table check failed. Running full database schema migration...');
   }
 
   try {
