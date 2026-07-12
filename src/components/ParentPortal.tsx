@@ -92,7 +92,7 @@ export default function ParentPortal({ studentId, studentName, adminNo, schoolLo
       {/* Top Header */}
       <header className="bg-slate-900 border-b border-slate-850 px-4 md:px-6 py-4 flex items-center justify-between shadow-md shrink-0">
         <div className="flex items-center gap-3">
-          <SchoolLogo logo={schoolLogo} size="w-9 h-9" />
+          <SchoolLogo logoBase64={schoolLogo} className="w-9 h-9" />
           <div>
             <h1 className="text-sm font-black uppercase tracking-wider text-slate-100">ST. PAUL SCHOOLS</h1>
             <p className="text-[10px] font-mono font-bold text-indigo-400 uppercase tracking-widest leading-none">Parent Portal</p>

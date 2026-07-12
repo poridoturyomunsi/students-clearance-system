@@ -82,8 +82,8 @@ export default function TeacherPortal({
     setClassAttendanceLoading(true);
     try {
       const today = new Date().toISOString().split('T')[0];
-      const studentsRes = await fetchTeacherStudents({ gradeClass: classTeacherFor[0], limit: 100 });
-      const roster = studentsRes.students || studentsRes.data || [];
+      const studentsRes = await fetchTeacherStudents(classTeacherFor[0]);
+      const roster = Array.isArray(studentsRes) ? studentsRes : [];
       const logsRes = await fetchAttendanceLogs({ gradeClass: classTeacherFor[0], startDate: today, endDate: today });
       
       const compiled = [];
