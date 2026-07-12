@@ -2651,15 +2651,30 @@ async function sendTwilioWhatsApp(toPhone, messageBody) {
     return { success: false, error: 'Credentials missing' };
   }
 
+  function formatPhoneNumber(phone) {
+    let cleaned = phone.replace(/\s+/g, '').replace(/[-()]/g, '');
+    if (cleaned.startsWith('+')) {
+      return cleaned;
+    }
+    if (cleaned.startsWith('0')) {
+      return '+256' + cleaned.substring(1);
+    }
+    if (cleaned.length === 9 && (cleaned.startsWith('7') || cleaned.startsWith('3') || cleaned.startsWith('4'))) {
+      return '+256' + cleaned;
+    }
+    if (cleaned.startsWith('256')) {
+      return '+' + cleaned;
+    }
+    return '+' + cleaned;
+  }
+
   // Standardize the recipient phone format
   let formattedTo = toPhone.trim();
   if (!formattedTo.startsWith('whatsapp:')) {
-    if (formattedTo.startsWith('+')) {
-      formattedTo = `whatsapp:${formattedTo}`;
-    } else {
-      formattedTo = `whatsapp:+${formattedTo}`;
-    }
+    const rawFormatted = formatPhoneNumber(formattedTo);
+    formattedTo = `whatsapp:${rawFormatted}`;
   }
+
 
   // Ensure from phone starts with 'whatsapp:'
   if (!fromPhone.startsWith('whatsapp:')) {
