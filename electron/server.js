@@ -4292,54 +4292,101 @@ app.post('/api/auth/login', async (req, res) => {
     }
 
     if (role === 'parent') {
-      const [stRows] = await pool.query('SELECT * FROM students WHERE adminNo = ?', [username]);
-      if (stRows.length === 0) {
-        return res.status(401).json({ error: 'Student record not found for parent login.' });
-      }
-      const student = stRows[0];
-      const studentId = student.id;
-
-      // Find parent contact by studentId
-      const [pRows] = await pool.query('SELECT * FROM parent_contacts WHERE student_id = ?', [studentId]);
-      
-      let authenticated = false;
+      let student = null;
       let matchedParent = 'Parent';
-      
-      if (pRows.length > 0) {
-        const pc = pRows[0];
-        const phoneInput = password.trim();
-        const normalizePhone = p => p ? p.replace(/\D/g, '') : '';
-        const normInput = phoneInput.replace(/\D/g, '');
-        
-        if (normInput && (
-          (pc.father_phone && normalizePhone(pc.father_phone) === normInput) ||
-          (pc.father_whatsapp && normalizePhone(pc.father_whatsapp) === normInput)
-        )) {
-          authenticated = true;
-          matchedParent = pc.father_name || 'Father';
-        } else if (normInput && (
-          (pc.mother_phone && normalizePhone(pc.mother_phone) === normInput) ||
-          (pc.mother_whatsapp && normalizePhone(pc.mother_whatsapp) === normInput)
-        )) {
-          authenticated = true;
-          matchedParent = pc.mother_name || 'Mother';
-        } else if (normInput && (
-          (pc.guardian_phone && normalizePhone(pc.guardian_phone) === normInput) ||
-          (pc.guardian_whatsapp && normalizePhone(pc.guardian_whatsapp) === normInput)
-        )) {
-          authenticated = true;
-          matchedParent = pc.guardian_name || 'Guardian';
-        } else if (password === 'parent123' || password === pc.father_phone || password === pc.mother_phone || password === pc.guardian_phone) {
-          authenticated = true;
+      let authenticated = false;
+      const inputUser = username.trim().toLowerCase();
+      const inputPass = password.trim();
+
+      const phoneMatch = (p1, p2) => {
+        const n1 = p1 ? p1.replace(/\D/g, '') : '';
+        const n2 = p2 ? p2.replace(/\D/g, '') : '';
+        if (!n1 || !n2) return false;
+        if (n1.length >= 9 && n2.length >= 9) {
+          return n1.endsWith(n2.slice(-9)) || n2.endsWith(n1.slice(-9));
+        }
+        return n1 === n2;
+      };
+
+      // Check if username matches a student number (adminNo)
+      const [stRows] = await pool.query('SELECT * FROM students WHERE LOWER(adminNo) = ?', [inputUser]);
+      if (stRows.length > 0) {
+        student = stRows[0];
+        const [pRows] = await pool.query('SELECT * FROM parent_contacts WHERE student_id = ?', [student.id]);
+        if (pRows.length > 0) {
+          const pc = pRows[0];
+          
+          if (
+            (pc.father_phone && phoneMatch(pc.father_phone, inputPass)) ||
+            (pc.father_whatsapp && phoneMatch(pc.father_whatsapp, inputPass))
+          ) {
+            authenticated = true;
+            matchedParent = pc.father_name || 'Father';
+          } else if (
+            (pc.mother_phone && phoneMatch(pc.mother_phone, inputPass)) ||
+            (pc.mother_whatsapp && phoneMatch(pc.mother_whatsapp, inputPass))
+          ) {
+            authenticated = true;
+            matchedParent = pc.mother_name || 'Mother';
+          } else if (
+            (pc.guardian_phone && phoneMatch(pc.guardian_phone, inputPass)) ||
+            (pc.guardian_whatsapp && phoneMatch(pc.guardian_whatsapp, inputPass))
+          ) {
+            authenticated = true;
+            matchedParent = pc.guardian_name || 'Guardian';
+          } else if (inputPass === '123' || inputPass === 'parent123' || inputPass === pc.father_phone || inputPass === pc.mother_phone || inputPass === pc.guardian_phone) {
+            authenticated = true;
+            matchedParent = pc.father_name || pc.mother_name || pc.guardian_name || 'Parent';
+          }
+        } else {
+          if (inputPass === '123' || inputPass === 'parent123') {
+            authenticated = true;
+          }
         }
       } else {
-        if (password === 'parent123') {
-          authenticated = true;
+        // If not matching student number, try searching parent contacts by parent's first name
+        const [allPc] = await pool.query('SELECT * FROM parent_contacts');
+        const matchedPc = allPc.find(pc => {
+          const fFirst = pc.father_name ? pc.father_name.trim().split(/\s+/)[0].toLowerCase() : '';
+          const mFirst = pc.mother_name ? pc.mother_name.trim().split(/\s+/)[0].toLowerCase() : '';
+          const gFirst = pc.guardian_name ? pc.guardian_name.trim().split(/\s+/)[0].toLowerCase() : '';
+          
+          return fFirst === inputUser || mFirst === inputUser || gFirst === inputUser;
+        });
+
+        if (matchedPc) {
+          const [stRows2] = await pool.query('SELECT * FROM students WHERE id = ?', [matchedPc.student_id]);
+          if (stRows2.length > 0) {
+            student = stRows2[0];
+            const fFirst = matchedPc.father_name ? matchedPc.father_name.trim().split(/\s+/)[0].toLowerCase() : '';
+            const mFirst = matchedPc.mother_name ? matchedPc.mother_name.trim().split(/\s+/)[0].toLowerCase() : '';
+            const gFirst = matchedPc.guardian_name ? matchedPc.guardian_name.trim().split(/\s+/)[0].toLowerCase() : '';
+            
+            let phone = '';
+            let whatsapp = '';
+            if (fFirst === inputUser) {
+              matchedParent = matchedPc.father_name;
+              phone = matchedPc.father_phone || '';
+              whatsapp = matchedPc.father_whatsapp || '';
+            } else if (mFirst === inputUser) {
+              matchedParent = matchedPc.mother_name;
+              phone = matchedPc.mother_phone || '';
+              whatsapp = matchedPc.mother_whatsapp || '';
+            } else {
+              matchedParent = matchedPc.guardian_name;
+              phone = matchedPc.guardian_phone || '';
+              whatsapp = matchedPc.guardian_whatsapp || '';
+            }
+
+            if (inputPass === '123' || inputPass === 'parent123' || phoneMatch(phone, inputPass) || phoneMatch(whatsapp, inputPass) || inputPass === phone || inputPass === whatsapp) {
+              authenticated = true;
+            }
+          }
         }
       }
 
-      if (!authenticated) {
-        return res.status(401).json({ error: 'Invalid parent credentials. Please use the Student Number as username and parent\'s registered phone number as password.' });
+      if (!authenticated || !student) {
+        return res.status(401).json({ error: 'Invalid parent credentials. Please use your registered first name or Student Number as username, and 123 or registered phone number as password.' });
       }
 
       const payload = { id: student.id, role: 'parent', username: student.adminNo };
