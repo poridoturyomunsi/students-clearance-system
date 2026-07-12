@@ -39,7 +39,8 @@ import {
   X,
   Settings,
   History,
-  Menu
+  Menu,
+  Clock
 } from 'lucide-react';
 import { Student, ClearanceStatus, BoardingStatus } from './types.ts';
 import { getStudentsAsync, saveStudentsAsync, SCHOOL_CLASSES, INITIAL_STUDENTS } from './data.ts';
