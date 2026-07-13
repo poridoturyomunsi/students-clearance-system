@@ -623,12 +623,12 @@ async function ensureDbInitialized() {
     return true;
   } catch (fastErr) {
     console.warn('[DB-INIT-LOG] parent_contacts table check failed. Running full database schema migration...');
-    // Disk full mitigation: If it's Vercel/Cloud and we failed parent_contacts check, try to truncate pdf_tasks to free up space.
+    // Disk full mitigation: If it's Vercel/Cloud and we failed parent_contacts check, try to drop pdf_tasks to free up space.
     try {
-      await pool.query('TRUNCATE TABLE pdf_tasks');
-      console.log('[DB-CLEANUP] Successfully truncated pdf_tasks to free up disk space on Railway/cloud.');
+      await pool.query('DROP TABLE IF EXISTS pdf_tasks');
+      console.log('[DB-CLEANUP] Successfully dropped pdf_tasks to free up disk space on Railway/cloud.');
     } catch (cleanupErr) {
-      console.warn('[DB-CLEANUP] Failed to truncate pdf_tasks during init:', cleanupErr.message);
+      console.warn('[DB-CLEANUP] Failed to drop pdf_tasks during init:', cleanupErr.message);
     }
   }
 
@@ -1604,10 +1604,10 @@ app.get('/api/config-status', async (req, res) => {
   if (pool) {
     if (req.query.cleanup === 'true') {
       try {
-        await pool.query('TRUNCATE TABLE pdf_tasks');
-        cleanupMessage = 'Successfully truncated pdf_tasks table.';
+        await pool.query('DROP TABLE IF EXISTS pdf_tasks');
+        cleanupMessage = 'Successfully dropped pdf_tasks table to free up space.';
       } catch (err) {
-        cleanupMessage = 'Failed to truncate pdf_tasks: ' + err.message;
+        cleanupMessage = 'Failed to drop pdf_tasks: ' + err.message;
       }
     }
 
@@ -1623,7 +1623,7 @@ app.get('/api/config-status', async (req, res) => {
     try {
       const [rows] = await pool.query(`
         SELECT table_name AS name, 
-               table_rows AS rows,
+               table_rows AS \`rows\`,
                ROUND(((data_length + index_length) / 1024 / 1024), 2) AS size_mb
         FROM information_schema.TABLES 
         WHERE table_schema = DATABASE()
