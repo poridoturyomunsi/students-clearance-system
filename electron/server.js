@@ -545,6 +545,16 @@ async function dbSavePdfTask(taskId, status, progress, total, filename = null, e
              pdf_data = VALUES(pdf_data)`,
           [taskId, status, progress, total, filename, error, pdfData]
         );
+
+        // Clean up tasks older than 3 hours to prevent database disk bloat
+        if (status === 'completed' || status === 'failed') {
+          try {
+            await pool.query('DELETE FROM pdf_tasks WHERE updatedAt < NOW() - INTERVAL 3 HOUR');
+            console.log('[DB-CLEANUP] Successfully removed old completed/failed PDF tasks.');
+          } catch (cleanupErr) {
+            console.warn('[DB-CLEANUP] Non-blocking PDF task cleanup failed:', cleanupErr.message);
+          }
+        }
       }
     }
   } catch (err) {
@@ -613,6 +623,13 @@ async function ensureDbInitialized() {
     return true;
   } catch (fastErr) {
     console.warn('[DB-INIT-LOG] parent_contacts table check failed. Running full database schema migration...');
+    // Disk full mitigation: If it's Vercel/Cloud and we failed parent_contacts check, try to truncate pdf_tasks to free up space.
+    try {
+      await pool.query('TRUNCATE TABLE pdf_tasks');
+      console.log('[DB-CLEANUP] Successfully truncated pdf_tasks to free up disk space on Railway/cloud.');
+    } catch (cleanupErr) {
+      console.warn('[DB-CLEANUP] Failed to truncate pdf_tasks during init:', cleanupErr.message);
+    }
   }
 
   try {
@@ -1582,16 +1599,46 @@ app.use(async (req, res, next) => {
 
 app.get('/api/config-status', async (req, res) => {
   let dbConnected = false;
+  let cleanupMessage = null;
+
   if (pool) {
+    if (req.query.cleanup === 'true') {
+      try {
+        await pool.query('TRUNCATE TABLE pdf_tasks');
+        cleanupMessage = 'Successfully truncated pdf_tasks table.';
+      } catch (err) {
+        cleanupMessage = 'Failed to truncate pdf_tasks: ' + err.message;
+      }
+    }
+
     try {
       dbConnected = await ensureDbInitialized();
     } catch (err) {
       dbConnected = false;
     }
   }
+
+  let tableSizes = null;
+  if (pool) {
+    try {
+      const [rows] = await pool.query(`
+        SELECT table_name AS name, 
+               table_rows AS rows,
+               ROUND(((data_length + index_length) / 1024 / 1024), 2) AS size_mb
+        FROM information_schema.TABLES 
+        WHERE table_schema = DATABASE()
+      `);
+      tableSizes = rows;
+    } catch (err) {
+      tableSizes = { error: err.message };
+    }
+  }
+
   res.json({
     dbConnected: dbConnected,
     dbError: lastDbError,
+    cleanup: cleanupMessage,
+    tableSizes: tableSizes,
     config: currentDbConfig ? {
       host: currentDbConfig.host,
       port: currentDbConfig.port,
