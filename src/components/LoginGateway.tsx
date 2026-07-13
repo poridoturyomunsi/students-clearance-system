@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { Shield, BookOpen, GraduationCap, Users, RefreshCw, AlertCircle, Eye, EyeOff, CheckCircle } from 'lucide-react';
 import SchoolLogo from './SchoolLogo.tsx';
 import { loginUser } from '../utils/api.ts';
+import ParticleBackground from './ParticleBackground.tsx';
 
 interface LoginGatewayProps {
   onLogin: (session: { role: 'admin' | 'teacher' | 'student' | 'parent'; user: any }) => void;
@@ -55,12 +56,10 @@ export default function LoginGateway({ onLogin, schoolLogo, dbConnectionError }:
   };
 
   return (
-    <div className="min-h-screen w-full bg-radial from-slate-900 via-slate-950 to-black flex items-center justify-center p-4 font-sans select-none antialiased">
-      {/* Background glowing rings */}
-      <div className="absolute top-1/4 left-1/4 w-96 h-96 bg-indigo-500/10 rounded-full blur-3xl pointer-events-none" />
-      <div className="absolute bottom-1/4 right-1/4 w-96 h-96 bg-violet-500/10 rounded-full blur-3xl pointer-events-none" />
+    <div className="relative min-h-screen w-full bg-[#05070f] flex items-center justify-center p-4 font-sans select-none antialiased overflow-hidden">
+      <ParticleBackground />
 
-      <div className="w-full max-w-md bg-slate-900/40 border border-slate-800 rounded-3xl p-8 backdrop-blur-xl shadow-2xl space-y-8 relative overflow-hidden">
+      <div className="w-full max-w-md bg-slate-950/45 border border-white/10 rounded-3xl p-8 backdrop-blur-2xl shadow-2xl space-y-8 relative z-10 overflow-hidden">
         {/* Glow effect at the top */}
         <div className="absolute top-0 left-0 right-0 h-1 bg-gradient-to-r from-indigo-500 via-violet-500 to-pink-500 opacity-60" />
 
