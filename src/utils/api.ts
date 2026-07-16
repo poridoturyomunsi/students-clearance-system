@@ -886,4 +886,185 @@ export async function fetchParentPortalData(studentId: string): Promise<any> {
   return await apiCall(`/api/parent/student-data/${studentId}`);
 }
 
+export async function fetchBackups(): Promise<{ success: boolean; backups: any[] }> {
+  return await apiCall('/api/admin/backups');
+}
+
+export async function runBackup(): Promise<{ success: boolean; taskId: string }> {
+  return await apiCall('/api/admin/backups/run', { method: 'POST' });
+}
+
+export async function restoreBackup(filename: string): Promise<{ success: boolean; taskId: string }> {
+  return await apiCall('/api/admin/backups/restore', {
+    method: 'POST',
+    body: JSON.stringify({ filename })
+  });
+}
+
+export async function deleteBackup(filename: string): Promise<{ success: boolean }> {
+  return await apiCall(`/api/admin/backups/${encodeURIComponent(filename)}`, {
+    method: 'DELETE'
+  });
+}
+
+export async function fetchBackupConfig(): Promise<{ autoBackupEnabled: boolean; retentionDays: number }> {
+  return await apiCall('/api/admin/backups/config');
+}
+
+export async function saveBackupConfig(config: { autoBackupEnabled: boolean; retentionDays: number }): Promise<{ success: boolean }> {
+  return await apiCall('/api/admin/backups/config', {
+    method: 'POST',
+    body: JSON.stringify(config)
+  });
+}
+
+export async function saveStudentsBulkInDbTask(students: Student[]): Promise<{ success: boolean; taskId: string }> {
+  return await apiCall('/api/students/bulk-task', {
+    method: 'POST',
+    body: JSON.stringify({ students })
+  });
+}
+
+export async function calculateRankingsTask(term: string, year: number): Promise<{ success: boolean; taskId: string }> {
+  return await apiCall('/api/admin/calculate-rankings', {
+    method: 'POST',
+    body: JSON.stringify({ term, year })
+  });
+}
+
+import { Staff, LeaveRequest, TimetableSlot } from '../types';
+
+export async function fetchStaffList(params?: {
+  category?: string;
+  department?: string;
+  status?: string;
+  search?: string;
+}): Promise<Staff[]> {
+  let queryString = '';
+  if (params) {
+    const queryParts = Object.entries(params)
+      .filter(([_, val]) => val !== undefined && val !== null && val !== '')
+      .map(([key, val]) => `${encodeURIComponent(key)}=${encodeURIComponent(String(val))}`);
+    if (queryParts.length > 0) {
+      queryString = '?' + queryParts.join('&');
+    }
+  }
+  return await apiCall(`/api/staff${queryString}`);
+}
+
+export async function fetchStaffMember(id: string): Promise<Staff> {
+  return await apiCall(`/api/staff/${id}`);
+}
+
+export async function createStaffMember(payload: Partial<Staff>): Promise<{ success: boolean; id: string; username: string }> {
+  return await apiCall('/api/staff', {
+    method: 'POST',
+    body: JSON.stringify(payload)
+  });
+}
+
+export async function updateStaffMember(id: string, payload: Partial<Staff>): Promise<{ success: boolean }> {
+  return await apiCall(`/api/staff/${id}`, {
+    method: 'PUT',
+    body: JSON.stringify(payload)
+  });
+}
+
+export async function deleteStaffMember(id: string): Promise<{ success: boolean }> {
+  return await apiCall(`/api/staff/${id}`, {
+    method: 'DELETE'
+  });
+}
+
+export async function resetStaffPassword(id: string): Promise<{ success: boolean; message: string }> {
+  return await apiCall(`/api/staff/${id}/reset-password`, {
+    method: 'POST'
+  });
+}
+
+export async function updateStaffStatus(id: string, status: string): Promise<{ success: boolean }> {
+  return await apiCall(`/api/staff/${id}/status`, {
+    method: 'POST',
+    body: JSON.stringify({ status })
+  });
+}
+
+export async function changeStaffPassword(payload: { oldPassword: string; newPassword: string }): Promise<{ success: boolean }> {
+  return await apiCall('/api/staff/change-password', {
+    method: 'POST',
+    body: JSON.stringify(payload)
+  });
+}
+
+export async function importStaffBulk(staff: any[]): Promise<{ success: boolean; report: { success: any[]; skipped: any[]; errors: any[] } }> {
+  return await apiCall('/api/staff/import', {
+    method: 'POST',
+    body: JSON.stringify({ staff })
+  });
+}
+
+export async function fetchStaffLeaveRequests(staffId: string): Promise<LeaveRequest[]> {
+  return await apiCall(`/api/staff/${staffId}/leave-requests`);
+}
+
+export async function submitLeaveRequest(staffId: string, payload: Partial<LeaveRequest>): Promise<{ success: boolean }> {
+  return await apiCall(`/api/staff/${staffId}/leave-requests`, {
+    method: 'POST',
+    body: JSON.stringify(payload)
+  });
+}
+
+export async function fetchAllLeaveRequestsAdmin(): Promise<LeaveRequest[]> {
+  return await apiCall('/api/admin/leave-requests');
+}
+
+export async function updateLeaveRequestAdmin(id: number, payload: { status: string; remarks?: string; approvedBy?: string }): Promise<{ success: boolean }> {
+  return await apiCall(`/api/admin/leave-requests/${id}`, {
+    method: 'PUT',
+    body: JSON.stringify(payload)
+  });
+}
+
+export async function fetchStaffTimetable(staffId: string): Promise<TimetableSlot[]> {
+  return await apiCall(`/api/staff/${staffId}/timetable`);
+}
+
+export async function saveStaffTimetable(staffId: string, slots: TimetableSlot[]): Promise<{ success: boolean }> {
+  return await apiCall(`/api/staff/${staffId}/timetable`, {
+    method: 'POST',
+    body: JSON.stringify({ slots })
+  });
+}
+
+export async function fetchStaffReports(): Promise<{
+  totals: { count: number; category: string }[];
+  gender: { count: number; gender: string }[];
+  departments: { count: number; department: string }[];
+  status: { count: number; status: string }[];
+  newThisYear: number;
+}> {
+  return await apiCall('/api/reports/staff');
+}
+
+export async function verifyDocumentToken(token: string): Promise<{
+  success: boolean;
+  status: string;
+  documentType?: string;
+  error?: string;
+  metadata?: {
+    name: string;
+    photo: string | null;
+    category?: string;
+    department?: string;
+    position?: string;
+    employmentStatus?: string;
+    issueDate?: string;
+    expiryDate?: string;
+    status?: string;
+    [key: string]: any;
+  };
+}> {
+  return await apiCall(`/api/verify/${token}`);
+}
+
 

@@ -156,3 +156,72 @@ export interface DatabaseConnectionStatus {
   errorMessage: string | null;
   connectionMode: 'network' | 'offline';
 }
+
+export interface Staff {
+  id: string;
+  username: string;
+  firstName?: string;
+  middleName?: string;
+  lastName?: string;
+  name: string;
+  employeeNumber?: string;
+  gender?: string;
+  dob?: string;
+  nationalId?: string;
+  phone?: string;
+  email?: string;
+  residentialAddress?: string;
+  district?: string;
+  nationality?: string;
+  religion?: string;
+  category: 'Teaching' | 'Non-Teaching';
+  department?: string;
+  dateAppointed?: string;
+  employmentStatus: 'Permanent' | 'Contract' | 'Temporary' | 'Part-time';
+  salaryScale?: string;
+  qualification?: string;
+  emergencyContactName?: string;
+  emergencyContactPhone?: string;
+  forcePasswordChange: boolean;
+  verificationToken?: string;
+  subjects: string[];
+  classes: string[];
+  assignments?: { subject: string, grade_class: string }[];
+  classTeacherFor?: string[];
+  position?: string;
+  photo?: string;
+  signature?: string;
+  status: 'Active' | 'On Leave' | 'Suspended' | 'Retired' | 'Resigned';
+  createdAt?: string;
+  hasSignature?: boolean;
+}
+
+export interface LeaveRequest {
+  id?: number;
+  staff_id: string;
+  staff_name?: string;
+  staff_category?: string;
+  staff_department?: string;
+  staff_position?: string;
+  leave_type: string;
+  start_date: string;
+  end_date: string;
+  reason: string;
+  status: 'Pending' | 'Approved' | 'Rejected';
+  approved_by?: string;
+  remarks?: string;
+  createdAt?: string;
+  updatedAt?: string;
+}
+
+export interface TimetableSlot {
+  id?: number;
+  staff_id?: string;
+  dayOfWeek: string;
+  periodName: string;
+  startTime: string;
+  endTime: string;
+  gradeClass: string;
+  subject: string;
+  room?: string;
+}

@@ -86,13 +86,14 @@ import ManualBackgroundEditor from './components/ManualBackgroundEditor.tsx';
 import LoginGateway from './components/LoginGateway.tsx';
 import StudentPortal from './components/StudentPortal.tsx';
 import StudentForcePasswordChange from './components/StudentForcePasswordChange.tsx';
-import TeacherPortal from './components/TeacherPortal.tsx';
+import StaffPortal from './components/StaffPortal.tsx';
+import DocumentVerificationPortal from './components/DocumentVerificationPortal.tsx';
 import AdminPortalExtensions from './components/AdminPortalExtensions.tsx';
 import AdminSettingsView from './components/AdminSettingsView.tsx';
 
 // Statically imported feature modules
 import StudentsModule from './components/modules/StudentsModule.tsx';
-import TeachersModule from './components/modules/TeachersModule.tsx';
+import StaffModule from './components/modules/StaffModule.tsx';
 import SubjectsModule from './components/modules/SubjectsModule.tsx';
 import ExamsModule from './components/modules/ExamsModule.tsx';
 import ClearanceModule from './components/modules/ClearanceModule.tsx';
@@ -128,7 +129,9 @@ import {
   triggerFileDownload,
   fetchParentContacts,
   saveParentContacts,
-  fetchStudentGateHistory
+  fetchStudentGateHistory,
+  saveStudentsBulkInDbTask,
+  calculateRankingsTask
 } from './utils/api.ts';
 
 // Top-level helper so it's available before App renders
@@ -288,7 +291,7 @@ function AppContent() {
   // Background Tasks Queue States
   interface BackgroundTask {
     id: string;
-    type: 'pdf' | 'report';
+    type: 'pdf' | 'report' | 'import' | 'ranking' | 'backup' | 'restore';
     name: string;
     status: 'processing' | 'completed' | 'failed';
     progress: number;
@@ -309,8 +312,15 @@ function AppContent() {
               clearInterval(intervalId);
               
               if (t.status === 'processing') {
-                const downloadUrl = `${getApiBaseUrl()}/api/pdf/download/${res.filename}`;
-                triggerFileDownload(downloadUrl, res.filename!);
+                if (res.filename) {
+                  const downloadUrl = `${getApiBaseUrl()}/api/pdf/download/${res.filename}`;
+                  triggerFileDownload(downloadUrl, res.filename!);
+                }
+
+                if (t.type === 'import' || t.type === 'restore') {
+                  // Reload students list if we imported students or restored database
+                  loadStudentsFromServer();
+                }
 
                 if (t.type === 'pdf') {
                   setStudents(prevStudents => {
@@ -353,7 +363,7 @@ function AppContent() {
               return {
                 ...t,
                 status: 'failed',
-                error: res.error || 'Failed to generate file.'
+                error: res.error || 'Failed to complete task.'
               };
             } else {
               return {
@@ -372,7 +382,7 @@ function AppContent() {
   };
 
   const handleAddTask = useCallback((task: {
-    type: 'pdf' | 'report';
+    type: 'pdf' | 'report' | 'import' | 'ranking' | 'backup' | 'restore';
     name: string;
     taskId: string;
     total: number;
@@ -1792,14 +1802,15 @@ function AppContent() {
     setPrintNewOnly(false);
   }, []);
 
-  // Dev shortcut: directly render TeacherPortal when visiting /_dev_teacher
+  // Dev shortcut: directly render StaffPortal when visiting /_dev_teacher
   if (typeof window !== 'undefined' && window.location && window.location.pathname === '/_dev_teacher') {
     return (
-      <Suspense fallback={<Loading message="Loading Teacher Portal..." />}>
-        <TeacherPortal
-          teacherId="dev-teacher-1"
-          teacherName="Dev Teacher"
-          teacherUsername="biirokeneth"
+      <Suspense fallback={<Loading message="Loading Staff Portal..." />}>
+        <StaffPortal
+          staffId="dev-teacher-1"
+          staffName="Dev Teacher"
+          staffUsername="biirokeneth"
+          category="Teaching"
           assignedClasses={["S.4"]}
           assignedSubjects={["Mathematics"]}
           schoolLogo={schoolLogo || DEFAULT_SCHOOL_LOGO}
@@ -3454,6 +3465,15 @@ function AppContent() {
   };
 
   // --- SESSION RENDER GATEWAYS ---
+  // Public route bypass for Document Verification Portal
+  if (typeof window !== 'undefined' && window.location && window.location.pathname.startsWith('/verify/')) {
+    return (
+      <Suspense fallback={<Loading message="Opening secure verification link..." />}>
+        <DocumentVerificationPortal />
+      </Suspense>
+    );
+  }
+
   if (!authSession) {
     return (
       <LoginGateway
@@ -3994,11 +4014,12 @@ function AppContent() {
 
   if (authSession.role === 'teacher') {
     return (
-      <Suspense fallback={<Loading message="Loading Teacher Portal..." />}>
-        <TeacherPortal
-          teacherId={authSession.user.id}
-          teacherName={authSession.user.name}
-          teacherUsername={authSession.user.username}
+      <Suspense fallback={<Loading message="Loading Staff Portal..." />}>
+        <StaffPortal
+          staffId={authSession.user.id}
+          staffName={authSession.user.name}
+          staffUsername={authSession.user.username}
+          category={authSession.user.category || 'Teaching'}
           assignedClasses={authSession.user.classes || []}
           assignedSubjects={authSession.user.subjects || []}
           teacherAssignments={authSession.user.assignments || []}
@@ -4008,6 +4029,7 @@ function AppContent() {
           classTeacherFor={authSession.user.classTeacherFor}
           onLogout={handleLogout}
           position={authSession.user.position}
+          forcePasswordChange={authSession.user.forcePasswordChange || false}
         />
       </Suspense>
     );
@@ -4230,7 +4252,7 @@ function AppContent() {
                 : 'text-slate-400 hover:text-slate-200 hover:bg-slate-850/50'
             }`}
           >
-            <BookOpen className="w-4 h-4" /> School Management & Teachers (Uganda EMIS)
+            <BookOpen className="w-4 h-4" /> School & Staff Management (Uganda EMIS)
           </button>
           <button
             onClick={() => setAdminActiveTab('attendance')}
@@ -6745,7 +6767,7 @@ function AppContent() {
       {adminActiveTab === 'school' && (
         <div className="p-4 md:p-6 bg-slate-900 min-h-screen">
           <Suspense fallback={<Loading message="Loading School Management..." />}>
-            <TeachersModule />
+            <StaffModule />
           </Suspense>
         </div>
       )}
@@ -6760,6 +6782,7 @@ function AppContent() {
               handleOpenDbSettings={handleOpenDbSettings}
               handleLogout={handleLogout}
               schoolLogo={schoolLogo}
+              handleAddTask={handleAddTask}
             />
           </Suspense>
         </div>
@@ -6793,46 +6816,23 @@ function AppContent() {
       <BulkPhotoMatcher 
         isOpen={showBulkPhotoMatcher} 
         onClose={() => setShowBulkPhotoMatcher(false)} 
-        onImport={(newStudents) => {
-          // Merge imported students into the master list dynamically
-          const updatedStudents = [...students];
-          
-          newStudents.forEach((newStd) => {
-            const normNewName = newStd.name.trim().toLowerCase().replace(/\s+/g, ' ');
-            const normNewAdmin = newStd.adminNo.trim().toLowerCase().replace(/\s+/g, '');
-            
-            // Find if this student already exists in the master database.
-            // Match accurately on unique adminNo OR both name and class together (instead of greedy name OR adminNo).
-            const existingIdx = updatedStudents.findIndex((s) => {
-              const sAdmin = s.adminNo.trim().toLowerCase().replace(/\s+/g, '');
-              const matchesAdmin = sAdmin && sAdmin === normNewAdmin;
-              const matchesNameAndClass = s.name.trim().toLowerCase().replace(/\s+/g, ' ') === normNewName &&
-                                          s.gradeClass.trim().toLowerCase().replace(/\s+/g, ' ') === newStd.gradeClass.trim().toLowerCase().replace(/\s+/g, ' ');
-              return matchesAdmin || (!normNewAdmin && matchesNameAndClass);
-            });
-            
-            if (existingIdx !== -1) {
-              // Update and merge: overwrite details if provided, prioritizing incoming photos
-              const existingStd = updatedStudents[existingIdx];
-              updatedStudents[existingIdx] = {
-                ...existingStd,
-                photo: newStd.photo || existingStd.photo,
-                gender: newStd.gender || existingStd.gender,
-                gradeClass: newStd.gradeClass || existingStd.gradeClass,
-                isCleared: newStd.isCleared !== undefined ? newStd.isCleared : existingStd.isCleared,
-                remarks: newStd.remarks || existingStd.remarks,
-                // Preserving dates
-                gateClearanceDate: existingStd.gateClearanceDate || newStd.gateClearanceDate,
-                mealsClearanceDate: existingStd.mealsClearanceDate || newStd.mealsClearanceDate,
-                printStatus: existingStd.printStatus || newStd.printStatus || 'Not Printed'
-              };
+        onImport={async (newStudents) => {
+          try {
+            const res = await saveStudentsBulkInDbTask(newStudents);
+            if (res && res.success) {
+              handleAddTask({
+                type: 'import',
+                name: `Importing student spreadsheet & photos (${newStudents.length} items)`,
+                taskId: res.taskId,
+                total: newStudents.length
+              });
+              alert('Student import started in the background. Check progress in the Background Tasks panel (bottom right).');
             } else {
-              // Register as a completely new student record
-              updatedStudents.push(newStd);
+              alert('Failed to start bulk student import.');
             }
-          });
-          
-          handleSaveAndSync(updatedStudents);
+          } catch (e: any) {
+            alert('Bulk student import failed: ' + e.message);
+          }
         }} 
         existingStudents={students} 
       />
@@ -6931,7 +6931,7 @@ function AppContent() {
         {showFormModal && (
           <div className="no-print fixed inset-0 z-50 bg-slate-950/80 backdrop-blur-xs flex items-center justify-center p-4 overflow-y-auto py-8">
             <div className="bg-slate-900 border border-slate-800 rounded-xl max-w-md w-full p-6 shadow-2xl flex flex-col gap-4 max-h-[90vh] md:max-h-[85vh] overflow-y-auto scrollbar-thin">
-            
+              {console.log("DEBUG MODAL STATE:", { editingStudent, showFormModal, modalTab })}
               <div className="flex justify-between items-center border-b border-slate-800 pb-3">
             <h3 className="text-sm font-black uppercase text-slate-100 tracking-wider">
               {editingStudent ? 'Edit Student Details' : 'Register New Student'}

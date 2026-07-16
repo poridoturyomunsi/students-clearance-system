@@ -600,6 +600,372 @@ function isSameConfig(c1, c2) {
          c1.database === c2.database;
 }
 
+let backupSchedulerStarted = false;
+
+function escapeSqlVal(val) {
+  if (val === null || val === undefined) return 'NULL';
+  if (typeof val === 'number') return String(val);
+  if (typeof val === 'boolean') return val ? '1' : '0';
+  if (val instanceof Date) {
+    return `'${val.toISOString().slice(0, 19).replace('T', ' ')}'`;
+  }
+  if (typeof val === 'object') {
+    val = JSON.stringify(val);
+  }
+  const escaped = String(val)
+    .replace(/\\/g, '\\\\')
+    .replace(/'/g, "\\'")
+    .replace(/\r/g, '\\r')
+    .replace(/\n/g, '\\n')
+    .replace(/\x1a/g, '\\Z'); // CTRL+Z
+  return `'${escaped}'`;
+}
+
+async function backupDatabaseJS(outputPath) {
+  const fs = require('fs');
+  const [tablesRows] = await pool.query('SHOW TABLES');
+  const dbName = currentDbConfig.database || 'student_clearance';
+  const tableKey = `Tables_in_${dbName}`;
+  const tables = tablesRows.map(row => row[tableKey] || row[Object.keys(row)[0]]);
+  
+  let sqlDump = `-- SPSS Database Backup\n-- Date: ${new Date().toISOString()}\n\n`;
+  sqlDump += `CREATE DATABASE IF NOT EXISTS \`${dbName}\`;\nUSE \`${dbName}\`;\n\n`;
+  
+  for (const table of tables) {
+    const [createRows] = await pool.query(`SHOW CREATE TABLE \`${table}\``);
+    const createSql = createRows[0]['Create Table'];
+    sqlDump += `DROP TABLE IF EXISTS \`${table}\`;\n${createSql};\n\n`;
+    
+    const [rows] = await pool.query(`SELECT * FROM \`${table}\``);
+    if (rows.length > 0) {
+      sqlDump += `INSERT INTO \`${table}\` VALUES \n`;
+      const valStrings = rows.map(row => {
+        const vals = Object.values(row).map(val => escapeSqlVal(val));
+        return `(${vals.join(', ')})`;
+      });
+      sqlDump += valStrings.join(',\n') + ';\n\n';
+    }
+  }
+  
+  const zlib = require('zlib');
+  const gzipData = zlib.gzipSync(Buffer.from(sqlDump, 'utf8'));
+  fs.writeFileSync(outputPath, gzipData);
+}
+
+async function restoreDatabaseJS(inputPath) {
+  const fs = require('fs');
+  const zlib = require('zlib');
+  const gzipData = fs.readFileSync(inputPath);
+  const sqlDump = zlib.gunzipSync(gzipData).toString('utf8');
+  
+  const connection = await pool.getConnection();
+  try {
+    await connection.query('SET FOREIGN_KEY_CHECKS = 0');
+    
+    // Split by statement separator (;\n\n or ;\r\n\r\n)
+    const statements = sqlDump.split(/;\r?\n\r?\n/);
+    for (let statement of statements) {
+      statement = statement.trim();
+      if (!statement) continue;
+      if (!statement.endsWith(';')) {
+        statement += ';';
+      }
+      try {
+        await connection.query(statement);
+      } catch (stmtErr) {
+        console.error('Failed to restore statement:', statement.substring(0, 100), stmtErr.message);
+        throw stmtErr;
+      }
+    }
+    
+    await connection.query('SET FOREIGN_KEY_CHECKS = 1');
+  } finally {
+    connection.release();
+  }
+}
+
+async function checkAndRunBackup() {
+  try {
+    if (!pool || !dbInitialized) return;
+    
+    // Get settings
+    const [enabledRows] = await pool.query("SELECT val_value FROM settings WHERE key_name = 'auto_backup_enabled'");
+    const enabled = enabledRows[0]?.val_value !== 'false'; // default true
+    
+    if (!enabled) return;
+    
+    const [lastBackupRows] = await pool.query("SELECT val_value FROM settings WHERE key_name = 'last_backup_time'");
+    const lastBackupTime = lastBackupRows[0]?.val_value ? parseInt(lastBackupRows[0].val_value, 10) : 0;
+    
+    const now = Date.now();
+    const oneDayMs = 24 * 60 * 60 * 1000;
+    
+    if (now - lastBackupTime >= oneDayMs) {
+      console.log('[Auto-Backup] Last backup was more than 24h ago. Starting daily automatic database backup...');
+      
+      const fs = require('fs');
+      const path = require('path');
+      const backupsDir = path.join(getExportsDir(), 'backups');
+      if (!fs.existsSync(backupsDir)) {
+        fs.mkdirSync(backupsDir, { recursive: true });
+      }
+      
+      const filename = `auto-backup-${new Date().toISOString().slice(0, 10)}.sql.gz`;
+      const outputPath = path.join(backupsDir, filename);
+      
+      await backupDatabaseJS(outputPath);
+      
+      // Update last backup time
+      await pool.query(
+        "INSERT INTO settings (key_name, val_value) VALUES ('last_backup_time', ?) ON DUPLICATE KEY UPDATE val_value = VALUES(val_value)",
+        [String(now)]
+      );
+      
+      // Apply retention policy (delete backups older than backup_retention_days)
+      const [retentionRows] = await pool.query("SELECT val_value FROM settings WHERE key_name = 'backup_retention_days'");
+      const retentionDays = retentionRows[0]?.val_value ? parseInt(retentionRows[0].val_value, 10) : 7;
+      
+      const files = fs.readdirSync(backupsDir);
+      for (const file of files) {
+        if (!file.endsWith('.sql.gz')) continue;
+        const filePath = path.join(backupsDir, file);
+        const stat = fs.statSync(filePath);
+        const ageDays = (now - stat.mtimeMs) / oneDayMs;
+        if (ageDays > retentionDays) {
+          fs.unlinkSync(filePath);
+          console.log(`[Auto-Backup] Deleted old backup file due to retention policy: ${file}`);
+        }
+      }
+      
+      await writeAuditLog('Auto Backup', `Daily automatic database backup completed successfully: ${filename}`);
+    }
+  } catch (err) {
+    console.error('[Auto-Backup] Automatic database backup failed:', err);
+  }
+}
+
+function startAutoBackupScheduler() {
+  if (backupSchedulerStarted) return;
+  backupSchedulerStarted = true;
+  
+  // Check immediately
+  setTimeout(() => {
+    checkAndRunBackup();
+  }, 5000);
+  
+  // Check every hour
+  setInterval(() => {
+    checkAndRunBackup();
+  }, 60 * 60 * 1000);
+}
+
+async function runStaffMigrations(conn) {
+  // Check if staff table exists
+  const [tables] = await conn.query("SHOW TABLES LIKE 'staff'");
+  if (tables.length === 0) {
+    console.log('[MIGRATION] Staff table not found. Checking if teachers table exists to rename...');
+    const [tTables] = await conn.query("SHOW TABLES LIKE 'teachers'");
+    if (tTables.length > 0) {
+      console.log('[MIGRATION] Teachers table exists. Renaming teachers to staff...');
+      
+      // Drop existing foreign keys on teacher_assignments and class_teachers
+      try {
+        await conn.query('ALTER TABLE teacher_assignments DROP FOREIGN KEY teacher_assignments_ibfk_1');
+      } catch (e) {
+        console.warn('[MIGRATION] Dropping teacher_assignments FK via standard name failed:', e.message);
+      }
+      try {
+        await conn.query('ALTER TABLE class_teachers DROP FOREIGN KEY class_teachers_ibfk_1');
+      } catch (e) {
+        console.warn('[MIGRATION] Dropping class_teachers FK via standard name failed:', e.message);
+      }
+      try {
+        await conn.query('ALTER TABLE teacher_assignments DROP FOREIGN KEY fk_teacher_assignments_teachers');
+      } catch (e) {}
+      try {
+        await conn.query('ALTER TABLE class_teachers DROP FOREIGN KEY fk_class_teachers_teachers');
+      } catch (e) {}
+
+      // Rename table
+      await conn.query('RENAME TABLE teachers TO staff');
+      console.log('[MIGRATION] Successfully renamed teachers to staff.');
+    } else {
+      console.log('[MIGRATION] Creating staff table from scratch...');
+      await conn.query(`
+        CREATE TABLE staff (
+          id VARCHAR(50) PRIMARY KEY,
+          username VARCHAR(50) UNIQUE NOT NULL,
+          password_hash VARCHAR(255) NOT NULL,
+          name VARCHAR(100) NOT NULL,
+          gender VARCHAR(20) NULL,
+          subjects JSON NOT NULL,
+          classes JSON NOT NULL,
+          position VARCHAR(100) NULL,
+          signature LONGTEXT NULL,
+          photo LONGTEXT NULL,
+          status VARCHAR(20) DEFAULT 'Active',
+          createdAt TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+      `);
+    }
+  }
+
+  // Ensure all new columns exist on staff
+  const columnsToAdd = [
+    { name: 'employee_number', def: 'VARCHAR(50) NULL' },
+    { name: 'first_name', def: 'VARCHAR(50) NULL' },
+    { name: 'middle_name', def: 'VARCHAR(50) NULL' },
+    { name: 'last_name', def: 'VARCHAR(50) NULL' },
+    { name: 'dob', def: 'DATE NULL' },
+    { name: 'national_id', def: 'VARCHAR(50) NULL' },
+    { name: 'phone', def: 'VARCHAR(20) NULL' },
+    { name: 'email', def: 'VARCHAR(100) NULL' },
+    { name: 'residential_address', def: 'TEXT NULL' },
+    { name: 'district', def: 'VARCHAR(50) NULL' },
+    { name: 'nationality', def: 'VARCHAR(50) NULL' },
+    { name: 'religion', def: 'VARCHAR(50) NULL' },
+    { name: 'category', def: "VARCHAR(20) NOT NULL DEFAULT 'Teaching'" },
+    { name: 'department', def: 'VARCHAR(50) NULL' },
+    { name: 'date_appointed', def: 'DATE NULL' },
+    { name: 'employment_status', def: "VARCHAR(20) NOT NULL DEFAULT 'Permanent'" },
+    { name: 'salary_scale', def: 'VARCHAR(20) NULL' },
+    { name: 'qualification', def: 'VARCHAR(100) NULL' },
+    { name: 'emergency_contact_name', def: 'VARCHAR(100) NULL' },
+    { name: 'emergency_contact_phone', def: 'VARCHAR(20) NULL' },
+    { name: 'force_password_change', def: 'BOOLEAN NOT NULL DEFAULT FALSE' },
+    { name: 'verification_token', def: 'VARCHAR(100) UNIQUE NULL' }
+  ];
+
+  const [cols] = await conn.query('DESCRIBE staff');
+  const existingCols = cols.map(c => c.Field);
+
+  for (const col of columnsToAdd) {
+    if (!existingCols.includes(col.name)) {
+      console.log(`[MIGRATION] Adding column staff.${col.name}...`);
+      await conn.query(`ALTER TABLE staff ADD COLUMN \`${col.name}\` ${col.def}`);
+    }
+  }
+
+  // Split names for existing records that don't have first_name / last_name populated
+  const [rows] = await conn.query('SELECT id, name, first_name, last_name, verification_token FROM staff');
+  const crypto = require('crypto');
+  for (const r of rows) {
+    let updateFields = [];
+    let updateParams = [];
+    if (!r.first_name || !r.last_name) {
+      const parts = (r.name || '').trim().split(/\s+/);
+      const fName = parts[0] || 'Staff';
+      let mName = '';
+      let lName = '';
+      if (parts.length === 2) {
+        lName = parts[1];
+      } else if (parts.length > 2) {
+        mName = parts[1];
+        lName = parts.slice(2).join(' ');
+      } else {
+        lName = 'Member';
+      }
+      updateFields.push('first_name = ?', 'middle_name = ?', 'last_name = ?');
+      updateParams.push(fName, mName, lName);
+    }
+    if (!r.verification_token) {
+      const token = crypto.randomBytes(16).toString('hex');
+      updateFields.push('verification_token = ?');
+      updateParams.push(token);
+    }
+    if (updateFields.length > 0) {
+      updateParams.push(r.id);
+      await conn.query(`UPDATE staff SET ${updateFields.join(', ')} WHERE id = ?`, updateParams);
+    }
+  }
+
+  // Restore foreign keys on teacher_assignments and class_teachers pointing to staff
+  try {
+    await conn.query('ALTER TABLE teacher_assignments ADD CONSTRAINT fk_teacher_assignments_staff FOREIGN KEY (teacher_id) REFERENCES staff(id) ON DELETE CASCADE');
+  } catch (e) {}
+  try {
+    await conn.query('ALTER TABLE class_teachers ADD CONSTRAINT fk_class_teachers_staff FOREIGN KEY (teacher_id) REFERENCES staff(id) ON DELETE CASCADE');
+  } catch (e) {}
+
+  // Create leave_requests table
+  await conn.query(`
+    CREATE TABLE IF NOT EXISTS leave_requests (
+      id INT AUTO_INCREMENT PRIMARY KEY,
+      staff_id VARCHAR(50) NOT NULL,
+      leave_type VARCHAR(50) NOT NULL,
+      start_date DATE NOT NULL,
+      end_date DATE NOT NULL,
+      reason TEXT NOT NULL,
+      status ENUM('Pending', 'Approved', 'Rejected') NOT NULL DEFAULT 'Pending',
+      approved_by VARCHAR(100) NULL,
+      remarks TEXT NULL,
+      createdAt TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+      updatedAt TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+      FOREIGN KEY (staff_id) REFERENCES staff(id) ON DELETE CASCADE
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+  `);
+
+  // Create timetables table
+  await conn.query(`
+    CREATE TABLE IF NOT EXISTS timetables (
+      id INT AUTO_INCREMENT PRIMARY KEY,
+      staff_id VARCHAR(50) NOT NULL,
+      day_of_week VARCHAR(20) NOT NULL,
+      period_name VARCHAR(50) NOT NULL,
+      start_time TIME NOT NULL,
+      end_time TIME NOT NULL,
+      grade_class VARCHAR(50) NOT NULL,
+      subject VARCHAR(100) NOT NULL,
+      room VARCHAR(50) NULL,
+      createdAt TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+      FOREIGN KEY (staff_id) REFERENCES staff(id) ON DELETE CASCADE
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+  `);
+
+  // Create verifications table
+  await conn.query(`
+    CREATE TABLE IF NOT EXISTS verifications (
+      token VARCHAR(100) PRIMARY KEY,
+      document_type VARCHAR(50) NOT NULL,
+      reference_id VARCHAR(50) NOT NULL,
+      metadata JSON NULL,
+      status VARCHAR(20) NOT NULL DEFAULT 'Active',
+      expiresAt DATE NULL,
+      createdAt TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+      updatedAt TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+  `);
+
+  // Sync verifications table with active staff
+  const [activeStaff] = await conn.query('SELECT id, name, category, position, department, employment_status, verification_token, status, photo FROM staff');
+  for (const s of activeStaff) {
+    if (s.verification_token) {
+      const [vRows] = await conn.query('SELECT token FROM verifications WHERE token = ?', [s.verification_token]);
+      if (vRows.length === 0) {
+        const metadata = {
+          name: s.name,
+          photo: s.photo,
+          category: s.category,
+          department: s.department || 'N/A',
+          position: s.position || 'N/A',
+          employmentStatus: s.employment_status,
+          issueDate: new Date().toISOString().split('T')[0],
+          expiryDate: new Date(Date.now() + 365*24*60*60*1000).toISOString().split('T')[0],
+          status: s.status
+        };
+        await conn.query('INSERT INTO verifications (token, document_type, reference_id, metadata, status, expiresAt) VALUES (?, ?, ?, ?, ?, ?)', [
+          s.verification_token,
+          'Staff ID',
+          s.id,
+          JSON.stringify(metadata),
+          s.status === 'Active' ? 'Active' : 'Inactive',
+          metadata.expiryDate
+        ]);
+      }
+    }
+  }
+}
+
 async function ensureDbInitialized() {
   if (!pool || !currentDbConfig) return false;
   if (dbInitialized) return true;
@@ -617,6 +983,15 @@ async function ensureDbInitialized() {
   // Fast path: If parent_contacts table exists, bypass full migrations (crucial for Vercel serverless cold starts)
   try {
     await pool.query('SELECT 1 FROM parent_contacts LIMIT 1');
+    let fastMigConn;
+    try {
+      fastMigConn = await pool.getConnection();
+      await runStaffMigrations(fastMigConn);
+    } catch (migErr) {
+      console.error('[DB-INIT-LOG] Failed to run staff migrations in fast path:', migErr.message);
+    } finally {
+      if (fastMigConn) fastMigConn.release();
+    }
     dbInitialized = true;
     initializingDb = false;
     console.log('[DB-INIT-LOG] Database is already initialized. Skipping full migration schemas.');
@@ -755,12 +1130,34 @@ async function ensureDbInitialized() {
         pdf_path VARCHAR(255) NOT NULL
       ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;`,
 
-      `CREATE TABLE IF NOT EXISTS teachers (
+      `CREATE TABLE IF NOT EXISTS staff (
         id VARCHAR(50) PRIMARY KEY,
         username VARCHAR(50) UNIQUE NOT NULL,
         password_hash VARCHAR(255) NOT NULL,
         name VARCHAR(100) NOT NULL,
+        first_name VARCHAR(50) NULL,
+        middle_name VARCHAR(50) NULL,
+        last_name VARCHAR(50) NULL,
+        employee_number VARCHAR(50) NULL,
         gender VARCHAR(20) NULL,
+        dob DATE NULL,
+        national_id VARCHAR(50) NULL,
+        phone VARCHAR(20) NULL,
+        email VARCHAR(100) NULL,
+        residential_address TEXT NULL,
+        district VARCHAR(50) NULL,
+        nationality VARCHAR(50) NULL,
+        religion VARCHAR(50) NULL,
+        category VARCHAR(20) NOT NULL DEFAULT 'Teaching',
+        department VARCHAR(50) NULL,
+        date_appointed DATE NULL,
+        employment_status VARCHAR(20) NOT NULL DEFAULT 'Permanent',
+        salary_scale VARCHAR(20) NULL,
+        qualification VARCHAR(100) NULL,
+        emergency_contact_name VARCHAR(100) NULL,
+        emergency_contact_phone VARCHAR(20) NULL,
+        force_password_change BOOLEAN NOT NULL DEFAULT FALSE,
+        verification_token VARCHAR(100) UNIQUE NULL,
         subjects JSON NOT NULL,
         classes JSON NOT NULL,
         position VARCHAR(100) NULL,
@@ -821,7 +1218,7 @@ async function ensureDbInitialized() {
         subject VARCHAR(100) NOT NULL,
         grade_class VARCHAR(50) NOT NULL,
         createdAt TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-        FOREIGN KEY (teacher_id) REFERENCES teachers(id) ON DELETE CASCADE,
+        FOREIGN KEY (teacher_id) REFERENCES staff(id) ON DELETE CASCADE,
         UNIQUE KEY \`unique_teacher_subject_class\` (teacher_id, subject, grade_class)
       ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;`,
 
@@ -830,7 +1227,7 @@ async function ensureDbInitialized() {
         grade_class VARCHAR(50) UNIQUE NOT NULL,
         teacher_id VARCHAR(50) NOT NULL,
         createdAt TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-        FOREIGN KEY (teacher_id) REFERENCES teachers(id) ON DELETE CASCADE
+        FOREIGN KEY (teacher_id) REFERENCES staff(id) ON DELETE CASCADE
       ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;`,
       `CREATE TABLE IF NOT EXISTS announcements (
         id INT AUTO_INCREMENT PRIMARY KEY,
@@ -956,6 +1353,18 @@ async function ensureDbInitialized() {
         data LONGTEXT NOT NULL,
         expires_at TIMESTAMP NOT NULL,
         createdAt TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+      ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;`,
+      `CREATE TABLE IF NOT EXISTS compiled_rankings (
+        student_id VARCHAR(50),
+        term VARCHAR(20),
+        year INT,
+        class_position INT NOT NULL DEFAULT 0,
+        total_class INT NOT NULL DEFAULT 0,
+        stream_position INT NOT NULL DEFAULT 0,
+        total_stream INT NOT NULL DEFAULT 0,
+        updatedAt TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+        PRIMARY KEY (student_id, term, year),
+        FOREIGN KEY (student_id) REFERENCES students(id) ON DELETE CASCADE
       ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;`
     ];
 
@@ -1009,21 +1418,21 @@ async function ensureDbInitialized() {
       await pool.query("ALTER TABLE student_accounts ADD COLUMN needs_password_change TINYINT(1) DEFAULT 1 AFTER lastLogin");
     } catch (e) {}
 
-    // Alter teachers table to add position and signature if missing
+    // Alter staff table to add position and signature if missing
     try {
-      await pool.query('ALTER TABLE teachers ADD COLUMN position VARCHAR(100) NULL AFTER classes');
+      await pool.query('ALTER TABLE staff ADD COLUMN position VARCHAR(100) NULL AFTER classes');
     } catch (e) {}
     try {
-      await pool.query('ALTER TABLE teachers ADD COLUMN signature LONGTEXT NULL AFTER position');
+      await pool.query('ALTER TABLE staff ADD COLUMN signature LONGTEXT NULL AFTER position');
     } catch (e) {}
     try {
-      await pool.query('ALTER TABLE teachers ADD COLUMN gender VARCHAR(20) NULL AFTER name');
+      await pool.query('ALTER TABLE staff ADD COLUMN gender VARCHAR(20) NULL AFTER name');
     } catch (e) {}
     try {
-      await pool.query('ALTER TABLE teachers ADD COLUMN photo LONGTEXT NULL AFTER signature');
+      await pool.query('ALTER TABLE staff ADD COLUMN photo LONGTEXT NULL AFTER signature');
     } catch (e) {}
     try {
-      await pool.query("ALTER TABLE teachers ADD COLUMN status VARCHAR(20) DEFAULT 'Active' AFTER photo");
+      await pool.query("ALTER TABLE staff ADD COLUMN status VARCHAR(20) DEFAULT 'Active' AFTER photo");
     } catch (e) {}
 
     // Alter students table to add aliases field if missing
@@ -1201,16 +1610,34 @@ async function ensureDbInitialized() {
     }
 
     // Seed default teacher if not present
-    const [teacherCountRows] = await pool.query('SELECT COUNT(*) as count FROM teachers');
+    const [teacherCountRows] = await pool.query("SELECT COUNT(*) as count FROM staff WHERE category = 'Teaching'");
     if (teacherCountRows[0].count === 0) {
       const crypto = require('crypto');
       const defaultTeacherId = 'T-DEFAULT';
       const defaultPasswordHash = crypto.createHash('sha256').update('teacher123').digest('hex');
       const defaultSubjects = ["Mathematics", "Physics", "Chemistry", "English Language", "History and Political Education", "Geography"];
       const defaultClasses = ["S.1 A", "S.2 A", "S.3 A", "S.4 A", "S.5 Sciences", "S.6 Sciences"];
+      const verificationToken = crypto.randomBytes(16).toString('hex');
       await pool.query(
-        'INSERT INTO teachers (id, username, password_hash, name, subjects, classes) VALUES (?, ?, ?, ?, ?, ?)',
-        [defaultTeacherId, 'teacher', defaultPasswordHash, 'Default Teacher', JSON.stringify(defaultSubjects), JSON.stringify(defaultClasses)]
+        "INSERT INTO staff (id, username, password_hash, name, first_name, last_name, category, subjects, classes, verification_token, position) VALUES (?, ?, ?, ?, 'Default', 'Teacher', 'Teaching', ?, ?, ?, 'Teacher')",
+        [defaultTeacherId, 'teacher', defaultPasswordHash, 'Default Teacher', JSON.stringify(defaultSubjects), JSON.stringify(defaultClasses), verificationToken]
+      );
+      
+      // Also seed public verification snapshot
+      const metadata = {
+        name: 'Default Teacher',
+        photo: null,
+        category: 'Teaching',
+        department: 'N/A',
+        position: 'Teacher',
+        employmentStatus: 'Permanent',
+        issueDate: new Date().toISOString().split('T')[0],
+        expiryDate: new Date(Date.now() + 365*24*60*60*1000).toISOString().split('T')[0],
+        status: 'Active'
+      };
+      await pool.query(
+        'INSERT INTO verifications (token, document_type, reference_id, metadata, status, expiresAt) VALUES (?, ?, ?, ?, ?, ?)',
+        [verificationToken, 'Staff ID', defaultTeacherId, JSON.stringify(metadata), 'Active', metadata.expiryDate]
       );
     }
 
@@ -1240,6 +1667,8 @@ async function ensureDbInitialized() {
 
     dbInitialized = true;
     initializingDb = false;
+    // Start automated daily backup scheduler
+    startAutoBackupScheduler();
     // Run background one-time image compression migration
     runOneTimeImageMigration().catch(err => console.error('[MIGRATION] One-time migration error:', err));
     return true;
@@ -1531,6 +1960,7 @@ app.use(async (req, res, next) => {
     publicPaths.includes(req.path) || 
     req.path.match(/\/api\/students\/[^/]+\/photo/) ||
     req.path.startsWith('/api/pdf/download/') ||
+    req.path.startsWith('/api/verify/') ||
     (req.method === 'GET' && req.path === '/api/branding');
   
   if (!isPublic) {
@@ -1813,6 +2243,450 @@ app.get('/api/database-status', async (req, res) => {
         user: '●●●●●●●●'
       }
     });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// GET list of all backups
+app.get('/api/admin/backups', async (req, res) => {
+  try {
+    const fs = require('fs');
+    const path = require('path');
+    const backupsDir = path.join(getExportsDir(), 'backups');
+    if (!fs.existsSync(backupsDir)) {
+      return res.json({ success: true, backups: [] });
+    }
+    const files = fs.readdirSync(backupsDir)
+      .filter(f => f.endsWith('.sql.gz'))
+      .map(file => {
+        const filePath = path.join(backupsDir, file);
+        const stats = fs.statSync(filePath);
+        return {
+          filename: file,
+          sizeBytes: stats.size,
+          createdAt: stats.mtime
+        };
+      })
+      .sort((a, b) => b.createdAt - a.createdAt); // newest first
+    res.json({ success: true, backups: files });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// POST trigger manual backup in background
+app.post('/api/admin/backups/run', async (req, res) => {
+  try {
+    const taskId = `task-backup-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+    pdfTasks[taskId] = {
+      id: taskId,
+      status: 'processing',
+      progress: 0,
+      total: 100,
+      filename: null,
+      filePath: null,
+      error: null
+    };
+    await dbSavePdfTask(taskId, 'processing', 0, 100);
+
+    const runBackupTask = async () => {
+      try {
+        const fs = require('fs');
+        const path = require('path');
+        const backupsDir = path.join(getExportsDir(), 'backups');
+        if (!fs.existsSync(backupsDir)) {
+          fs.mkdirSync(backupsDir, { recursive: true });
+        }
+        const filename = `manual-backup-${new Date().toISOString().replace(/[:.]/g, '-')}.sql.gz`;
+        const filePath = path.join(backupsDir, filename);
+
+        if (pdfTasks[taskId]) pdfTasks[taskId].progress = 20;
+        await dbSavePdfTask(taskId, 'processing', 20, 100);
+
+        await backupDatabaseJS(filePath);
+
+        if (pdfTasks[taskId]) {
+          pdfTasks[taskId].status = 'completed';
+          pdfTasks[taskId].progress = 100;
+          pdfTasks[taskId].filename = filename;
+          pdfTasks[taskId].filePath = filePath;
+        }
+        await dbSavePdfTask(taskId, 'completed', 100, 100, filename, null);
+        await writeAuditLog('Backup Created', `Manual backup created successfully: ${filename}`);
+      } catch (err) {
+        console.error('Manual backup task failed:', err);
+        if (pdfTasks[taskId]) {
+          pdfTasks[taskId].status = 'failed';
+          pdfTasks[taskId].error = err.message;
+        }
+        await dbSavePdfTask(taskId, 'failed', 0, 100, null, err.message);
+      }
+    };
+
+    runBackupTask();
+    res.json({ success: true, taskId });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// POST restore backup in background
+app.post('/api/admin/backups/restore', async (req, res) => {
+  try {
+    const { filename } = req.body;
+    if (!filename) return res.status(400).json({ error: 'Filename is required' });
+    if (filename.includes('..') || filename.includes('/') || filename.includes('\\')) {
+      return res.status(400).json({ error: 'Invalid filename' });
+    }
+
+    const taskId = `task-restore-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+    pdfTasks[taskId] = {
+      id: taskId,
+      status: 'processing',
+      progress: 0,
+      total: 100,
+      filename: null,
+      filePath: null,
+      error: null
+    };
+    await dbSavePdfTask(taskId, 'processing', 0, 100);
+
+    const runRestoreTask = async () => {
+      try {
+        const path = require('path');
+        const fs = require('fs');
+        const filePath = path.join(getExportsDir(), 'backups', filename);
+        if (!fs.existsSync(filePath)) {
+          throw new Error('Backup file does not exist.');
+        }
+
+        if (pdfTasks[taskId]) pdfTasks[taskId].progress = 30;
+        await dbSavePdfTask(taskId, 'processing', 30, 100);
+
+        await restoreDatabaseJS(filePath);
+
+        // Reset memory caches
+        statsCache = null;
+
+        if (pdfTasks[taskId]) {
+          pdfTasks[taskId].status = 'completed';
+          pdfTasks[taskId].progress = 100;
+        }
+        await dbSavePdfTask(taskId, 'completed', 100, 100, null, null);
+        await writeAuditLog('Backup Restored', `Database restored successfully from: ${filename}`);
+      } catch (err) {
+        console.error('Backup restore task failed:', err);
+        if (pdfTasks[taskId]) {
+          pdfTasks[taskId].status = 'failed';
+          pdfTasks[taskId].error = err.message;
+        }
+        await dbSavePdfTask(taskId, 'failed', 0, 100, null, err.message);
+      }
+    };
+
+    runRestoreTask();
+    res.json({ success: true, taskId });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// DELETE backup file
+app.delete('/api/admin/backups/:filename', async (req, res) => {
+  try {
+    const filename = req.params.filename;
+    if (filename.includes('..') || filename.includes('/') || filename.includes('\\')) {
+      return res.status(400).json({ error: 'Invalid filename' });
+    }
+    const path = require('path');
+    const fs = require('fs');
+    const filePath = path.join(getExportsDir(), 'backups', filename);
+    if (fs.existsSync(filePath)) {
+      fs.unlinkSync(filePath);
+      await writeAuditLog('Backup Deleted', `Backup file deleted: ${filename}`);
+    }
+    res.json({ success: true });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// GET backup config
+app.get('/api/admin/backups/config', async (req, res) => {
+  try {
+    const [enabledRows] = await pool.query("SELECT val_value FROM settings WHERE key_name = 'auto_backup_enabled'");
+    const [retentionRows] = await pool.query("SELECT val_value FROM settings WHERE key_name = 'backup_retention_days'");
+    res.json({
+      autoBackupEnabled: enabledRows[0]?.val_value !== 'false',
+      retentionDays: retentionRows[0]?.val_value ? parseInt(retentionRows[0].val_value, 10) : 7
+    });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// POST backup config
+app.post('/api/admin/backups/config', async (req, res) => {
+  try {
+    const { autoBackupEnabled, retentionDays } = req.body;
+    await pool.query(
+      "INSERT INTO settings (key_name, val_value) VALUES ('auto_backup_enabled', ?) ON DUPLICATE KEY UPDATE val_value = VALUES(val_value)",
+      [autoBackupEnabled ? 'true' : 'false']
+    );
+    await pool.query(
+      "INSERT INTO settings (key_name, val_value) VALUES ('backup_retention_days', ?) ON DUPLICATE KEY UPDATE val_value = VALUES(val_value)",
+      [String(parseInt(retentionDays, 10) || 7)]
+    );
+    res.json({ success: true });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// GET download a backup file
+app.get('/api/admin/backups/download/:filename', (req, res) => {
+  const fs = require('fs');
+  const path = require('path');
+  const filename = req.params.filename;
+  if (filename.includes('..') || filename.includes('/') || filename.includes('\\')) {
+    return res.status(400).json({ error: 'Invalid filename' });
+  }
+  const filePath = path.join(getExportsDir(), 'backups', filename);
+  if (!fs.existsSync(filePath)) {
+    return res.status(404).json({ error: 'Backup file not found' });
+  }
+  res.download(filePath, filename);
+});
+
+// POST bulk student import task (Background task)
+app.post('/api/students/bulk-task', async (req, res) => {
+  try {
+    const students = req.body.students || [];
+    const taskId = `task-import-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+    
+    pdfTasks[taskId] = {
+      id: taskId,
+      status: 'processing',
+      progress: 0,
+      total: students.length,
+      filename: null,
+      filePath: null,
+      error: null
+    };
+    
+    await dbSavePdfTask(taskId, 'processing', 0, students.length);
+    
+    const runImport = async () => {
+      const connection = await pool.getConnection();
+      try {
+        await connection.beginTransaction();
+        for (let i = 0; i < students.length; i++) {
+          const s = students[i];
+          
+          if (s.photo) {
+            s.photo = await compressImageIfNeeded(s.photo, 150, 150, 75, true);
+          }
+          
+          await connection.query(
+            `INSERT INTO students (id, adminNo, name, gender, gradeClass, boardingStatus, isCleared, gateClearanceDate, mealsClearanceDate, remarks, photo, printStatus, parentName, parentContact) 
+             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?) 
+             ON DUPLICATE KEY UPDATE 
+             adminNo = ?, name = ?, gender = ?, gradeClass = ?, boardingStatus = ?, isCleared = ?, gateClearanceDate = ?, mealsClearanceDate = ?, remarks = ?, photo = ?, printStatus = ?, parentName = ?, parentContact = ?`,
+            [
+              s.id, s.adminNo, s.name, s.gender, s.gradeClass, s.boardingStatus, s.isCleared ? 1 : 0, s.gateClearanceDate || null, s.mealsClearanceDate || null, s.remarks || null, s.photo || null, s.printStatus || 'Not Printed', s.parentName || null, s.parentContact || null,
+              s.adminNo, s.name, s.gender, s.gradeClass, s.boardingStatus, s.isCleared ? 1 : 0, s.gateClearanceDate || null, s.mealsClearanceDate || null, s.remarks || null, s.photo || null, s.printStatus || 'Not Printed', s.parentName || null, s.parentContact || null
+            ]
+          );
+          await ensureStudentAccount(connection, s.id);
+          
+          if (i % 5 === 0 || i === students.length - 1) {
+            if (pdfTasks[taskId]) {
+              pdfTasks[taskId].progress = i + 1;
+            }
+            await dbSavePdfTask(taskId, 'processing', i + 1, students.length);
+          }
+        }
+        await connection.commit();
+        statsCache = null;
+        
+        if (pdfTasks[taskId]) {
+          pdfTasks[taskId].status = 'completed';
+          pdfTasks[taskId].progress = students.length;
+        }
+        await dbSavePdfTask(taskId, 'completed', students.length, students.length);
+        await writeAuditLog('Import Students (Bulk)', `Successfully imported ${students.length} students in the background.`);
+      } catch (err) {
+        await connection.rollback();
+        console.error('Error in background bulk insert:', err);
+        if (pdfTasks[taskId]) {
+          pdfTasks[taskId].status = 'failed';
+          pdfTasks[taskId].error = err.message;
+        }
+        await dbSavePdfTask(taskId, 'failed', 0, students.length, null, err.message);
+      } finally {
+        connection.release();
+      }
+    };
+    
+    runImport();
+    res.json({ success: true, taskId });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// POST compile rankings in the background
+app.post('/api/admin/calculate-rankings', async (req, res) => {
+  try {
+    const { term, year } = req.body;
+    if (!term || !year) {
+      return res.status(400).json({ error: 'Term and Year are required' });
+    }
+    const yearInt = parseInt(year, 10);
+    const taskId = `task-rank-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+
+    pdfTasks[taskId] = {
+      id: taskId,
+      status: 'processing',
+      progress: 0,
+      total: 100,
+      filename: null,
+      filePath: null,
+      error: null
+    };
+
+    await dbSavePdfTask(taskId, 'processing', 0, 100);
+
+    const runRankingsCalculation = async () => {
+      try {
+        const [classesRows] = await pool.query('SELECT DISTINCT gradeClass FROM students WHERE gradeClass IS NOT NULL AND gradeClass != ""');
+        const classes = classesRows.map(c => c.gradeClass);
+
+        if (classes.length === 0) {
+          if (pdfTasks[taskId]) {
+            pdfTasks[taskId].status = 'completed';
+            pdfTasks[taskId].progress = 100;
+          }
+          await dbSavePdfTask(taskId, 'completed', 100, 100);
+          return;
+        }
+
+        for (let i = 0; i < classes.length; i++) {
+          const gradeClass = classes[i];
+          const parts = gradeClass.trim().split(/\s+/);
+          const className = parts[0] || 'S.1';
+          const isUACE = gradeClass.startsWith('S.5') || gradeClass.startsWith('S.6');
+
+          const [classStudents] = await pool.query('SELECT id, gradeClass FROM students WHERE gradeClass LIKE ?', [`${className}%`]);
+          const classStudentIds = classStudents.map(s => s.id);
+          const streamStudentIds = classStudents.filter(s => s.gradeClass === gradeClass).map(s => s.id);
+
+          if (classStudentIds.length === 0) continue;
+
+          let classScores = [];
+          if (isUACE) {
+            const [uaceScores] = await pool.query(
+              'SELECT student_id, AVG(score) as avg_score FROM uace_marks WHERE student_id IN (?) AND term = ? AND year = ? GROUP BY student_id',
+              [classStudentIds, term, yearInt]
+            );
+            classScores = uaceScores.map(u => ({ student_id: u.student_id, avg_score: parseFloat(u.avg_score || 0) }));
+          } else {
+            const [olevelRows] = await pool.query(
+              'SELECT * FROM olevel_marks WHERE student_id IN (?) AND term = ? AND year = ?',
+              [classStudentIds, term, yearInt]
+            );
+
+            const studentMarksMap = {};
+            olevelRows.forEach(row => {
+              if (!studentMarksMap[row.student_id]) studentMarksMap[row.student_id] = [];
+              studentMarksMap[row.student_id].push(row);
+            });
+
+            classScores = classStudentIds.map(sid => {
+              const sMarks = studentMarksMap[sid] || [];
+              let total = 0;
+              let count = 0;
+              sMarks.forEach(m => {
+                const aiScores = [];
+                if (m.integration1 !== null && m.integration1 !== undefined && m.integration1 !== '' && !isNaN(parseFloat(m.integration1))) {
+                  aiScores.push(parseFloat(m.integration1));
+                }
+                if (m.integration2 !== null && m.integration2 !== undefined && m.integration2 !== '' && !isNaN(parseFloat(m.integration2))) {
+                  aiScores.push(parseFloat(m.integration2));
+                }
+                if (m.integration3 !== null && m.integration3 !== undefined && m.integration3 !== '' && !isNaN(parseFloat(m.integration3))) {
+                  aiScores.push(parseFloat(m.integration3));
+                }
+                let caAverage = 0;
+                if (aiScores.length > 0) {
+                  const sumPct = aiScores.map(score => (score / 3) * 100).reduce((a, b) => a + b, 0);
+                  caAverage = sumPct / aiScores.length;
+                }
+                const ca = (caAverage * 20) / 100;
+                const exam = parseFloat(m.exam_score || 0);
+                const examW = (exam * 80) / 100;
+                total += (ca + examW);
+                count++;
+              });
+              return {
+                student_id: sid,
+                avg_score: count > 0 ? (total / count) : 0
+              };
+            });
+          }
+
+          classScores.sort((a, b) => b.avg_score - a.avg_score);
+          const totalClassStudents = classScores.filter(s => s.avg_score > 0).length;
+
+          for (const sId of streamStudentIds) {
+            const classPosIdx = classScores.findIndex(s => s.student_id === sId);
+            const classPosition = classPosIdx !== -1 && classScores[classPosIdx].avg_score > 0 ? classPosIdx + 1 : 0;
+
+            const streamScores = classScores.filter(s => streamStudentIds.includes(s.student_id));
+            const streamPosIdx = streamScores.findIndex(s => s.student_id === sId);
+            const streamPosition = streamPosIdx !== -1 && streamScores[streamPosIdx].avg_score > 0 ? streamPosIdx + 1 : 0;
+            const totalStreamStudents = streamScores.filter(s => s.avg_score > 0).length;
+
+            if (classPosition > 0 || streamPosition > 0) {
+              await pool.query(
+                `INSERT INTO compiled_rankings (student_id, term, year, class_position, total_class, stream_position, total_stream)
+                 VALUES (?, ?, ?, ?, ?, ?, ?)
+                 ON DUPLICATE KEY UPDATE
+                   class_position = VALUES(class_position),
+                   total_class = VALUES(total_class),
+                   stream_position = VALUES(stream_position),
+                   total_stream = VALUES(total_stream)`,
+                [sId, term, yearInt, classPosition, totalClassStudents, streamPosition, totalStreamStudents]
+              );
+            }
+          }
+
+          const percent = Math.round(((i + 1) / classes.length) * 100);
+          if (pdfTasks[taskId]) {
+            pdfTasks[taskId].progress = percent;
+          }
+          await dbSavePdfTask(taskId, 'processing', percent, 100);
+        }
+
+        if (pdfTasks[taskId]) {
+          pdfTasks[taskId].status = 'completed';
+          pdfTasks[taskId].progress = 100;
+        }
+        await dbSavePdfTask(taskId, 'completed', 100, 100);
+        await writeAuditLog('Compile Rankings', `Pre-compiled student positions/rankings for Term ${term} (${yearInt}).`);
+      } catch (err) {
+        console.error('Error in background ranking calculation:', err);
+        if (pdfTasks[taskId]) {
+          pdfTasks[taskId].status = 'failed';
+          pdfTasks[taskId].error = err.message;
+        }
+        await dbSavePdfTask(taskId, 'failed', 0, 100, null, err.message);
+      }
+    };
+
+    runRankingsCalculation();
+    res.json({ success: true, taskId });
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
@@ -3612,7 +4486,7 @@ app.get('/api/integration/student/:adminNo', async (req, res) => {
     // Get recent announcements
     const [announcements] = await pool.query('SELECT * FROM announcements ORDER BY createdAt DESC LIMIT 10');
 
-    // Calculate positions (rank) dynamically
+    // Calculate positions (rank)
     let classPosition = 0;
     let totalClassStudents = 0;
     let streamPosition = 0;
@@ -3622,75 +4496,88 @@ app.get('/api/integration/student/:adminNo', async (req, res) => {
       const term = marksRows[0].term;
       const year = marksRows[0].year;
       
-      const parts = (student.gradeClass || '').trim().split(/\s+/);
-      const className = parts[0] || 'S.1';
+      const [compiled] = await pool.query(
+        'SELECT class_position, total_class, stream_position, total_stream FROM compiled_rankings WHERE student_id = ? AND term = ? AND year = ?',
+        [studentId, term, year]
+      );
+      
+      if (compiled.length > 0) {
+        classPosition = compiled[0].class_position;
+        totalClassStudents = compiled[0].total_class;
+        streamPosition = compiled[0].stream_position;
+        totalStreamStudents = compiled[0].total_stream;
+      } else {
+        // Fallback to dynamic computation
+        const parts = (student.gradeClass || '').trim().split(/\s+/);
+        const className = parts[0] || 'S.1';
 
-      const [classStudents] = await pool.query('SELECT id, gradeClass FROM students WHERE gradeClass LIKE ?', [`${className}%`]);
-      const classStudentIds = Array.isArray(classStudents) ? classStudents.map(s => s.id) : [];
-      const streamStudentIds = Array.isArray(classStudents) ? classStudents.filter(s => s.gradeClass === student.gradeClass).map(s => s.id) : [];
+        const [classStudents] = await pool.query('SELECT id, gradeClass FROM students WHERE gradeClass LIKE ?', [`${className}%`]);
+        const classStudentIds = Array.isArray(classStudents) ? classStudents.map(s => s.id) : [];
+        const streamStudentIds = Array.isArray(classStudents) ? classStudents.filter(s => s.gradeClass === student.gradeClass).map(s => s.id) : [];
 
-      if (classStudentIds.length > 0) {
-        let classScores = [];
-        if (isUACE) {
-          const [uaceScores] = await pool.query(
-            'SELECT student_id, AVG(score) as avg_score FROM uace_marks WHERE student_id IN (?) AND term = ? AND year = ? GROUP BY student_id',
-            [classStudentIds, term, year]
-          );
-          classScores = uaceScores.map(u => ({ student_id: u.student_id, avg_score: parseFloat(u.avg_score || 0) }));
-        } else {
-          const [olevelRows] = await pool.query(
-            'SELECT * FROM olevel_marks WHERE student_id IN (?) AND term = ? AND year = ?',
-            [classStudentIds, term, year]
-          );
-          
-          const studentMarksMap = {};
-          olevelRows.forEach(row => {
-            if (!studentMarksMap[row.student_id]) studentMarksMap[row.student_id] = [];
-            studentMarksMap[row.student_id].push(row);
-          });
-
-          classScores = classStudentIds.map(sid => {
-            const sMarks = studentMarksMap[sid] || [];
-            let total = 0;
-            let count = 0;
-            sMarks.forEach(m => {
-              const aiScores = [];
-              if (m.integration1 !== null && m.integration1 !== undefined && m.integration1 !== '' && !isNaN(parseFloat(m.integration1))) {
-                aiScores.push(parseFloat(m.integration1));
-              }
-              if (m.integration2 !== null && m.integration2 !== undefined && m.integration2 !== '' && !isNaN(parseFloat(m.integration2))) {
-                aiScores.push(parseFloat(m.integration2));
-              }
-              if (m.integration3 !== null && m.integration3 !== undefined && m.integration3 !== '' && !isNaN(parseFloat(m.integration3))) {
-                aiScores.push(parseFloat(m.integration3));
-              }
-              let caAverage = 0;
-              if (aiScores.length > 0) {
-                const sumPct = aiScores.map(score => (score / 3) * 100).reduce((a, b) => a + b, 0);
-                caAverage = sumPct / aiScores.length;
-              }
-              const ca = (caAverage * 20) / 100;
-              const exam = parseFloat(m.exam_score || 0);
-              const examW = (exam * 80) / 100;
-              total += (ca + examW);
-              count++;
+        if (classStudentIds.length > 0) {
+          let classScores = [];
+          if (isUACE) {
+            const [uaceScores] = await pool.query(
+              'SELECT student_id, AVG(score) as avg_score FROM uace_marks WHERE student_id IN (?) AND term = ? AND year = ? GROUP BY student_id',
+              [classStudentIds, term, year]
+            );
+            classScores = uaceScores.map(u => ({ student_id: u.student_id, avg_score: parseFloat(u.avg_score || 0) }));
+          } else {
+            const [olevelRows] = await pool.query(
+              'SELECT * FROM olevel_marks WHERE student_id IN (?) AND term = ? AND year = ?',
+              [classStudentIds, term, year]
+            );
+            
+            const studentMarksMap = {};
+            olevelRows.forEach(row => {
+              if (!studentMarksMap[row.student_id]) studentMarksMap[row.student_id] = [];
+              studentMarksMap[row.student_id].push(row);
             });
-            return {
-              student_id: sid,
-              avg_score: count > 0 ? (total / count) : 0
-            };
-          });
+
+            classScores = classStudentIds.map(sid => {
+              const sMarks = studentMarksMap[sid] || [];
+              let total = 0;
+              let count = 0;
+              sMarks.forEach(m => {
+                const aiScores = [];
+                if (m.integration1 !== null && m.integration1 !== undefined && m.integration1 !== '' && !isNaN(parseFloat(m.integration1))) {
+                  aiScores.push(parseFloat(m.integration1));
+                }
+                if (m.integration2 !== null && m.integration2 !== undefined && m.integration2 !== '' && !isNaN(parseFloat(m.integration2))) {
+                  aiScores.push(parseFloat(m.integration2));
+                }
+                if (m.integration3 !== null && m.integration3 !== undefined && m.integration3 !== '' && !isNaN(parseFloat(m.integration3))) {
+                  aiScores.push(parseFloat(m.integration3));
+                }
+                let caAverage = 0;
+                if (aiScores.length > 0) {
+                  const sumPct = aiScores.map(score => (score / 3) * 100).reduce((a, b) => a + b, 0);
+                  caAverage = sumPct / aiScores.length;
+                }
+                const ca = (caAverage * 20) / 100;
+                const exam = parseFloat(m.exam_score || 0);
+                const examW = (exam * 80) / 100;
+                total += (ca + examW);
+                count++;
+              });
+              return {
+                student_id: sid,
+                avg_score: count > 0 ? (total / count) : 0
+              };
+            });
+          }
+
+          // Sort class positions
+          classScores.sort((a, b) => b.avg_score - a.avg_score);
+          classPosition = classScores.findIndex(s => s.student_id === studentId) + 1;
+          totalClassStudents = classScores.filter(s => s.avg_score > 0 || s.student_id === studentId).length;
+
+          // Filter stream positions
+          const streamScores = classScores.filter(s => streamStudentIds.includes(s.student_id));
+          streamPosition = streamScores.findIndex(s => s.student_id === studentId) + 1;
+          totalStreamStudents = streamScores.filter(s => s.avg_score > 0 || s.student_id === studentId).length;
         }
-
-        // Sort class positions
-        classScores.sort((a, b) => b.avg_score - a.avg_score);
-        classPosition = classScores.findIndex(s => s.student_id === studentId) + 1;
-        totalClassStudents = classScores.filter(s => s.avg_score > 0 || s.student_id === studentId).length;
-
-        // Filter stream positions
-        const streamScores = classScores.filter(s => streamStudentIds.includes(s.student_id));
-        streamPosition = streamScores.findIndex(s => s.student_id === studentId) + 1;
-        totalStreamStudents = streamScores.filter(s => s.avg_score > 0 || s.student_id === studentId).length;
       }
     }
 
@@ -4276,14 +5163,14 @@ app.post('/api/auth/login', async (req, res) => {
       return res.status(401).json({ error: 'Invalid admin credentials.' });
     }
 
-    // Helper to get teacher profile with specific assignments
-    async function getTeacherProfile(teacher) {
-      const [assignments] = await pool.query('SELECT subject, grade_class FROM teacher_assignments WHERE teacher_id = ?', [teacher.id]);
-      const [classTeacherRows] = await pool.query('SELECT grade_class FROM class_teachers WHERE teacher_id = ?', [teacher.id]);
+    // Helper to get staff profile with specific assignments
+    async function getStaffProfile(staffMember) {
+      const [assignments] = await pool.query('SELECT subject, grade_class FROM teacher_assignments WHERE teacher_id = ?', [staffMember.id]);
+      const [classTeacherRows] = await pool.query('SELECT grade_class FROM class_teachers WHERE teacher_id = ?', [staffMember.id]);
       const classTeacherFor = classTeacherRows.map(ct => ct.grade_class);
       
-      let userSubjects = typeof teacher.subjects === 'string' ? JSON.parse(teacher.subjects) : teacher.subjects;
-      let userClasses = typeof teacher.classes === 'string' ? JSON.parse(teacher.classes) : teacher.classes;
+      let userSubjects = typeof staffMember.subjects === 'string' ? JSON.parse(staffMember.subjects || '[]') : (staffMember.subjects || []);
+      let userClasses = typeof staffMember.classes === 'string' ? JSON.parse(staffMember.classes || '[]') : (staffMember.classes || []);
       let userAssignments = assignments.map(a => ({ subject: a.subject, grade_class: a.grade_class }));
       
       if (userAssignments.length === 0 && userSubjects.length > 0 && userClasses.length > 0) {
@@ -4295,13 +5182,32 @@ app.post('/api/auth/login', async (req, res) => {
       }
       
       return {
-        id: teacher.id,
-        name: teacher.name,
-        username: teacher.username,
-        gender: teacher.gender || null,
-        photo: teacher.photo || null,
-        status: teacher.status || 'Active',
-        position: teacher.position || 'Teacher',
+        id: staffMember.id,
+        name: staffMember.name,
+        firstName: staffMember.first_name,
+        middleName: staffMember.middle_name,
+        lastName: staffMember.last_name,
+        employeeNumber: staffMember.employee_number,
+        username: staffMember.username,
+        gender: staffMember.gender || null,
+        photo: staffMember.photo || null,
+        status: staffMember.status || 'Active',
+        category: staffMember.category || 'Teaching',
+        department: staffMember.department || null,
+        position: staffMember.position || 'Teacher',
+        employmentStatus: staffMember.employment_status || 'Permanent',
+        qualification: staffMember.qualification || null,
+        phone: staffMember.phone || null,
+        email: staffMember.email || null,
+        residentialAddress: staffMember.residential_address || null,
+        district: staffMember.district || null,
+        nationality: staffMember.nationality || null,
+        religion: staffMember.religion || null,
+        dateAppointed: staffMember.date_appointed || null,
+        emergencyContactName: staffMember.emergency_contact_name || null,
+        emergencyContactPhone: staffMember.emergency_contact_phone || null,
+        verificationToken: staffMember.verification_token || null,
+        forcePasswordChange: !!staffMember.force_password_change,
         subjects: Array.from(new Set(userAssignments.map(a => a.subject))),
         classes: Array.from(new Set(userAssignments.map(a => a.grade_class))),
         assignments: userAssignments,
@@ -4311,14 +5217,14 @@ app.post('/api/auth/login', async (req, res) => {
 
     if (role === 'teacher') {
       if (username === 'teacher' && password === 'teacher123') {
-        const [rows] = await pool.query('SELECT * FROM teachers WHERE username = ?', ['teacher']);
+        const [rows] = await pool.query('SELECT * FROM staff WHERE username = ?', ['teacher']);
         if (rows.length > 0) {
-          const teacher = rows[0];
-          if (teacher.status === 'Inactive') {
-            return res.status(403).json({ error: 'Your account is deactivated. Please contact the administrator.' });
+          const staffMember = rows[0];
+          if (staffMember.status !== 'Active' && staffMember.status !== 'On Leave') {
+            return res.status(403).json({ error: 'Your account is deactivated or suspended. Please contact the administrator.' });
           }
-          const profile = await getTeacherProfile(teacher);
-          const payload = { id: teacher.id, role: 'teacher', username: teacher.username };
+          const profile = await getStaffProfile(staffMember);
+          const payload = { id: staffMember.id, role: 'teacher', username: staffMember.username };
           const token = jwt.sign(payload, JWT_SECRET, { expiresIn: '24h' });
           return res.json({
             success: true,
@@ -4329,28 +5235,29 @@ app.post('/api/auth/login', async (req, res) => {
         }
       }
 
-      const [rows] = await pool.query('SELECT * FROM teachers WHERE username = ?', [username]);
+      const [rows] = await pool.query('SELECT * FROM staff WHERE username = ?', [username]);
       if (rows.length === 0) {
-        return res.status(401).json({ error: 'Teacher not found.' });
+        return res.status(401).json({ error: 'Staff member not found.' });
       }
-      const teacher = rows[0];
-      if (teacher.status === 'Inactive') {
-        return res.status(403).json({ error: 'Your account is deactivated. Please contact the administrator.' });
+      const staffMember = rows[0];
+      if (staffMember.status !== 'Active' && staffMember.status !== 'On Leave') {
+        return res.status(403).json({ error: 'Your account is deactivated or suspended. Please contact the administrator.' });
       }
       const crypto = require('crypto');
       const hash = crypto.createHash('sha256').update(password).digest('hex');
-      if (hash !== teacher.password_hash) {
-        return res.status(401).json({ error: 'Invalid teacher password.' });
+      if (hash !== staffMember.password_hash) {
+        return res.status(401).json({ error: 'Invalid staff credentials.' });
       }
 
-      const profile = await getTeacherProfile(teacher);
-      const payload = { id: teacher.id, role: 'teacher', username: teacher.username };
+      const profile = await getStaffProfile(staffMember);
+      const payload = { id: staffMember.id, role: 'teacher', username: staffMember.username };
       const token = jwt.sign(payload, JWT_SECRET, { expiresIn: '24h' });
       return res.json({
         success: true,
         role: 'teacher',
         user: profile,
-        token: token
+        token: token,
+        forcePasswordChange: !!staffMember.force_password_change
       });
     }
 
@@ -4552,7 +5459,7 @@ app.get('/api/teacher/classes', async (req, res) => {
   try {
     const { teacherId } = req.query;
     if (!teacherId) return res.status(400).json({ error: 'Teacher ID required' });
-    const [rows] = await pool.query('SELECT classes, subjects FROM teachers WHERE id = ?', [teacherId]);
+    const [rows] = await pool.query('SELECT classes, subjects FROM staff WHERE id = ?', [teacherId]);
     if (rows.length === 0) return res.status(404).json({ error: 'Teacher not found' });
     const t = rows[0];
     res.json({
@@ -4718,7 +5625,7 @@ app.post('/api/teacher/marks', async (req, res) => {
       // Write logs for audits
       let teacherUsername = 'Unknown';
       if (teacherId) {
-        const [tRows] = await connection.query('SELECT username FROM teachers WHERE id = ?', [teacherId]);
+        const [tRows] = await connection.query('SELECT username FROM staff WHERE id = ?', [teacherId]);
         if (tRows.length > 0) teacherUsername = tRows[0].username;
       }
       const parts = gradeClass.trim().split(/\s+/);
@@ -4900,7 +5807,7 @@ app.get('/api/admin/marks/all-worksheets', async (req, res) => {
              COUNT(*) as total_count
       FROM olevel_marks om
       JOIN students s ON om.student_id = s.id
-      LEFT JOIN teachers t ON om.teacher_id = t.id
+      LEFT JOIN staff t ON om.teacher_id = t.id
       GROUP BY s.gradeClass, om.subject, om.term, om.year, t.name
     `;
     const uaceQuery = `
@@ -4912,7 +5819,7 @@ app.get('/api/admin/marks/all-worksheets', async (req, res) => {
              COUNT(*) as total_count
       FROM uace_marks um
       JOIN students s ON um.student_id = s.id
-      LEFT JOIN teachers t ON um.teacher_id = t.id
+      LEFT JOIN staff t ON um.teacher_id = t.id
       GROUP BY s.gradeClass, um.subject, um.term, um.year, t.name
     `;
 
@@ -5474,7 +6381,7 @@ app.post('/api/pdf/generate-reports', async (req, res) => {
         const [classTeachersRows] = await pool.query(`
           SELECT ct.grade_class, t.name as teacher_name, t.signature
           FROM class_teachers ct 
-          JOIN teachers t ON ct.teacher_id = t.id
+          JOIN staff t ON ct.teacher_id = t.id
         `);
         
         // Map grade_class -> teacher info object
@@ -5487,17 +6394,17 @@ app.post('/api/pdf/generate-reports', async (req, res) => {
         });
 
         // Fetch all teachers mapping for subject teacher initials
-        const [teachersRows] = await pool.query('SELECT id, name FROM teachers');
+        const [teachersRows] = await pool.query('SELECT id, name FROM staff');
         const teachersMap = {};
         teachersRows.forEach(t => {
           teachersMap[t.id] = t.name;
         });
 
         // Fetch Director of Studies and Head Teacher info dynamically
-        const [dosRows] = await pool.query("SELECT name, signature FROM teachers WHERE position = 'Director of Studies' OR position = 'DOS' LIMIT 1");
+        const [dosRows] = await pool.query("SELECT name, signature FROM staff WHERE position = 'Director of Studies' OR position = 'DOS' LIMIT 1");
         const dosTeacher = dosRows[0] || null;
 
-        const [htRows] = await pool.query("SELECT name, signature FROM teachers WHERE position = 'Head Teacher' OR position = 'Headteacher' LIMIT 1");
+        const [htRows] = await pool.query("SELECT name, signature FROM staff WHERE position = 'Head Teacher' OR position = 'Headteacher' LIMIT 1");
         const htTeacher = htRows[0] || null;
 
         // Pre-resolve student photos in parallel (batches of 30) and compress them
@@ -5878,10 +6785,10 @@ app.get('/api/reports/:studentId', async (req, res) => {
 
 
 
-// GET all teachers
+// GET all teachers (for backwards compatibility)
 app.get('/api/teachers', async (req, res) => {
   try {
-    const [rows] = await pool.query('SELECT id, username, name, gender, subjects, classes, position, photo, status, createdAt, (signature IS NOT NULL AND LENGTH(signature) > 0) as hasSignature FROM teachers ORDER BY name');
+    const [rows] = await pool.query("SELECT id, username, name, gender, subjects, classes, position, photo, status, createdAt, (signature IS NOT NULL AND LENGTH(signature) > 0) as hasSignature FROM staff WHERE category = 'Teaching' ORDER BY name");
     
     // Fetch all assignments and class teachers
     const [assignmentsRows] = await pool.query('SELECT teacher_id, subject, grade_class FROM teacher_assignments');
@@ -5898,8 +6805,8 @@ app.get('/api/teachers', async (req, res) => {
 
       return {
         ...r,
-        subjects: typeof r.subjects === 'string' ? JSON.parse(r.subjects) : r.subjects,
-        classes: typeof r.classes === 'string' ? JSON.parse(r.classes) : r.classes,
+        subjects: typeof r.subjects === 'string' ? JSON.parse(r.subjects || '[]') : (r.subjects || []),
+        classes: typeof r.classes === 'string' ? JSON.parse(r.classes || '[]') : (r.classes || []),
         hasSignature: !!r.hasSignature,
         assignments,
         classTeacherFor
@@ -5915,7 +6822,7 @@ app.get('/api/teachers', async (req, res) => {
 app.get('/api/teachers/:id/signature', async (req, res) => {
   try {
     await ensureDbInitialized();
-    const [rows] = await pool.query('SELECT signature FROM teachers WHERE id = ?', [req.params.id]);
+    const [rows] = await pool.query('SELECT signature FROM staff WHERE id = ?', [req.params.id]);
     if (rows.length === 0) {
       return res.status(404).json({ error: 'Teacher not found' });
     }
@@ -5925,53 +6832,34 @@ app.get('/api/teachers/:id/signature', async (req, res) => {
   }
 });
 
-// POST create teacher
+// POST create teacher (backwards compatibility)
 app.post('/api/teachers', async (req, res) => {
-  const tStart = Date.now();
-  console.log(`[SAVE_TEACHER][POST] Started request at ${tStart}`);
   let connection;
   try {
     connection = await pool.getConnection();
-    console.log(`[SAVE_TEACHER][POST] Connection acquired in ${Date.now() - tStart} ms`);
-    
     let { username, password, name, gender, subjects, classes, assignments, position, signature, photo, status } = req.body;
     if (!username || !password || !name) {
-      console.log(`[SAVE_TEACHER][POST] Validation failed: missing username, password, or name`);
       return res.status(400).json({ error: 'Username, password, and name are required' });
     }
 
-    const tExistStart = Date.now();
-    const [existing] = await connection.query('SELECT id FROM teachers WHERE username = ?', [username]);
-    console.log(`[SAVE_TEACHER][POST] Checked existing username in ${Date.now() - tExistStart} ms`);
+    const [existing] = await connection.query('SELECT id FROM staff WHERE username = ?', [username]);
     if (existing.length > 0) {
-      console.log(`[SAVE_TEACHER][POST] Username is already taken: ${username}`);
       return res.status(400).json({ error: 'Username is already taken' });
     }
 
     const id = 'T-' + Date.now();
-    
-    // Parallel Cloudinary Uploads for Photo and Signature
-    const tUploadStart = Date.now();
-    try {
-      if (photo) photo = await compressImageIfNeeded(photo, 150, 150, 75, true);
-      if (signature) signature = await compressImageIfNeeded(signature, 200, 100, 75, true);
-      console.log(`[SAVE_TEACHER][POST] Base64 Photo length: ${photo ? photo.length : 0}, Signature length: ${signature ? signature.length : 0}`);
-      const [uploadedPhoto, uploadedSignature] = await Promise.all([
-        uploadToCloudinaryIfNeeded(photo, `teacher_${id}_photo`),
-        uploadToCloudinaryIfNeeded(signature, `teacher_${id}_signature`)
-      ]);
-      photo = uploadedPhoto;
-      signature = uploadedSignature;
-      console.log(`[SAVE_TEACHER][POST] Image uploads finished in ${Date.now() - tUploadStart} ms`);
-    } catch (e) {
-      console.error(`[SAVE_TEACHER][POST] Image uploads failed in ${Date.now() - tUploadStart} ms:`, e.message);
-    }
-
-    const tTxStart = Date.now();
-    await connection.beginTransaction();
-    console.log(`[SAVE_TEACHER][POST] Transaction started in ${Date.now() - tTxStart} ms`);
-    
     const crypto = require('crypto');
+    const verificationToken = crypto.randomBytes(16).toString('hex');
+
+    if (photo) photo = await compressImageIfNeeded(photo, 150, 150, 75, true);
+    if (signature) signature = await compressImageIfNeeded(signature, 200, 100, 75, true);
+
+    const parts = name.trim().split(/\s+/);
+    const firstName = parts[0] || 'Teacher';
+    const lastName = parts.slice(1).join(' ') || 'Staff';
+
+    await connection.beginTransaction();
+
     const hash = crypto.createHash('sha256').update(password).digest('hex');
 
     const finalSubjects = assignments && Array.isArray(assignments) 
@@ -5981,94 +6869,84 @@ app.post('/api/teachers', async (req, res) => {
       ? Array.from(new Set(assignments.map(a => a.grade_class))) 
       : (classes || []);
 
-    const tInsertStart = Date.now();
     await connection.query(
-      'INSERT INTO teachers (id, username, password_hash, name, gender, subjects, classes, position, signature, photo, status) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
-      [id, username, hash, name, gender || null, JSON.stringify(finalSubjects), JSON.stringify(finalClasses), position || 'Teacher', signature || null, photo || null, status || 'Active']
+      `INSERT INTO staff (
+        id, username, password_hash, name, first_name, last_name, category, gender, subjects, classes, position, signature, photo, status, verification_token, force_password_change
+      ) VALUES (?, ?, ?, ?, ?, ?, 'Teaching', ?, ?, ?, ?, ?, ?, ?, ?, 0)`,
+      [id, username, hash, name, firstName, lastName, gender || null, JSON.stringify(finalSubjects), JSON.stringify(finalClasses), position || 'Teacher', signature || null, photo || null, status || 'Active', verificationToken]
     );
-    console.log(`[SAVE_TEACHER][POST] Inserted teacher record in ${Date.now() - tInsertStart} ms`);
 
-    const actualAssignments = assignments && Array.isArray(assignments)
-      ? assignments
-      : [];
-      
+    const actualAssignments = assignments && Array.isArray(assignments) ? assignments : [];
     if (!assignments || !Array.isArray(assignments)) {
-      if (Array.isArray(finalSubjects) && Array.isArray(finalClasses)) {
-        for (const s of finalSubjects) {
-          for (const c of finalClasses) {
-            actualAssignments.push({ subject: s, grade_class: c });
-          }
+      for (const s of finalSubjects) {
+        for (const c of finalClasses) {
+          actualAssignments.push({ subject: s, grade_class: c });
         }
       }
     }
 
-    const tAssignStart = Date.now();
     for (const a of actualAssignments) {
       await connection.query(
         'INSERT INTO teacher_assignments (teacher_id, subject, grade_class) VALUES (?, ?, ?)',
         [id, a.subject, a.grade_class]
       );
     }
-    console.log(`[SAVE_TEACHER][POST] Inserted assignments in ${Date.now() - tAssignStart} ms`);
 
-    const tCommitStart = Date.now();
+    // Sync verification metadata
+    const metadata = {
+      name,
+      photo: photo || null,
+      category: 'Teaching',
+      department: 'N/A',
+      position: position || 'Teacher',
+      employmentStatus: 'Permanent',
+      issueDate: new Date().toISOString().split('T')[0],
+      expiryDate: new Date(Date.now() + 365*24*60*60*1000).toISOString().split('T')[0],
+      status: status || 'Active'
+    };
+    await connection.query(
+      'INSERT INTO verifications (token, document_type, reference_id, metadata, status, expiresAt) VALUES (?, ?, ?, ?, ?, ?)',
+      [verificationToken, 'Staff ID', id, JSON.stringify(metadata), metadata.status === 'Active' ? 'Active' : 'Inactive', metadata.expiryDate]
+    );
+
     await connection.commit();
-    console.log(`[SAVE_TEACHER][POST] Committed transaction in ${Date.now() - tCommitStart} ms`);
-    console.log(`[SAVE_TEACHER][POST] Request completed successfully in ${Date.now() - tStart} ms`);
     res.json({ success: true, id });
   } catch (err) {
-    console.error(`[SAVE_TEACHER][POST] Error occurred:`, err.message);
-    if (connection) {
-      await connection.rollback().catch(() => {});
-    }
+    if (connection) await connection.rollback().catch(() => {});
     res.status(500).json({ error: err.message });
   } finally {
-    if (connection) {
-      connection.release();
-    }
+    if (connection) connection.release();
   }
 });
 
-// PUT update teacher
+// PUT update teacher (backwards compatibility)
 app.put('/api/teachers/:id', async (req, res) => {
-  const tStart = Date.now();
-  console.log(`[SAVE_TEACHER][PUT] Started request for ID: ${req.params.id} at ${tStart}`);
   let connection;
   try {
     connection = await pool.getConnection();
-    console.log(`[SAVE_TEACHER][PUT] Connection acquired in ${Date.now() - tStart} ms`);
-    
     let { username, password, name, gender, subjects, classes, assignments, position, signature, photo, status } = req.body;
     const { id } = req.params;
 
-    const tExistStart = Date.now();
-    const [existing] = await connection.query('SELECT id FROM teachers WHERE username = ? AND id != ?', [username, id]);
-    console.log(`[SAVE_TEACHER][PUT] Checked existing username in ${Date.now() - tExistStart} ms`);
+    const [existing] = await connection.query('SELECT id FROM staff WHERE username = ? AND id != ?', [username, id]);
     if (existing.length > 0) {
-      console.log(`[SAVE_TEACHER][PUT] Username is already taken: ${username}`);
       return res.status(400).json({ error: 'Username is already taken' });
     }
 
-    // Parallel Cloudinary Uploads for Photo and Signature
-    const tUploadStart = Date.now();
-    try {
-      if (photo) photo = await compressImageIfNeeded(photo, 150, 150, 75, true);
-      if (signature) signature = await compressImageIfNeeded(signature, 200, 100, 75, true);
-      console.log(`[SAVE_TEACHER][PUT] Base64 Photo length: ${photo ? photo.length : 0}, Signature length: ${signature ? signature.length : 0}`);
-      const [uploadedPhoto, uploadedSignature] = await Promise.all([
-        uploadToCloudinaryIfNeeded(photo, `teacher_${id}_photo`),
-        uploadToCloudinaryIfNeeded(signature, `teacher_${id}_signature`)
-      ]);
-      photo = uploadedPhoto;
-      signature = uploadedSignature;
-      console.log(`[SAVE_TEACHER][PUT] Image uploads finished in ${Date.now() - tUploadStart} ms`);
-    } catch (e) {
-      console.error(`[SAVE_TEACHER][PUT] Image uploads failed in ${Date.now() - tUploadStart} ms:`, e.message);
+    const [curr] = await connection.query('SELECT verification_token, photo, signature FROM staff WHERE id = ?', [id]);
+    if (photo && photo.startsWith('data:') && photo !== curr[0].photo) photo = await compressImageIfNeeded(photo, 150, 150, 75, true);
+    if (signature && signature.startsWith('data:') && signature !== curr[0].signature) signature = await compressImageIfNeeded(signature, 200, 100, 75, true);
+
+    const parts = name.trim().split(/\s+/);
+    const firstName = parts[0] || 'Teacher';
+    const lastName = parts.slice(1).join(' ') || 'Staff';
+
+    let verificationToken = curr[0].verification_token;
+    if (!verificationToken) {
+      const crypto = require('crypto');
+      verificationToken = crypto.randomBytes(16).toString('hex');
     }
 
-    const tTxStart = Date.now();
     await connection.beginTransaction();
-    console.log(`[SAVE_TEACHER][PUT] Transaction started in ${Date.now() - tTxStart} ms`);
 
     const finalSubjects = assignments && Array.isArray(assignments) 
       ? Array.from(new Set(assignments.map(a => a.subject))) 
@@ -6077,65 +6955,70 @@ app.put('/api/teachers/:id', async (req, res) => {
       ? Array.from(new Set(assignments.map(a => a.grade_class))) 
       : (classes || []);
 
-    const tUpdateStart = Date.now();
     if (password) {
       const crypto = require('crypto');
       const hash = crypto.createHash('sha256').update(password).digest('hex');
       await connection.query(
-        'UPDATE teachers SET username = ?, password_hash = ?, name = ?, gender = ?, subjects = ?, classes = ?, position = ?, signature = ?, photo = ?, status = ? WHERE id = ?',
-        [username, hash, name, gender || null, JSON.stringify(finalSubjects), JSON.stringify(finalClasses), position || 'Teacher', signature || null, photo || null, status || 'Active', id]
+        'UPDATE staff SET username = ?, password_hash = ?, name = ?, first_name = ?, last_name = ?, gender = ?, subjects = ?, classes = ?, position = ?, signature = ?, photo = ?, status = ?, verification_token = ? WHERE id = ?',
+        [username, hash, name, firstName, lastName, gender || null, JSON.stringify(finalSubjects), JSON.stringify(finalClasses), position || 'Teacher', signature || null, photo || null, status || 'Active', verificationToken, id]
       );
     } else {
       await connection.query(
-        'UPDATE teachers SET username = ?, name = ?, gender = ?, subjects = ?, classes = ?, position = ?, signature = ?, photo = ?, status = ? WHERE id = ?',
-        [username, name, gender || null, JSON.stringify(finalSubjects), JSON.stringify(finalClasses), position || 'Teacher', signature || null, photo || null, status || 'Active', id]
+        'UPDATE staff SET username = ?, name = ?, first_name = ?, last_name = ?, gender = ?, subjects = ?, classes = ?, position = ?, signature = ?, photo = ?, status = ?, verification_token = ? WHERE id = ?',
+        [username, name, firstName, lastName, gender || null, JSON.stringify(finalSubjects), JSON.stringify(finalClasses), position || 'Teacher', signature || null, photo || null, status || 'Active', verificationToken, id]
       );
     }
-    console.log(`[SAVE_TEACHER][PUT] Updated teacher record in ${Date.now() - tUpdateStart} ms`);
 
-    const actualAssignments = assignments && Array.isArray(assignments)
-      ? assignments
-      : [];
-      
+    await connection.query('DELETE FROM teacher_assignments WHERE teacher_id = ?', [id]);
+    const actualAssignments = assignments && Array.isArray(assignments) ? assignments : [];
     if (!assignments || !Array.isArray(assignments)) {
-      if (Array.isArray(finalSubjects) && Array.isArray(finalClasses)) {
-        for (const s of finalSubjects) {
-          for (const c of finalClasses) {
-            actualAssignments.push({ subject: s, grade_class: c });
-          }
+      for (const s of finalSubjects) {
+        for (const c of finalClasses) {
+          actualAssignments.push({ subject: s, grade_class: c });
         }
       }
     }
 
-    const tAssignStart = Date.now();
-    await connection.query('DELETE FROM teacher_assignments WHERE teacher_id = ?', [id]);
     for (const a of actualAssignments) {
       await connection.query(
         'INSERT INTO teacher_assignments (teacher_id, subject, grade_class) VALUES (?, ?, ?)',
         [id, a.subject, a.grade_class]
       );
     }
-    console.log(`[SAVE_TEACHER][PUT] Updated assignments in ${Date.now() - tAssignStart} ms`);
 
-    const tCommitStart = Date.now();
+    // Sync verification metadata
+    const metadata = {
+      name,
+      photo: photo || null,
+      category: 'Teaching',
+      department: 'N/A',
+      position: position || 'Teacher',
+      employmentStatus: 'Permanent',
+      issueDate: new Date().toISOString().split('T')[0],
+      expiryDate: new Date(Date.now() + 365*24*60*60*1000).toISOString().split('T')[0],
+      status: status || 'Active'
+    };
+    await connection.query(
+      `INSERT INTO verifications (token, document_type, reference_id, metadata, status, expiresAt)
+       VALUES (?, ?, ?, ?, ?, ?)
+       ON DUPLICATE KEY UPDATE metadata = ?, status = ?, expiresAt = ?`,
+      [
+        verificationToken, 'Staff ID', id, JSON.stringify(metadata), metadata.status === 'Active' ? 'Active' : 'Inactive', metadata.expiryDate,
+        JSON.stringify(metadata), metadata.status === 'Active' ? 'Active' : 'Inactive', metadata.expiryDate
+      ]
+    );
+
     await connection.commit();
-    console.log(`[SAVE_TEACHER][PUT] Committed transaction in ${Date.now() - tCommitStart} ms`);
-    console.log(`[SAVE_TEACHER][PUT] Request completed successfully in ${Date.now() - tStart} ms`);
     res.json({ success: true });
   } catch (err) {
-    console.error(`[SAVE_TEACHER][PUT] Error occurred:`, err.message);
-    if (connection) {
-      await connection.rollback().catch(() => {});
-    }
+    if (connection) await connection.rollback().catch(() => {});
     res.status(500).json({ error: err.message });
   } finally {
-    if (connection) {
-      connection.release();
-    }
+    if (connection) connection.release();
   }
 });
 
-// POST import teachers (Bulk upload Excel/CSV)
+// POST import teachers (Bulk upload Excel/CSV - backwards compatibility)
 app.post('/api/teachers/import', async (req, res) => {
   const connection = await pool.getConnection();
   try {
@@ -6150,7 +7033,7 @@ app.post('/api/teachers/import', async (req, res) => {
     const skipped = [];
     const errors = [];
 
-    const [existingTeachers] = await connection.query('SELECT id, username FROM teachers');
+    const [existingTeachers] = await connection.query("SELECT id, username FROM staff WHERE category = 'Teaching'");
     const existingIds = new Set(existingTeachers.map(t => t.id.toLowerCase()));
     const existingUsernames = new Set(existingTeachers.map(t => t.username.toLowerCase()));
 
@@ -6170,7 +7053,6 @@ app.post('/api/teachers/import', async (req, res) => {
       const rawSubjects = String(t.subjects || '').trim();
       const classTeacher = String(t.classTeacher || '').trim();
 
-      // Required validations
       if (!id) {
         errors.push({ rowNum, name, error: 'Teacher Number (Employee ID) is required' });
         continue;
@@ -6199,7 +7081,6 @@ app.post('/api/teachers/import', async (req, res) => {
       const idLower = id.toLowerCase();
       const usernameLower = username.toLowerCase();
 
-      // Check duplicate in import file
       if (seenIdsInImport.has(idLower)) {
         skipped.push({ id, username, name, reason: 'Duplicate Teacher Number in import file' });
         continue;
@@ -6208,8 +7089,6 @@ app.post('/api/teachers/import', async (req, res) => {
         skipped.push({ id, username, name, reason: 'Duplicate Username in import file' });
         continue;
       }
-
-      // Check duplicate in database
       if (existingIds.has(idLower)) {
         skipped.push({ id, username, name, reason: 'Teacher Number already exists' });
         continue;
@@ -6224,25 +7103,27 @@ app.post('/api/teachers/import', async (req, res) => {
 
       try {
         const hash = crypto.createHash('sha256').update(password).digest('hex');
-        
-        // Parse subjects
         const subjectsArr = rawSubjects.split(',').map(s => s.trim()).filter(Boolean);
         const classesArr = classTeacher ? [classTeacher] : [];
+        const verificationToken = crypto.randomBytes(16).toString('hex');
 
-        // Insert teacher
+        const parts = name.trim().split(/\s+/);
+        const firstName = parts[0] || 'Teacher';
+        const lastName = parts.slice(1).join(' ') || 'Staff';
+
         await connection.query(
-          'INSERT INTO teachers (id, username, password_hash, name, gender, subjects, classes, position, signature, photo, status) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
-          [id, username, hash, name, gender, JSON.stringify(subjectsArr), JSON.stringify(classesArr), 'Teacher', null, null, 'Active']
+          `INSERT INTO staff (
+            id, username, password_hash, name, first_name, last_name, category, gender, subjects, classes, position, signature, photo, status, verification_token, force_password_change
+          ) VALUES (?, ?, ?, ?, ?, ?, 'Teaching', ?, ?, ?, 'Teacher', null, null, 'Active', ?, 0)`,
+          [id, username, hash, name, firstName, lastName, gender, JSON.stringify(subjectsArr), JSON.stringify(classesArr), verificationToken]
         );
 
-        // Assign Class Teacher if provided
         if (classTeacher) {
           await connection.query(
             'INSERT INTO class_teachers (grade_class, teacher_id) VALUES (?, ?) ON DUPLICATE KEY UPDATE teacher_id = ?',
             [classTeacher, id, id]
           );
 
-          // Auto-assign subjects to that class
           for (const s of subjectsArr) {
             await connection.query(
               'INSERT INTO teacher_assignments (teacher_id, subject, grade_class) VALUES (?, ?, ?) ON DUPLICATE KEY UPDATE teacher_id = teacher_id',
@@ -6250,6 +7131,23 @@ app.post('/api/teachers/import', async (req, res) => {
             );
           }
         }
+
+        // Sync verification entry
+        const metadata = {
+          name,
+          photo: null,
+          category: 'Teaching',
+          department: 'N/A',
+          position: 'Teacher',
+          employmentStatus: 'Permanent',
+          issueDate: new Date().toISOString().split('T')[0],
+          expiryDate: new Date(Date.now() + 365*24*60*60*1000).toISOString().split('T')[0],
+          status: 'Active'
+        };
+        await connection.query(
+          'INSERT INTO verifications (token, document_type, reference_id, metadata, status, expiresAt) VALUES (?, ?, ?, ?, ?, ?)',
+          [verificationToken, 'Staff ID', id, JSON.stringify(metadata), 'Active', metadata.expiryDate]
+        );
 
         success.push({ id, username, name });
       } catch (err) {
@@ -6260,7 +7158,7 @@ app.post('/api/teachers/import', async (req, res) => {
     await connection.commit();
     res.json({ success: true, report: { success, skipped, errors } });
   } catch (err) {
-    await connection.rollback();
+    await connection.rollback().catch(() => {});
     res.status(500).json({ error: err.message });
   } finally {
     connection.release();
@@ -6273,7 +7171,7 @@ app.get('/api/class-teachers', async (req, res) => {
     const [rows] = await pool.query(`
       SELECT ct.grade_class, ct.teacher_id, t.name as teacher_name 
       FROM class_teachers ct 
-      JOIN teachers t ON ct.teacher_id = t.id
+      JOIN staff t ON ct.teacher_id = t.id
     `);
     res.json(rows);
   } catch (err) {
@@ -6306,8 +7204,738 @@ app.post('/api/class-teachers', async (req, res) => {
 // DELETE teacher
 app.delete('/api/teachers/:id', async (req, res) => {
   try {
-    await pool.query('DELETE FROM teachers WHERE id = ?', [req.params.id]);
+    await pool.query('DELETE FROM staff WHERE id = ?', [req.params.id]);
     res.json({ success: true });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+
+// --- NEW STAFF MANAGEMENT MODULE ENDPOINTS ---
+
+// GET all staff (with search and filters)
+app.get('/api/staff', async (req, res) => {
+  try {
+    const { category, department, status, search } = req.query;
+    let query = 'SELECT id, username, name, first_name, middle_name, last_name, employee_number, gender, dob, national_id, phone, email, residential_address, district, nationality, religion, category, department, date_appointed, employment_status, salary_scale, qualification, emergency_contact_name, emergency_contact_phone, force_password_change, verification_token, subjects, classes, position, photo, status, createdAt, (signature IS NOT NULL AND LENGTH(signature) > 0) as hasSignature FROM staff';
+    let params = [];
+    let conditions = [];
+
+    if (category) {
+      conditions.push('category = ?');
+      params.push(category);
+    }
+    if (department) {
+      conditions.push('department = ?');
+      params.push(department);
+    }
+    if (status) {
+      conditions.push('status = ?');
+      params.push(status);
+    }
+    if (search) {
+      conditions.push('(name LIKE ? OR username LIKE ? OR id LIKE ? OR employee_number LIKE ?)');
+      const match = `%${search}%`;
+      params.push(match, match, match, match);
+    }
+
+    if (conditions.length > 0) {
+      query += ' WHERE ' + conditions.join(' AND ');
+    }
+    query += ' ORDER BY name';
+
+    const [rows] = await pool.query(query, params);
+    
+    // Fetch all assignments and class teachers
+    const [assignmentsRows] = await pool.query('SELECT teacher_id, subject, grade_class FROM teacher_assignments');
+    const [classTeacherRows] = await pool.query('SELECT grade_class, teacher_id FROM class_teachers');
+
+    const list = rows.map(r => {
+      const assignments = assignmentsRows
+        .filter(a => a.teacher_id === r.id)
+        .map(a => ({ subject: a.subject, grade_class: a.grade_class }));
+        
+      const classTeacherFor = classTeacherRows
+        .filter(ct => ct.teacher_id === r.id)
+        .map(ct => ct.grade_class);
+
+      return {
+        ...r,
+        subjects: typeof r.subjects === 'string' ? JSON.parse(r.subjects || '[]') : (r.subjects || []),
+        classes: typeof r.classes === 'string' ? JSON.parse(r.classes || '[]') : (r.classes || []),
+        hasSignature: !!r.hasSignature,
+        assignments,
+        classTeacherFor
+      };
+    });
+    res.json(list);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// GET single staff member
+app.get('/api/staff/:id', async (req, res) => {
+  try {
+    const [rows] = await pool.query('SELECT * FROM staff WHERE id = ?', [req.params.id]);
+    if (rows.length === 0) {
+      return res.status(404).json({ error: 'Staff member not found' });
+    }
+    const staff = rows[0];
+    res.json({
+      ...staff,
+      subjects: typeof staff.subjects === 'string' ? JSON.parse(staff.subjects || '[]') : (staff.subjects || []),
+      classes: typeof staff.classes === 'string' ? JSON.parse(staff.classes || '[]') : (staff.classes || []),
+    });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// POST create staff
+app.post('/api/staff', async (req, res) => {
+  let connection;
+  try {
+    connection = await pool.getConnection();
+    const {
+      firstName, middleName, lastName, employeeNumber, gender, dob, nationalId, phone, email,
+      residentialAddress, district, nationality, religion, category, department, dateAppointed,
+      employmentStatus, salaryScale, qualification, emergencyContactName, emergencyContactPhone,
+      position, photo, signature, subjects, classes, assignments, status
+    } = req.body;
+
+    if (!firstName || !lastName || !category) {
+      return res.status(400).json({ error: 'First name, last name, and staff category are required' });
+    }
+
+    // Auto-generate unique Staff ID
+    const prefix = category === 'Teaching' ? 'SPSS-TS-' : 'SPSS-NTS-';
+    const [lastStaff] = await connection.query('SELECT id FROM staff WHERE id LIKE ? ORDER BY id DESC LIMIT 1', [`${prefix}%`]);
+    let nextNum = 1;
+    if (lastStaff.length > 0) {
+      const parts = lastStaff[0].id.split('-');
+      const lastVal = parseInt(parts[parts.length - 1], 10);
+      if (!isNaN(lastVal)) {
+        nextNum = lastVal + 1;
+      }
+    }
+    const id = prefix + String(nextNum).padStart(4, '0');
+
+    // Auto-generate username
+    const baseUser = (firstName.toLowerCase() + '.' + lastName.toLowerCase()).replace(/[^a-z0-9]/g, '');
+    let username = baseUser;
+    let uCheck = 1;
+    while (true) {
+      const [existing] = await connection.query('SELECT id FROM staff WHERE username = ?', [username]);
+      if (existing.length === 0) break;
+      username = baseUser + uCheck;
+      uCheck++;
+    }
+
+    // Default password is 123
+    const crypto = require('crypto');
+    const hash = crypto.createHash('sha256').update('123').digest('hex');
+    const verificationToken = crypto.randomBytes(16).toString('hex');
+
+    let finalPhoto = photo;
+    let finalSignature = signature;
+    if (photo) finalPhoto = await compressImageIfNeeded(photo, 150, 150, 75, true);
+    if (signature) finalSignature = await compressImageIfNeeded(signature, 200, 100, 75, true);
+
+    const name = [firstName, middleName, lastName].filter(Boolean).join(' ');
+
+    const finalSubjects = assignments && Array.isArray(assignments) 
+      ? Array.from(new Set(assignments.map(a => a.subject))) 
+      : (subjects || []);
+    const finalClasses = assignments && Array.isArray(assignments) 
+      ? Array.from(new Set(assignments.map(a => a.grade_class))) 
+      : (classes || []);
+
+    await connection.beginTransaction();
+
+    await connection.query(
+      `INSERT INTO staff (
+        id, username, password_hash, name, first_name, middle_name, last_name, employee_number,
+        gender, dob, national_id, phone, email, residential_address, district, nationality,
+        religion, category, department, date_appointed, employment_status, salary_scale,
+        qualification, emergency_contact_name, emergency_contact_phone, force_password_change,
+        verification_token, subjects, classes, position, signature, photo, status
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1, ?, ?, ?, ?, ?, ?, ?)`,
+      [
+        id, username, hash, name, firstName, middleName || null, lastName, employeeNumber || null,
+        gender || null, dob || null, nationalId || null, phone || null, email || null, residentialAddress || null,
+        district || null, nationality || null, religion || null, category, department || null, dateAppointed || null,
+        employmentStatus || 'Permanent', salaryScale || null, qualification || null, emergencyContactName || null,
+        emergencyContactPhone || null, verificationToken, JSON.stringify(finalSubjects), JSON.stringify(finalClasses),
+        position || (category === 'Teaching' ? 'Teacher' : 'Staff Member'), finalSignature || null, finalPhoto || null, status || 'Active'
+      ]
+    );
+
+    const actualAssignments = assignments && Array.isArray(assignments) ? assignments : [];
+    if (category === 'Teaching' && (!assignments || !Array.isArray(assignments))) {
+      for (const s of finalSubjects) {
+        for (const c of finalClasses) {
+          actualAssignments.push({ subject: s, grade_class: c });
+        }
+      }
+    }
+    for (const a of actualAssignments) {
+      await connection.query(
+        'INSERT INTO teacher_assignments (teacher_id, subject, grade_class) VALUES (?, ?, ?)',
+        [id, a.subject, a.grade_class]
+      );
+    }
+
+    const metadata = {
+      name,
+      photo: finalPhoto || null,
+      category,
+      department: department || 'N/A',
+      position: position || (category === 'Teaching' ? 'Teacher' : 'Staff Member'),
+      employmentStatus: employmentStatus || 'Permanent',
+      issueDate: new Date().toISOString().split('T')[0],
+      expiryDate: new Date(Date.now() + 365*24*60*60*1000).toISOString().split('T')[0],
+      status: status || 'Active'
+    };
+    await connection.query(
+      'INSERT INTO verifications (token, document_type, reference_id, metadata, status, expiresAt) VALUES (?, ?, ?, ?, ?, ?)',
+      [verificationToken, 'Staff ID', id, JSON.stringify(metadata), metadata.status === 'Active' ? 'Active' : 'Inactive', metadata.expiryDate]
+    );
+
+    await connection.commit();
+    res.json({ success: true, id, username });
+  } catch (err) {
+    if (connection) await connection.rollback().catch(() => {});
+    res.status(500).json({ error: err.message });
+  } finally {
+    if (connection) connection.release();
+  }
+});
+
+// PUT update staff
+app.put('/api/staff/:id', async (req, res) => {
+  let connection;
+  try {
+    connection = await pool.getConnection();
+    const { id } = req.params;
+    const {
+      firstName, middleName, lastName, employeeNumber, gender, dob, nationalId, phone, email,
+      residentialAddress, district, nationality, religion, category, department, dateAppointed,
+      employmentStatus, salaryScale, qualification, emergencyContactName, emergencyContactPhone,
+      position, photo, signature, subjects, classes, assignments, status
+    } = req.body;
+
+    if (!firstName || !lastName || !category) {
+      return res.status(400).json({ error: 'First name, last name, and staff category are required' });
+    }
+
+    const [curr] = await connection.query('SELECT verification_token, photo, signature FROM staff WHERE id = ?', [id]);
+    if (curr.length === 0) {
+      return res.status(404).json({ error: 'Staff member not found' });
+    }
+
+    let finalPhoto = photo;
+    let finalSignature = signature;
+    if (photo && photo.startsWith('data:') && photo !== curr[0].photo) finalPhoto = await compressImageIfNeeded(photo, 150, 150, 75, true);
+    if (signature && signature.startsWith('data:') && signature !== curr[0].signature) finalSignature = await compressImageIfNeeded(signature, 200, 100, 75, true);
+
+    const name = [firstName, middleName, lastName].filter(Boolean).join(' ');
+
+    const finalSubjects = assignments && Array.isArray(assignments) 
+      ? Array.from(new Set(assignments.map(a => a.subject))) 
+      : (subjects || []);
+    const finalClasses = assignments && Array.isArray(assignments) 
+      ? Array.from(new Set(assignments.map(a => a.grade_class))) 
+      : (classes || []);
+
+    let verificationToken = curr[0].verification_token;
+    if (!verificationToken) {
+      const crypto = require('crypto');
+      verificationToken = crypto.randomBytes(16).toString('hex');
+    }
+
+    await connection.beginTransaction();
+
+    await connection.query(
+      `UPDATE staff SET
+        name = ?, first_name = ?, middle_name = ?, last_name = ?, employee_number = ?,
+        gender = ?, dob = ?, national_id = ?, phone = ?, email = ?, residential_address = ?,
+        district = ?, nationality = ?, religion = ?, category = ?, department = ?, date_appointed = ?,
+        employment_status = ?, salary_scale = ?, qualification = ?, emergency_contact_name = ?,
+        emergency_contact_phone = ?, verification_token = ?, subjects = ?, classes = ?,
+        position = ?, signature = ?, photo = ?, status = ?
+      WHERE id = ?`,
+      [
+        name, firstName, middleName || null, lastName, employeeNumber || null,
+        gender || null, dob || null, nationalId || null, phone || null, email || null, residentialAddress || null,
+        district || null, nationality || null, religion || null, category, department || null, dateAppointed || null,
+        employmentStatus || 'Permanent', salaryScale || null, qualification || null, emergencyContactName || null,
+        emergencyContactPhone || null, verificationToken, JSON.stringify(finalSubjects), JSON.stringify(finalClasses),
+        position || (category === 'Teaching' ? 'Teacher' : 'Staff Member'), finalSignature || null, finalPhoto || null, status || 'Active',
+        id
+      ]
+    );
+
+    await connection.query('DELETE FROM teacher_assignments WHERE teacher_id = ?', [id]);
+    const actualAssignments = assignments && Array.isArray(assignments) ? assignments : [];
+    if (category === 'Teaching' && (!assignments || !Array.isArray(assignments))) {
+      for (const s of finalSubjects) {
+        for (const c of finalClasses) {
+          actualAssignments.push({ subject: s, grade_class: c });
+        }
+      }
+    }
+    for (const a of actualAssignments) {
+      await connection.query(
+        'INSERT INTO teacher_assignments (teacher_id, subject, grade_class) VALUES (?, ?, ?)',
+        [id, a.subject, a.grade_class]
+      );
+    }
+
+    const metadata = {
+      name,
+      photo: finalPhoto || null,
+      category,
+      department: department || 'N/A',
+      position: position || (category === 'Teaching' ? 'Teacher' : 'Staff Member'),
+      employmentStatus: employmentStatus || 'Permanent',
+      issueDate: new Date().toISOString().split('T')[0],
+      expiryDate: new Date(Date.now() + 365*24*60*60*1000).toISOString().split('T')[0],
+      status: status || 'Active'
+    };
+    await connection.query(
+      `INSERT INTO verifications (token, document_type, reference_id, metadata, status, expiresAt)
+       VALUES (?, ?, ?, ?, ?, ?)
+       ON DUPLICATE KEY UPDATE metadata = ?, status = ?, expiresAt = ?`,
+      [
+        verificationToken, 'Staff ID', id, JSON.stringify(metadata), metadata.status === 'Active' ? 'Active' : 'Inactive', metadata.expiryDate,
+        JSON.stringify(metadata), metadata.status === 'Active' ? 'Active' : 'Inactive', metadata.expiryDate
+      ]
+    );
+
+    await connection.commit();
+    res.json({ success: true });
+  } catch (err) {
+    if (connection) await connection.rollback().catch(() => {});
+    res.status(500).json({ error: err.message });
+  } finally {
+    if (connection) connection.release();
+  }
+});
+
+// DELETE staff member
+app.delete('/api/staff/:id', async (req, res) => {
+  try {
+    await pool.query('DELETE FROM staff WHERE id = ?', [req.params.id]);
+    res.json({ success: true });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// POST reset staff password
+app.post('/api/staff/:id/reset-password', async (req, res) => {
+  try {
+    const crypto = require('crypto');
+    const hash = crypto.createHash('sha256').update('123').digest('hex');
+    await pool.query('UPDATE staff SET password_hash = ?, force_password_change = 1 WHERE id = ?', [hash, req.params.id]);
+    res.json({ success: true, message: 'Password has been reset to default "123"' });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// POST toggle staff status
+app.post('/api/staff/:id/status', async (req, res) => {
+  try {
+    const { status } = req.body;
+    if (!status) return res.status(400).json({ error: 'Status is required' });
+    await pool.query('UPDATE staff SET status = ? WHERE id = ?', [status, req.params.id]);
+    
+    const [rows] = await pool.query('SELECT verification_token FROM staff WHERE id = ?', [req.params.id]);
+    if (rows.length > 0 && rows[0].verification_token) {
+      await pool.query('UPDATE verifications SET status = ? WHERE token = ?', [
+        status === 'Active' ? 'Active' : 'Inactive',
+        rows[0].verification_token
+      ]);
+    }
+    
+    res.json({ success: true });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// POST self password change
+app.post('/api/staff/change-password', async (req, res) => {
+  try {
+    const { oldPassword, newPassword } = req.body;
+    const staffId = req.user.id;
+    if (!oldPassword || !newPassword) {
+      return res.status(400).json({ error: 'Old password and new password are required' });
+    }
+
+    const [rows] = await pool.query('SELECT password_hash FROM staff WHERE id = ?', [staffId]);
+    if (rows.length === 0) {
+      return res.status(404).json({ error: 'Staff member not found' });
+    }
+
+    const crypto = require('crypto');
+    const oldHash = crypto.createHash('sha256').update(oldPassword).digest('hex');
+    if (oldHash !== rows[0].password_hash) {
+      return res.status(400).json({ error: 'Old password is incorrect' });
+    }
+
+    const newHash = crypto.createHash('sha256').update(newPassword).digest('hex');
+    await pool.query('UPDATE staff SET password_hash = ?, force_password_change = 0 WHERE id = ?', [newHash, staffId]);
+    res.json({ success: true });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// POST import staff bulk
+app.post('/api/staff/import', async (req, res) => {
+  const connection = await pool.getConnection();
+  try {
+    const { staff } = req.body;
+    if (!Array.isArray(staff)) {
+      return res.status(400).json({ error: 'Invalid payload: staff must be an array' });
+    }
+
+    await connection.beginTransaction();
+
+    const success = [];
+    const skipped = [];
+    const errors = [];
+
+    const [existingStaff] = await connection.query('SELECT id, username FROM staff');
+    const existingIds = new Set(existingStaff.map(s => s.id.toLowerCase()));
+    const existingUsernames = new Set(existingStaff.map(s => s.username.toLowerCase()));
+
+    const seenIdsInImport = new Set();
+    const seenUsernamesInImport = new Set();
+
+    const crypto = require('crypto');
+    const defaultHash = crypto.createHash('sha256').update('123').digest('hex');
+
+    for (let i = 0; i < staff.length; i++) {
+      const s = staff[i];
+      const rowNum = s.rowNumber || (i + 2);
+      
+      const firstName = String(s.firstName || '').trim();
+      const lastName = String(s.lastName || '').trim();
+      const category = String(s.category || 'Teaching').trim();
+      const gender = String(s.gender || 'Male').trim();
+      const email = String(s.email || '').trim();
+      const phone = String(s.phone || '').trim();
+      const position = String(s.position || '').trim();
+      const department = String(s.department || '').trim();
+      const rawSubjects = String(s.subjects || '').trim();
+      const classTeacher = String(s.classTeacher || '').trim();
+
+      if (!firstName || !lastName) {
+        errors.push({ rowNum, name: 'N/A', error: 'First name and Last name are required' });
+        continue;
+      }
+
+      const prefix = category === 'Teaching' ? 'SPSS-TS-' : 'SPSS-NTS-';
+      
+      const [lastStaff] = await connection.query('SELECT id FROM staff WHERE id LIKE ? ORDER BY id DESC LIMIT 1', [`${prefix}%`]);
+      let nextNum = 1;
+      if (lastStaff.length > 0) {
+        const parts = lastStaff[0].id.split('-');
+        const lastVal = parseInt(parts[parts.length - 1], 10);
+        if (!isNaN(lastVal)) nextNum = lastVal + 1;
+      }
+
+      let id = prefix + String(nextNum).padStart(4, '0');
+      while (seenIdsInImport.has(id.toLowerCase()) || existingIds.has(id.toLowerCase())) {
+        nextNum++;
+        id = prefix + String(nextNum).padStart(4, '0');
+      }
+
+      const baseUser = (firstName.toLowerCase() + '.' + lastName.toLowerCase()).replace(/[^a-z0-9]/g, '');
+      let username = baseUser;
+      let uCheck = 1;
+      while (seenUsernamesInImport.has(username.toLowerCase()) || existingUsernames.has(username.toLowerCase())) {
+        username = baseUser + uCheck;
+        uCheck++;
+      }
+
+      const idLower = id.toLowerCase();
+      const usernameLower = username.toLowerCase();
+
+      seenIdsInImport.add(idLower);
+      seenUsernamesInImport.add(usernameLower);
+
+      try {
+        const name = [firstName, s.middleName || '', lastName].filter(Boolean).join(' ');
+        const subjectsArr = rawSubjects.split(',').map(sub => sub.trim()).filter(Boolean);
+        const classesArr = classTeacher ? [classTeacher] : [];
+        const verificationToken = crypto.randomBytes(16).toString('hex');
+
+        await connection.query(
+          `INSERT INTO staff (
+            id, username, password_hash, name, first_name, middle_name, last_name,
+            gender, phone, email, category, department, position, force_password_change,
+            verification_token, subjects, classes, status
+          ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1, ?, ?, ?, 'Active')`,
+          [
+            id, username, defaultHash, name, firstName, s.middleName || null, lastName,
+            gender, phone || null, email || null, category, department || null, position || (category === 'Teaching' ? 'Teacher' : 'Staff Member'),
+            verificationToken, JSON.stringify(subjectsArr), JSON.stringify(classesArr)
+          ]
+        );
+
+        if (category === 'Teaching' && classTeacher) {
+          await connection.query(
+            'INSERT INTO class_teachers (grade_class, teacher_id) VALUES (?, ?) ON DUPLICATE KEY UPDATE teacher_id = ?',
+            [classTeacher, id, id]
+          );
+
+          for (const sub of subjectsArr) {
+            await connection.query(
+              'INSERT INTO teacher_assignments (teacher_id, subject, grade_class) VALUES (?, ?, ?) ON DUPLICATE KEY UPDATE teacher_id = teacher_id',
+              [id, sub, classTeacher]
+            );
+          }
+        }
+
+        const metadata = {
+          name,
+          photo: null,
+          category,
+          department: department || 'N/A',
+          position: position || (category === 'Teaching' ? 'Teacher' : 'Staff Member'),
+          employmentStatus: 'Permanent',
+          issueDate: new Date().toISOString().split('T')[0],
+          expiryDate: new Date(Date.now() + 365*24*60*60*1000).toISOString().split('T')[0],
+          status: 'Active'
+        };
+        await connection.query(
+          'INSERT INTO verifications (token, document_type, reference_id, metadata, status, expiresAt) VALUES (?, ?, ?, ?, ?, ?)',
+          [verificationToken, 'Staff ID', id, JSON.stringify(metadata), 'Active', metadata.expiryDate]
+        );
+
+        success.push({ id, username, name });
+      } catch (err) {
+        errors.push({ rowNum, name: `${firstName} ${lastName}`, error: 'Database error: ' + err.message });
+      }
+    }
+
+    await connection.commit();
+    res.json({ success: true, report: { success, skipped, errors } });
+  } catch (err) {
+    await connection.rollback().catch(() => {});
+    res.status(500).json({ error: err.message });
+  } finally {
+    connection.release();
+  }
+});
+
+// --- LEAVE REQUESTS ENDPOINTS ---
+
+// GET leave requests for staff member
+app.get('/api/staff/:id/leave-requests', async (req, res) => {
+  try {
+    const [rows] = await pool.query('SELECT * FROM leave_requests WHERE staff_id = ? ORDER BY createdAt DESC', [req.params.id]);
+    res.json(rows);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// POST leave request
+app.post('/api/staff/:id/leave-requests', async (req, res) => {
+  try {
+    const leaveType = req.body.leaveType || req.body.leave_type;
+    const startDate = req.body.startDate || req.body.start_date;
+    const endDate = req.body.endDate || req.body.end_date;
+    const reason = req.body.reason;
+
+    if (!leaveType || !startDate || !endDate || !reason) {
+      return res.status(400).json({ error: 'All fields are required' });
+    }
+    await pool.query(
+      'INSERT INTO leave_requests (staff_id, leave_type, start_date, end_date, reason, status) VALUES (?, ?, ?, ?, ?, "Pending")',
+      [req.params.id, leaveType, startDate, endDate, reason]
+    );
+    res.json({ success: true });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// GET all leave requests for admin
+app.get('/api/admin/leave-requests', async (req, res) => {
+  try {
+    const [rows] = await pool.query(`
+      SELECT lr.*, s.name as staff_name, s.category as staff_category, s.department as staff_department, s.position as staff_position
+      FROM leave_requests lr
+      JOIN staff s ON lr.staff_id = s.id
+      ORDER BY lr.createdAt DESC
+    `);
+    res.json(rows);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// PUT update leave request status (approve/reject)
+app.put('/api/admin/leave-requests/:id', async (req, res) => {
+  try {
+    const { status, remarks, approvedBy } = req.body;
+    if (!status) return res.status(400).json({ error: 'Status is required' });
+    await pool.query(
+      'UPDATE leave_requests SET status = ?, remarks = ?, approved_by = ? WHERE id = ?',
+      [status, remarks || null, approvedBy || 'Administrator', req.params.id]
+    );
+    
+    if (status === 'Approved') {
+      const [rows] = await pool.query('SELECT staff_id FROM leave_requests WHERE id = ?', [req.params.id]);
+      if (rows.length > 0) {
+        await pool.query('UPDATE staff SET status = "On Leave" WHERE id = ?', [rows[0].staff_id]);
+      }
+    }
+    
+    res.json({ success: true });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// --- TIMETABLES ENDPOINTS ---
+
+// GET timetable for staff
+app.get('/api/staff/:id/timetable', async (req, res) => {
+  try {
+    const [rows] = await pool.query('SELECT * FROM timetables WHERE staff_id = ? ORDER BY day_of_week, start_time', [req.params.id]);
+    res.json(rows);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// POST save timetable
+app.post('/api/staff/:id/timetable', async (req, res) => {
+  let connection;
+  try {
+    connection = await pool.getConnection();
+    const { id } = req.params;
+    const { slots } = req.body;
+
+    if (!Array.isArray(slots)) {
+      return res.status(400).json({ error: 'Slots must be an array' });
+    }
+
+    await connection.beginTransaction();
+    await connection.query('DELETE FROM timetables WHERE staff_id = ?', [id]);
+
+    for (const s of slots) {
+      await connection.query(
+        'INSERT INTO timetables (staff_id, day_of_week, period_name, start_time, end_time, grade_class, subject, room) VALUES (?, ?, ?, ?, ?, ?, ?, ?)',
+        [id, s.dayOfWeek, s.periodName, s.startTime, s.endTime, s.gradeClass, s.subject, s.room || null]
+      );
+    }
+
+    await connection.commit();
+    res.json({ success: true });
+  } catch (err) {
+    if (connection) await connection.rollback().catch(() => {});
+    res.status(500).json({ error: err.message });
+  } finally {
+    if (connection) connection.release();
+  }
+});
+
+// --- STAFF REPORTS ENDPOINT ---
+app.get('/api/reports/staff', async (req, res) => {
+  try {
+    const [totalRows] = await pool.query('SELECT COUNT(*) as count, category FROM staff GROUP BY category');
+    const [genderRows] = await pool.query('SELECT COUNT(*) as count, gender FROM staff GROUP BY gender');
+    const [deptRows] = await pool.query('SELECT COUNT(*) as count, department FROM staff GROUP BY department');
+    const [statusRows] = await pool.query('SELECT COUNT(*) as count, status FROM staff GROUP BY status');
+    
+    const currentYear = new Date().getFullYear();
+    const [newThisYearRows] = await pool.query('SELECT COUNT(*) as count FROM staff WHERE YEAR(date_appointed) = ?', [currentYear]);
+
+    res.json({
+      totals: totalRows,
+      gender: genderRows,
+      departments: deptRows,
+      status: statusRows,
+      newThisYear: newThisYearRows[0]?.count || 0
+    });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// --- PUBLIC SECURE VERIFICATION ENDPOINT ---
+app.get('/api/verify/:token', async (req, res) => {
+  try {
+    const { token } = req.params;
+    const [vRows] = await pool.query('SELECT * FROM verifications WHERE token = ?', [token]);
+    
+    if (vRows.length === 0) {
+      return res.json({ success: false, status: 'Invalid ID', error: 'Document not found or invalid verification token.' });
+    }
+
+    const verification = vRows[0];
+    const docType = verification.document_type;
+    const refId = verification.reference_id;
+
+    if (docType === 'Staff ID') {
+      const [sRows] = await pool.query('SELECT * FROM staff WHERE id = ?', [refId]);
+      if (sRows.length === 0) {
+        return res.json({ success: false, status: 'Invalid ID', error: 'Staff member does not exist in active records.' });
+      }
+
+      const staff = sRows[0];
+      const expiryDate = new Date(verification.expiresAt);
+      const isExpired = expiryDate < new Date();
+
+      let status = staff.status;
+      if (isExpired) {
+        status = 'Expired';
+      }
+
+      const metadata = {
+        name: staff.name,
+        photo: staff.photo || null,
+        category: staff.category,
+        department: staff.department || 'N/A',
+        position: staff.position || 'N/A',
+        employmentStatus: staff.employment_status,
+        issueDate: verification.createdAt ? new Date(verification.createdAt).toISOString().split('T')[0] : 'N/A',
+        expiryDate: verification.expiresAt ? new Date(verification.expiresAt).toISOString().split('T')[0] : 'N/A',
+        status: status
+      };
+
+      if (status !== 'Active' && status !== 'On Leave') {
+        return res.json({
+          success: false,
+          status: status === 'Expired' ? 'Expired Staff ID' : `${status} Staff ID`,
+          metadata
+        });
+      }
+
+      return res.json({
+        success: true,
+        status: 'Verified',
+        metadata
+      });
+    }
+
+    let meta = typeof verification.metadata === 'string' ? JSON.parse(verification.metadata) : verification.metadata;
+    res.json({
+      success: verification.status === 'Active',
+      status: verification.status === 'Active' ? 'Verified' : verification.status,
+      documentType: docType,
+      metadata: meta
+    });
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
@@ -6741,15 +8369,15 @@ async function runOneTimeImageMigration() {
       }
     }
 
-    // 2. Teacher signatures and photos
-    const [teachers] = await pool.query("SELECT id, name, signature, photo FROM teachers WHERE (signature IS NOT NULL AND LENGTH(signature) > 50000) OR (photo IS NOT NULL AND LENGTH(photo) > 50000)");
+    // 2. Staff signatures and photos
+    const [teachers] = await pool.query("SELECT id, name, signature, photo FROM staff WHERE (signature IS NOT NULL AND LENGTH(signature) > 50000) OR (photo IS NOT NULL AND LENGTH(photo) > 50000)");
     for (const t of teachers) {
       let updateSig = t.signature;
       let updatePhoto = t.photo;
       let changed = false;
 
       if (t.signature && t.signature.startsWith('data:') && t.signature.length > 50000) {
-        console.log(`[MIGRATION] Compressing signature for teacher: ${t.name}`);
+        console.log(`[MIGRATION] Compressing signature for staff: ${t.name}`);
         const compressedSig = await compressImageIfNeeded(t.signature, 200, 100, 75, true);
         if (compressedSig && compressedSig.length < t.signature.length) {
           updateSig = compressedSig;
@@ -6758,7 +8386,7 @@ async function runOneTimeImageMigration() {
       }
 
       if (t.photo && t.photo.startsWith('data:') && t.photo.length > 50000) {
-        console.log(`[MIGRATION] Compressing photo for teacher: ${t.name}`);
+        console.log(`[MIGRATION] Compressing photo for staff: ${t.name}`);
         const compressedPhoto = await compressImageIfNeeded(t.photo, 150, 150, 75, true);
         if (compressedPhoto && compressedPhoto.length < t.photo.length) {
           updatePhoto = compressedPhoto;
@@ -6767,8 +8395,8 @@ async function runOneTimeImageMigration() {
       }
 
       if (changed) {
-        await pool.query('UPDATE teachers SET signature = ?, photo = ? WHERE id = ?', [updateSig, updatePhoto, t.id]);
-        console.log(`[MIGRATION] Teacher ${t.name} images updated.`);
+        await pool.query('UPDATE staff SET signature = ?, photo = ? WHERE id = ?', [updateSig, updatePhoto, t.id]);
+        console.log(`[MIGRATION] Staff ${t.name} images updated.`);
       }
     }
 

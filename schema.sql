@@ -298,3 +298,18 @@ CREATE TABLE IF NOT EXISTS attendance_reports_cache (
   expires_at TIMESTAMP NOT NULL,
   createdAt TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+-- Create compiled_rankings table for background ranks cache
+CREATE TABLE IF NOT EXISTS compiled_rankings (
+  student_id VARCHAR(50),
+  term VARCHAR(20),
+  year INT,
+  class_position INT NOT NULL DEFAULT 0,
+  total_class INT NOT NULL DEFAULT 0,
+  stream_position INT NOT NULL DEFAULT 0,
+  total_stream INT NOT NULL DEFAULT 0,
+  updatedAt TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  PRIMARY KEY (student_id, term, year),
+  FOREIGN KEY (student_id) REFERENCES students(id) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+

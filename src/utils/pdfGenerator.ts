@@ -4,7 +4,8 @@
  */
 
 import { jsPDF } from 'jspdf';
-import { Student } from '../types.ts';
+import { Student, Staff } from '../types.ts';
+import QRCode from 'qrcode';
 import { getClassTheme } from './classColors.ts';
 import { enhanceStudentPhotoForPdf } from './imageProcessor.ts';
 import { DEFAULT_SCHOOL_LOGO } from '../components/SchoolLogo.tsx';
@@ -1368,6 +1369,322 @@ export async function generateClearancePdf({
       doc.line(0, y, 210, y);
     }
     
+    doc.restoreGraphicsState();
+  }
+
+  return doc;
+}
+
+export async function generateStaffIdCardsPdf({
+  staffMembers,
+  schoolLogoBase64,
+  printSide = 'both',
+  onProgress
+}: {
+  staffMembers: Staff[];
+  schoolLogoBase64?: string | null;
+  printSide?: 'front' | 'back' | 'both';
+  onProgress?: (current: number, total: number) => void;
+}): Promise<jsPDF> {
+  // Convert custom logo or default logo to PNG
+  let activeLogoPng: string | null = null;
+  if (schoolLogoBase64) {
+    try {
+      activeLogoPng = await convertSvgToPng(schoolLogoBase64, 1000, 1000);
+    } catch (e) {
+      console.warn("Failed to convert school logo:", e);
+    }
+  } else {
+    try {
+      activeLogoPng = await convertSvgToPng(DEFAULT_SCHOOL_LOGO, 1000, 1000);
+    } catch (e) {
+      console.warn("Failed to convert default fallback logo:", e);
+    }
+  }
+
+  const doc = new jsPDF({
+    orientation: 'portrait',
+    unit: 'mm',
+    format: 'a4',
+  });
+
+  const cardW = 90;
+  const cardH = 58;
+  const marginX = 10;
+  const marginY = 13;
+  const spacingX = 10;
+  const spacingY = 13;
+
+  const staffList = Array.isArray(staffMembers) ? staffMembers : [];
+
+  const drawStaffFront = (doc: jsPDF, x: number, y: number, member: Staff) => {
+    // Card Base
+    doc.setDrawColor(30, 41, 59); // slate-800
+    doc.setLineWidth(0.35);
+    doc.roundedRect(x, y, cardW, cardH, 3.5, 3.5, 'D');
+
+    // Header strip
+    const isTeaching = member.category === 'Teaching';
+    const headerColor = isTeaching ? { r: 30, g: 58, b: 138 } : { r: 15, g: 23, b: 42 }; // indigo-900 or slate-900
+    doc.setFillColor(headerColor.r, headerColor.g, headerColor.b);
+    doc.roundedRect(x + 0.5, y + 0.5, cardW - 1, 14, 3, 3, 'F');
+    doc.rect(x + 0.5, y + 8, cardW - 1, 6.5, 'F');
+
+    // Logo
+    if (activeLogoPng) {
+      try {
+        doc.addImage(activeLogoPng, 'PNG', x + 3, y + 2, 10, 10);
+      } catch (e) {
+        console.warn("Logo draw failed", e);
+      }
+    }
+
+    // Title
+    doc.setTextColor(255, 255, 255);
+    doc.setFont("helvetica", "bold");
+    doc.setFontSize(10);
+    doc.text("ST. PAUL SECONDARY SCHOOL", x + 15, y + 6);
+    doc.setFont("helvetica", "normal");
+    doc.setFontSize(6.5);
+    doc.text("STAFF IDENTIFICATION CARD", x + 15, y + 9.5);
+
+    // Photo
+    const photoX = x + 4;
+    const photoY = y + 17;
+    const photoW = 20;
+    const photoH = 26;
+    doc.setDrawColor(226, 232, 240);
+    doc.setFillColor(241, 245, 249);
+    doc.rect(photoX, photoY, photoW, photoH, 'FD');
+    if (member.photo) {
+      try {
+        doc.addImage(member.photo, 'PNG', photoX + 0.5, photoY + 0.5, photoW - 1, photoH - 1);
+      } catch (e) {
+        console.warn("Error drawing photo:", e);
+        doc.setDrawColor(200, 200, 200);
+        doc.circle(photoX + photoW / 2, photoY + 10, 5, 'D');
+        doc.ellipse(photoX + photoW / 2, photoY + 20, 7, 5, 'D');
+      }
+    } else {
+      // Draw placeholder avatar
+      doc.setDrawColor(200, 200, 200);
+      doc.circle(photoX + photoW / 2, photoY + 10, 5, 'D');
+      doc.ellipse(photoX + photoW / 2, photoY + 20, 7, 5, 'D');
+    }
+
+    // Staff Info text fields
+    doc.setTextColor(15, 23, 42); // dark slate
+    doc.setFont("helvetica", "bold");
+    doc.setFontSize(8.5);
+    const fullName = `${member.firstName || ''} ${member.middleName ? member.middleName + ' ' : ''}${member.lastName || ''}`.toUpperCase();
+    doc.text(fullName, x + 27, y + 21);
+
+    doc.setFont("helvetica", "normal");
+    doc.setFontSize(7);
+    doc.setTextColor(71, 85, 105);
+    doc.text("Designation:", x + 27, y + 26);
+    doc.setFont("helvetica", "bold");
+    doc.setTextColor(15, 23, 42);
+    doc.text(member.position || 'Staff Member', x + 43, y + 26);
+
+    doc.setFont("helvetica", "normal");
+    doc.setTextColor(71, 85, 105);
+    doc.text("Department:", x + 27, y + 30);
+    doc.setFont("helvetica", "bold");
+    doc.setTextColor(15, 23, 42);
+    doc.text(member.department || 'General', x + 43, y + 30);
+
+    doc.setFont("helvetica", "normal");
+    doc.setTextColor(71, 85, 105);
+    doc.text("Employment Status:", x + 27, y + 34);
+    doc.setFont("helvetica", "bold");
+    doc.setTextColor(15, 23, 42);
+    doc.text(member.employmentStatus || 'Permanent', x + 53, y + 34);
+
+    doc.setFont("helvetica", "normal");
+    doc.setTextColor(71, 85, 105);
+    doc.text("Staff ID Code:", x + 27, y + 38);
+    doc.setFont("helvetica", "bold");
+    doc.setTextColor(37, 99, 235); // Blue Accent
+    doc.text(member.id, x + 45, y + 38);
+
+    // Category Badge
+    const badgeColor = isTeaching ? { bg: [239, 246, 255], txt: [37, 99, 235] } : { bg: [241, 245, 249], txt: [71, 85, 105] };
+    doc.setFillColor(badgeColor.bg[0], badgeColor.bg[1], badgeColor.bg[2]);
+    doc.roundedRect(x + 27, y + 42, 38, 4.5, 1, 1, 'F');
+    doc.setTextColor(badgeColor.txt[0], badgeColor.txt[1], badgeColor.txt[2]);
+    doc.setFont("helvetica", "bold");
+    doc.setFontSize(6);
+    doc.text(isTeaching ? "TEACHING STAFF" : "NON-TEACHING STAFF", x + 31, y + 45.2);
+
+    // Footer Ribbon
+    doc.setFillColor(248, 250, 252);
+    doc.rect(x + 0.5, y + cardH - 5.5, cardW - 1, 5, 'F');
+    doc.setTextColor(148, 163, 184);
+    doc.setFont("helvetica", "bold");
+    doc.setFontSize(5);
+    doc.text("SPSS SECURE STAFF CARD", x + 4, y + cardH - 2.2);
+  };
+
+  const drawStaffBack = async (doc: jsPDF, x: number, y: number, member: Staff) => {
+    // Card Base
+    doc.setDrawColor(30, 41, 59);
+    doc.setLineWidth(0.35);
+    doc.roundedRect(x, y, cardW, cardH, 3.5, 3.5, 'D');
+
+    // Subtle Grid / Top Strip
+    doc.setFillColor(248, 250, 252);
+    doc.roundedRect(x + 0.5, y + 0.5, cardW - 1, 5, 3, 3, 'F');
+    doc.rect(x + 0.5, y + 3, cardW - 1, 2.5, 'F');
+    doc.setTextColor(71, 85, 105);
+    doc.setFont("helvetica", "bold");
+    doc.setFontSize(5.5);
+    doc.text("TERMS AND CONDITIONS", x + 4, y + 4);
+
+    // Terms body text
+    doc.setTextColor(100, 116, 139);
+    doc.setFont("helvetica", "normal");
+    doc.setFontSize(4.8);
+    const terms = [
+      "1. This card is the property of St. Paul Secondary School.",
+      "2. It must be worn at all times while on school premises.",
+      "3. If found, please return to the school administration office.",
+      "4. Loss of this card must be reported immediately.",
+      "5. Scan the QR code to verify credential authenticity."
+    ];
+    let ty = y + 9.5;
+    terms.forEach(term => {
+      doc.text(term, x + 4, ty);
+      ty += 3.2;
+    });
+
+    // QR Code
+    const verificationUrl = `${window.location.origin}/verify/${member.verification_token || ''}`;
+    try {
+      const qrDataUrl = await QRCode.toDataURL(verificationUrl, { margin: 1, errorCorrectionLevel: 'M' });
+      doc.addImage(qrDataUrl, 'PNG', x + 67, y + 7, 18, 18);
+      doc.setTextColor(100, 116, 139);
+      doc.setFont("helvetica", "bold");
+      doc.setFontSize(4);
+      doc.text("SCAN TO VERIFY", x + 69.5, y + 26.5);
+    } catch (e) {
+      console.warn("Failed to draw QR code:", e);
+    }
+
+    // Code 39 Barcode
+    const barcodeVal = member.id;
+    drawPdfBarcode(doc, x + 4, y + 29, barcodeVal, 6.5, 0.7);
+    doc.setTextColor(71, 85, 105);
+    doc.setFont("Courier", "bold");
+    doc.setFontSize(6.5);
+    doc.text(barcodeVal, x + 16, y + 38);
+
+    // Signatures / Authority
+    doc.setDrawColor(203, 213, 225);
+    doc.setLineWidth(0.2);
+    doc.line(x + 55, y + 43, x + 85, y + 43);
+    
+    doc.setTextColor(71, 85, 105);
+    doc.setFont("helvetica", "normal");
+    doc.setFontSize(5);
+    doc.text("AUTHORIZING SIGNATURE", x + 59, y + 46);
+
+    // Draw school signature
+    if (member.signature) {
+      try {
+        doc.addImage(member.signature, 'PNG', x + 60, y + 36, 20, 6.5);
+      } catch (e) {
+        console.warn("Failed to render signature:", e);
+      }
+    }
+  };
+
+  if (printSide === 'front') {
+    let counter = 0;
+    for (let i = 0; i < staffList.length; i++) {
+      const member = staffList[i];
+      if (onProgress) onProgress(i + 1, staffList.length);
+
+      const rowIdx = counter % 4;
+      const py = marginY + rowIdx * (cardH + spacingY);
+
+      drawStaffFront(doc, marginX, py, member);
+      drawStaffFront(doc, marginX + cardW + spacingX, py, member);
+
+      counter++;
+      if (counter % 4 === 0 && i < staffList.length - 1) {
+        doc.addPage();
+      }
+    }
+  } else if (printSide === 'back') {
+    let counter = 0;
+    for (let i = 0; i < staffList.length; i++) {
+      const member = staffList[i];
+      if (onProgress) onProgress(i + 1, staffList.length);
+
+      const rowIdx = counter % 4;
+      const py = marginY + rowIdx * (cardH + spacingY);
+
+      await drawStaffBack(doc, marginX, py, member);
+      await drawStaffBack(doc, marginX + cardW + spacingX, py, member);
+
+      counter++;
+      if (counter % 4 === 0 && i < staffList.length - 1) {
+        doc.addPage();
+      }
+    }
+  } else {
+    // Generate Front page, then Back page of paired sheet for each batch of 4 staff
+    const perPage = 4;
+    const totalPages = Math.ceil(staffList.length / perPage);
+
+    for (let pageIdx = 0; pageIdx < totalPages; pageIdx++) {
+      if (pageIdx > 0) doc.addPage();
+
+      // Front Page
+      const startIdx = pageIdx * perPage;
+      const endIdx = Math.min(startIdx + perPage, staffList.length);
+
+      for (let i = startIdx; i < endIdx; i++) {
+        const member = staffList[i];
+        const rowIdx = (i - startIdx) % perPage;
+        const py = marginY + rowIdx * (cardH + spacingY);
+
+        drawStaffFront(doc, marginX, py, member);
+        drawStaffFront(doc, marginX + cardW + spacingX, py, member);
+      }
+
+      // Back Page
+      doc.addPage();
+      for (let i = startIdx; i < endIdx; i++) {
+        const member = staffList[i];
+        const rowIdx = (i - startIdx) % perPage;
+        const py = marginY + rowIdx * (cardH + spacingY);
+
+        await drawStaffBack(doc, marginX, py, member);
+        await drawStaffBack(doc, marginX + cardW + spacingX, py, member);
+      }
+
+      if (onProgress) {
+        onProgress(Math.min((pageIdx + 1) * perPage, staffList.length), staffList.length);
+      }
+      await new Promise(resolve => setTimeout(resolve, 0));
+    }
+  }
+
+  // Draw crop guidelines
+  const pageCount = (doc as any).internal.getNumberOfPages();
+  for (let i = 1; i <= pageCount; i++) {
+    doc.setPage(i);
+    doc.saveGraphicsState();
+    doc.setLineDashPattern([1.5, 1.5], 0);
+    doc.setDrawColor(180, 180, 180);
+    doc.setLineWidth(0.18);
+
+    for (let r = 1; r < 4; r++) {
+      const y = marginY + r * (cardH + spacingY) - spacingY / 2;
+      doc.line(0, y, 210, y);
+    }
     doc.restoreGraphicsState();
   }
 

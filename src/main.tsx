@@ -9,13 +9,14 @@ const root = createRoot(document.getElementById('root')!);
 
 async function mountApp() {
   if (typeof window !== 'undefined' && window.location && window.location.pathname === '/_dev_teacher') {
-    const { default: TeacherPortal } = await import('./components/TeacherPortal.tsx');
+    const { default: StaffPortal } = await import('./components/StaffPortal.tsx');
     root.render(
       <StrictMode>
-        <TeacherPortal
-          teacherId="dev-teacher-1"
-          teacherName="Dev Teacher"
-          teacherUsername="biirokeneth"
+        <StaffPortal
+          staffId="dev-teacher-1"
+          staffName="Dev Teacher"
+          staffUsername="biirokeneth"
+          category="Teaching"
           assignedClasses={["S.4"]}
           assignedSubjects={["Mathematics"]}
           schoolLogo={null}
