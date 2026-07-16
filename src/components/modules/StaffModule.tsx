@@ -1,7 +1,7 @@
 import React, { useEffect, useState, useRef } from 'react';
 import { 
   Plus, Edit2, Trash2, Search, Save, X, AlertCircle, CheckCircle2, 
-  Upload, Download, FileSpreadsheet, Lock, Camera, Check, RefreshCw, BarChart2, Calendar, FileText, CheckCircle, HelpCircle
+  Upload, Download, FileSpreadsheet, Lock, Camera, Check, RefreshCw, BarChart2, Calendar, FileText, CheckCircle, HelpCircle, User
 } from 'lucide-react';
 import { Staff, LeaveRequest, TimetableSlot } from '../../types.ts';
 import { 
