@@ -331,8 +331,8 @@ export async function generateStaffIdCardPng(
   const labelX = 360;
   const valueX = 490;
   
-  const startRowY = 235;
-  const rowSpacing = 58;
+  const startRowY = 255;
+  const rowSpacing = 53;
 
   const labels = ['Name:', 'Staff No:', 'Designation:', 'Department:', 'Gender:'];
   const fullName = `${member.firstName || ''} ${member.middleName ? member.middleName + ' ' : ''}${member.lastName || ''}`.toUpperCase().trim() || member.name || 'Not Available';
@@ -388,7 +388,7 @@ export async function generateStaffIdCardPng(
     ctx.fillText(labels[i], labelX, rowY);
 
     // Value styling
-    ctx.fillStyle = '#1E293B';
+    ctx.fillStyle = '#1E3A5F'; // Dark Blue #1E3A5F
     ctx.font = 'bold 16px "Poppins", "Montserrat", sans-serif';
 
     let valStr = values[i];
@@ -431,108 +431,142 @@ export async function generateStaffIdCardPng(
     console.warn('Failed to draw QR image on PNG:', e);
   }
 
-  // Label underneath
+  // Subtexts inside QR container box
+  ctx.fillStyle = '#6B7280'; // Neutral Gray
+  ctx.font = '500 11px "Poppins", "Montserrat", sans-serif';
+  ctx.textAlign = 'center';
+  ctx.fillText('Digital Verification', qrBoxX + qrBoxW / 2, qrBoxY + 218);
+
   ctx.fillStyle = '#0B4A8B'; // Primary Blue
   ctx.font = 'bold 13px "Poppins", "Montserrat", sans-serif';
-  ctx.textAlign = 'center';
-  ctx.fillText('Scan to Verify', qrBoxX + qrBoxW / 2, qrBoxY + 242);
+  ctx.fillText('Scan QR Code', qrBoxX + qrBoxW / 2, qrBoxY + 242);
 
   // --- 12. Bottom Row: 4 equal columns separated by vertical divider lines ---
-  const bottomY = 530;
+  const bottomY = 515;
 
-  // Solid white background for the footer to cover any grid, watermark, or security text
-  ctx.fillStyle = '#FFFFFF';
+  // Solid shaded background for the footer to cover any grid, watermark, or security text (#F8FAFC)
+  ctx.fillStyle = '#F8FAFC';
   ctx.fillRect(10, bottomY, canvas.width - 20, canvas.height - 10 - bottomY);
 
   // Divider Line
-  ctx.strokeStyle = 'rgba(234, 240, 246, 0.8)';
+  ctx.strokeStyle = 'rgba(226, 232, 240, 0.8)';
   ctx.lineWidth = 2;
   ctx.beginPath();
   ctx.moveTo(40, bottomY);
   ctx.lineTo(canvas.width - 40, bottomY);
   ctx.stroke();
 
-  // Vertical Separators
-  ctx.strokeStyle = '#F1F5F9';
-  ctx.lineWidth = 2;
+  // Vertical Separators (thin light-gray lines)
+  ctx.strokeStyle = '#E2E8F0';
+  ctx.lineWidth = 1.5;
   ctx.beginPath();
   // Div 1
-  ctx.moveTo(253, bottomY + 10);
-  ctx.lineTo(253, canvas.height - 25);
+  ctx.moveTo(253, bottomY + 15);
+  ctx.lineTo(253, canvas.height - 20);
   // Div 2
-  ctx.moveTo(506, bottomY + 10);
-  ctx.lineTo(506, canvas.height - 25);
+  ctx.moveTo(506, bottomY + 15);
+  ctx.lineTo(506, canvas.height - 20);
   // Div 3
-  ctx.moveTo(759, bottomY + 10);
-  ctx.lineTo(759, canvas.height - 25);
+  ctx.moveTo(759, bottomY + 15);
+  ctx.lineTo(759, canvas.height - 20);
   ctx.stroke();
 
-  const footerLabelY = bottomY + 28;
-  const footerValY = bottomY + 68;
+  // Render Mini-Icons in Footer using canvas vector commands
+  ctx.save();
+  ctx.strokeStyle = '#6B7280';
+  ctx.lineWidth = 1.8;
+  
+  // Calendar Icon (Col 1)
+  ctx.beginPath();
+  ctx.rect(30, bottomY + 20, 20, 20);
+  ctx.moveTo(30, bottomY + 26);
+  ctx.lineTo(50, bottomY + 26);
+  ctx.moveTo(35, bottomY + 17);
+  ctx.lineTo(35, bottomY + 22);
+  ctx.moveTo(45, bottomY + 17);
+  ctx.lineTo(45, bottomY + 22);
+  ctx.stroke();
 
-  // Issue Date (Col 1)
+  // Pen Tool Icon (Col 2)
+  ctx.beginPath();
+  ctx.moveTo(275, bottomY + 38);
+  ctx.lineTo(290, bottomY + 23);
+  ctx.moveTo(277, bottomY + 35);
+  ctx.lineTo(275, bottomY + 38);
+  ctx.stroke();
+
+  // Check Seal Icon (Col 3)
+  ctx.beginPath();
+  ctx.arc(538, bottomY + 30, 10, 0, Math.PI * 2);
+  ctx.moveTo(533, bottomY + 30);
+  ctx.lineTo(536, bottomY + 33);
+  ctx.lineTo(543, bottomY + 26);
+  ctx.stroke();
+
+  // Clock Icon (Col 4)
+  ctx.beginPath();
+  ctx.arc(790, bottomY + 30, 10, 0, Math.PI * 2);
+  ctx.moveTo(790, bottomY + 30);
+  ctx.lineTo(790, bottomY + 24);
+  ctx.moveTo(790, bottomY + 30);
+  ctx.lineTo(795, bottomY + 30);
+  ctx.stroke();
+  ctx.restore();
+
+  // Labels (sentence case, left-aligned alongside icons)
+  ctx.save();
+  ctx.fillStyle = '#6B7280'; // Neutral Gray
+  ctx.font = 'bold 12px "Poppins", "Montserrat", sans-serif';
+  ctx.textAlign = 'left';
+  
+  ctx.fillText('Issue Date', 58, bottomY + 33);
+  ctx.fillText('Holder Signature', 300, bottomY + 33);
+  ctx.fillText('Authorized Signature', 556, bottomY + 33);
+  ctx.fillText('Expiry Date', 808, bottomY + 33);
+
+  // Col 1 Value: Issue Date
   let issueDateStr = 'Not Available';
   if (member.activeCard?.issue_date) {
     issueDateStr = formatDate(member.activeCard.issue_date);
   } else {
     issueDateStr = formatDate(member.createdAt || new Date());
   }
-  ctx.fillStyle = '#6B7280'; // Neutral Gray
-  ctx.font = 'bold 12px "Poppins", "Montserrat", sans-serif';
-  ctx.textAlign = 'center';
-  ctx.fillText('Issue Date', 126.5, footerLabelY);
-  
-  ctx.fillStyle = '#1E293B';
-  ctx.font = 'bold 16px "Poppins", "Montserrat", sans-serif';
-  ctx.fillText(issueDateStr, 126.5, footerValY);
+  ctx.fillStyle = '#1E3A5F'; // Dark Blue #1E3A5F
+  ctx.font = 'bold 15px "Poppins", "Montserrat", sans-serif';
+  ctx.fillText(issueDateStr, 30, bottomY + 76);
 
-  // Holder's Signature (Col 2)
-  ctx.fillStyle = '#6B7280'; // Neutral Gray
-  ctx.font = 'bold 12px "Poppins", "Montserrat", sans-serif';
-  ctx.textAlign = 'center';
-  ctx.fillText("Holder's Signature", 379.5, footerLabelY);
-
-  ctx.strokeStyle = '#F1F5F9';
-  ctx.lineWidth = 1.5;
-  ctx.beginPath();
-  ctx.moveTo(300, footerValY + 5);
-  ctx.lineTo(459, footerValY + 5);
-  ctx.stroke();
-
-  // Authorised Signature (Col 3)
-  ctx.fillStyle = '#6B7280'; // Neutral Gray
-  ctx.font = 'bold 12px "Poppins", "Montserrat", sans-serif';
-  ctx.textAlign = 'center';
-  ctx.fillText('Authorised Signature', 632.5, footerLabelY);
-
-  ctx.strokeStyle = '#F1F5F9';
-  ctx.lineWidth = 1.5;
-  ctx.beginPath();
-  ctx.moveTo(553, footerValY + 5);
-  ctx.lineTo(712, footerValY + 5);
-  ctx.stroke();
-
-  // Draw signatures if signature exists
-  const isHeadTeacher = (member.position || '').replace(/\s+/g, '').toUpperCase() === 'HEADTEACHER';
-
+  // Col 2 Value: Holder Signature
   if (member.signature) {
     try {
       const sigImg = await loadImage(member.signature);
-      ctx.drawImage(sigImg, 310, footerValY - 32, 140, 36);
-      ctx.drawImage(sigImg, 563, footerValY - 32, 140, 36);
+      ctx.drawImage(sigImg, 275, bottomY + 48, 140, 36);
     } catch (e) {
       console.warn('Failed to draw signature image on PNG:', e);
     }
   } else {
     const sigText = member.lastName || 'Staff';
-    const authText = isHeadTeacher ? (member.lastName || 'Head Teacher') : 'Authorized';
     ctx.fillStyle = '#475569';
-    ctx.font = 'italic 16px "Courier New", Courier, monospace';
-    ctx.fillText(sigText, 379.5, footerValY - 5);
-    ctx.fillText(authText, 632.5, footerValY - 5);
+    ctx.font = 'italic 15px "Courier New", Courier, monospace';
+    ctx.fillText(sigText, 275, bottomY + 76);
   }
 
-  // Expiry Date (Col 4)
+  // Col 3 Value: Authorised Signature
+  const isHeadTeacher = (member.position || '').replace(/\s+/g, '').toUpperCase() === 'HEADTEACHER';
+  if (member.signature) {
+    try {
+      const sigImg = await loadImage(member.signature);
+      ctx.drawImage(sigImg, 528, bottomY + 48, 140, 36);
+    } catch (e) {
+      console.warn('Failed to draw signature image on PNG:', e);
+    }
+  } else {
+    const authText = isHeadTeacher ? (member.lastName || 'Head Teacher') : 'Authorized';
+    ctx.fillStyle = '#475569';
+    ctx.font = 'italic 15px "Courier New", Courier, monospace';
+    ctx.fillText(authText, 528, bottomY + 76);
+  }
+
+  // Col 4 Value: Expiry Date
   let expDateStr = 'Not Available';
   if (member.activeCard?.expiry_date) {
     expDateStr = formatDate(member.activeCard.expiry_date);
@@ -541,14 +575,10 @@ export async function generateStaffIdCardPng(
     expDate.setFullYear(expDate.getFullYear() + 5);
     expDateStr = formatDate(expDate);
   }
-  ctx.fillStyle = '#6B7280'; // Neutral Gray
-  ctx.font = 'bold 12px "Poppins", "Montserrat", sans-serif';
-  ctx.textAlign = 'center';
-  ctx.fillText('Expiry Date', 885.5, footerLabelY);
-  
   ctx.fillStyle = '#2F80ED'; // Accent Blue
-  ctx.font = 'bold 16px "Poppins", "Montserrat", sans-serif';
-  ctx.fillText(expDateStr, 885.5, footerValY);
+  ctx.font = 'bold 15px "Poppins", "Montserrat", sans-serif';
+  ctx.fillText(expDateStr, 780, bottomY + 76);
+  ctx.restore();
 
   // Redraw inner border to cleanly frame the footer area
   ctx.strokeStyle = '#EAF4FF';

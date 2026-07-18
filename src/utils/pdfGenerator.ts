@@ -1651,18 +1651,18 @@ export async function generateStaffIdCardsPdf({
     doc.setFontSize(4.0);
     
     if (nameLines.length > 1) {
-      doc.text("Name:", labelX, y + 19.5);
+      doc.text("Name:", labelX, y + 21.5);
       doc.setTextColor(11, 74, 139); // Primary Blue
       doc.setFont("helvetica", "bold");
       doc.setFontSize(5.5); // Slightly smaller to ensure fit on two lines
-      doc.text(nameLines[0], valueX, y + 19.5);
-      doc.text(nameLines[1], valueX, y + 22.8);
+      doc.text(nameLines[0], valueX, y + 21.5);
+      doc.text(nameLines[1], valueX, y + 24.8);
     } else {
-      doc.text("Name:", labelX, y + 20.5);
+      doc.text("Name:", labelX, y + 22.5);
       doc.setTextColor(11, 74, 139); // Primary Blue
       doc.setFont("helvetica", "bold");
       doc.setFontSize(6.2);
-      doc.text(nameLines[0], valueX, y + 20.5);
+      doc.text(nameLines[0], valueX, y + 22.5);
     }
 
     const drawDetailRow = (
@@ -1677,7 +1677,7 @@ export async function generateStaffIdCardsPdf({
       doc.text(lbl, labelX, rowY);
 
       // Value Text
-      doc.setTextColor(30, 41, 59); // Slate-700
+      doc.setTextColor(30, 58, 95); // Dark Blue #1E3A5F
       doc.setFont("helvetica", "bold");
       doc.setFontSize(5.0);
       
@@ -1692,10 +1692,10 @@ export async function generateStaffIdCardsPdf({
       doc.text(valStr, valueX, rowY);
     };
 
-    drawDetailRow("Staff No:", member.employeeNumber || member.id || 'Not Available', y + 26.5);
-    drawDetailRow("Designation:", (member.position || 'Not Available').toUpperCase(), y + 31.0);
-    drawDetailRow("Department:", (member.department || 'Not Available').toUpperCase(), y + 35.5);
-    drawDetailRow("Gender:", (member.gender || 'Female').toUpperCase(), y + 40.0);
+    drawDetailRow("Staff No:", member.employeeNumber || member.id || 'Not Available', y + 28.5);
+    drawDetailRow("Designation:", (member.position || 'Not Available').toUpperCase(), y + 32.5);
+    drawDetailRow("Department:", (member.department || 'Not Available').toUpperCase(), y + 36.5);
+    drawDetailRow("Gender:", (member.gender || 'Female').toUpperCase(), y + 40.5);
 
     // 11. Verification Box containing QR Code & Label
     const qrBoxW = 15.5;
@@ -1722,17 +1722,22 @@ export async function generateStaffIdCardsPdf({
       doc.rect(qrX, qrY, qrSize, qrSize, 'D');
     }
 
+    doc.setTextColor(107, 114, 128); // Neutral Gray
+    doc.setFont("helvetica", "bold");
+    doc.setFontSize(2.0);
+    doc.text("Digital Verification", qrBoxX + qrBoxW / 2, qrBoxY + 18.2, { align: 'center' });
+
     doc.setTextColor(11, 74, 139); // Primary Blue
     doc.setFont("helvetica", "bold");
-    doc.setFontSize(2.8); // Slightly smaller label to fit inside the narrower box
-    doc.text("Scan to Verify", qrBoxX + qrBoxW / 2, qrBoxY + 20.2, { align: 'center' });
+    doc.setFontSize(2.6);
+    doc.text("Scan QR Code", qrBoxX + qrBoxW / 2, qrBoxY + 21.2, { align: 'center' });
 
     // 12. Bottom Row (4 equally spaced columns separated by vertical line vectors)
-    const bottomY = y + 45.0;
+    const bottomY = y + 43.5;
 
-    // Draw solid white background for the footer area to cover grid/watermark/rotated text
-    doc.setFillColor(255, 255, 255);
-    doc.rect(x + 0.8, bottomY, cardW - 1.6, cardH - 0.8 - 45.0, 'F');
+    // Draw solid light shading background for the footer area (#F8FAFC)
+    doc.setFillColor(248, 250, 252);
+    doc.rect(x + 0.8, bottomY, cardW - 1.6, cardH - 0.8 - 43.5, 'F');
 
     // Horizontal Divider (Thin accent grey line)
     doc.setDrawColor(234, 240, 246);
@@ -1740,47 +1745,87 @@ export async function generateStaffIdCardsPdf({
     doc.line(x + 3.5, bottomY, x + cardW - 3.5, bottomY);
 
     // Vertical Divider 1
-    doc.setDrawColor(240, 243, 246);
-    doc.setLineWidth(0.2);
-    doc.line(x + 21.4, bottomY + 1.0, x + 21.4, bottomY + 8.0);
+    doc.setDrawColor(226, 232, 240); // Thin light-gray separators
+    doc.setLineWidth(0.18);
+    doc.line(x + 21.4, bottomY + 1.5, x + 21.4, bottomY + 8.5);
 
     // Vertical Divider 2
-    doc.line(x + 42.8, bottomY + 1.0, x + 42.8, bottomY + 8.0);
+    doc.line(x + 42.8, bottomY + 1.5, x + 42.8, bottomY + 8.5);
 
     // Vertical Divider 3
-    doc.line(x + 64.2, bottomY + 1.0, x + 64.2, bottomY + 8.0);
+    doc.line(x + 64.2, bottomY + 1.5, x + 64.2, bottomY + 8.5);
 
-    // Col 1: Issue Date
+    // Render Mini-Icons in Footer
+    // Calendar Icon (Col 1)
+    let ix = x + 3.0;
+    let iy = bottomY + 2.0;
+    doc.saveGraphicsState();
+    doc.setDrawColor(107, 114, 128);
+    doc.setLineWidth(0.15);
+    doc.rect(ix, iy, 2.0, 2.0, 'D');
+    doc.line(ix, iy + 0.6, ix + 2.0, iy + 0.6); // top bar
+    doc.line(ix + 0.5, iy - 0.3, ix + 0.5, iy + 0.2); // binder pin
+    doc.line(ix + 1.5, iy - 0.3, ix + 1.5, iy + 0.2); // binder pin
+    doc.restoreGraphicsState();
+
+    // Pen Tool Icon (Col 2)
+    ix = x + 23.5;
+    iy = bottomY + 2.0;
+    doc.saveGraphicsState();
+    doc.setDrawColor(107, 114, 128);
+    doc.setLineWidth(0.15);
+    doc.line(ix, iy + 2.0, ix + 1.5, iy + 0.5); // pen body
+    doc.line(ix + 0.3, iy + 1.7, ix, iy + 2.0); // pen tip
+    doc.restoreGraphicsState();
+
+    // Check Seal Icon (Col 3)
+    ix = x + 44.5;
+    iy = bottomY + 2.0;
+    doc.saveGraphicsState();
+    doc.setDrawColor(107, 114, 128);
+    doc.setLineWidth(0.15);
+    doc.circle(ix + 1.0, iy + 1.0, 1.0, 'D');
+    doc.line(ix + 0.6, iy + 1.0, ix + 0.9, iy + 1.3); // check
+    doc.line(ix + 0.9, iy + 1.3, ix + 1.4, iy + 0.7);
+    doc.restoreGraphicsState();
+
+    // Clock Icon (Col 4)
+    ix = x + 66.0;
+    iy = bottomY + 2.0;
+    doc.saveGraphicsState();
+    doc.setDrawColor(107, 114, 128);
+    doc.setLineWidth(0.15);
+    doc.circle(ix + 1.0, iy + 1.0, 1.0, 'D');
+    doc.line(ix + 1.0, iy + 1.0, ix + 1.0, iy + 0.5); // vertical hand
+    doc.line(ix + 1.0, iy + 1.0, ix + 1.4, iy + 1.0); // horizontal hand
+    doc.restoreGraphicsState();
+
+    // Footer cell text labels (Medium Gray, left-aligned alongside icons)
+    doc.setTextColor(107, 114, 128);
+    doc.setFont("helvetica", "bold");
+    doc.setFontSize(2.8);
+
+    doc.text("Issue Date", x + 5.6, bottomY + 3.5);
+    doc.text("Holder Signature", x + 26.2, bottomY + 3.5);
+    doc.text("Authorized Signature", x + 47.2, bottomY + 3.5);
+    doc.text("Expiry Date", x + 68.6, bottomY + 3.5);
+
+    // Col 1 Value: Issue Date
     let issueDateStr = 'Not Available';
     if (member.activeCard && member.activeCard.issue_date) {
       issueDateStr = formatDate(member.activeCard.issue_date);
     } else {
       issueDateStr = formatDate(member.createdAt || new Date());
     }
-
-    doc.setTextColor(107, 114, 128); // Neutral Gray
+    doc.setTextColor(30, 58, 95); // Dark Blue #1E3A5F
     doc.setFont("helvetica", "bold");
-    doc.setFontSize(3.4);
-    doc.text("Issue Date", x + 10.7, bottomY + 2.8, { align: 'center' });
-    
-    doc.setTextColor(30, 41, 59);
-    doc.setFont("helvetica", "bold");
-    doc.setFontSize(4.4);
-    doc.text(issueDateStr, x + 10.7, bottomY + 6.8, { align: 'center' });
+    doc.setFontSize(4.0);
+    doc.text(issueDateStr, x + 3.0, bottomY + 7.5);
 
-    // Col 2: Holder's Signature
-    doc.setTextColor(107, 114, 128); // Neutral Gray
-    doc.setFont("helvetica", "bold");
-    doc.setFontSize(3.4);
-    doc.text("Holder's Signature", x + 32.1, bottomY + 2.8, { align: 'center' });
-
-    doc.setDrawColor(234, 240, 246);
-    doc.setLineWidth(0.15);
-    doc.line(x + 24.0, bottomY + 7.0, x + 40.0, bottomY + 7.0);
-
+    // Col 2 Value: Holder Signature
     if (member.signature) {
       try {
-        doc.addImage(member.signature, 'PNG', x + 24.5, bottomY + 3.2, 15, 3.8);
+        doc.addImage(member.signature, 'PNG', x + 23.5, bottomY + 4.5, 14, 3.8);
       } catch (e) {
         console.warn("Failed drawing signature in PDF", e);
       }
@@ -1788,26 +1833,16 @@ export async function generateStaffIdCardsPdf({
       doc.saveGraphicsState();
       doc.setTextColor(100, 116, 139);
       doc.setFont("courier", "oblique");
-      doc.setFontSize(4.5);
-      doc.text(member.lastName || 'Staff', x + 32.1, bottomY + 6.0, { align: 'center' });
+      doc.setFontSize(4.0);
+      doc.text(member.lastName || 'Staff', x + 23.5, bottomY + 7.5);
       doc.restoreGraphicsState();
     }
 
-    // Col 3: Authorised Signature
-    doc.setTextColor(107, 114, 128); // Neutral Gray
-    doc.setFont("helvetica", "bold");
-    doc.setFontSize(3.4);
-    doc.text("Authorised Signature", x + 53.5, bottomY + 2.8, { align: 'center' });
-
-    doc.setDrawColor(234, 240, 246);
-    doc.setLineWidth(0.15);
-    doc.line(x + 45.5, bottomY + 7.0, x + 61.5, bottomY + 7.0);
-
+    // Col 3 Value: Authorised Signature
     const isHeadTeacher = (member.position || '').replace(/\s+/g, '').toUpperCase() === 'HEADTEACHER';
-
     if (member.signature) {
       try {
-        doc.addImage(member.signature, 'PNG', x + 46.0, bottomY + 3.2, 15, 3.8);
+        doc.addImage(member.signature, 'PNG', x + 44.5, bottomY + 4.5, 14, 3.8);
       } catch (e) {
         console.warn("Failed drawing authorized signature in PDF", e);
       }
@@ -1815,12 +1850,12 @@ export async function generateStaffIdCardsPdf({
       doc.saveGraphicsState();
       doc.setTextColor(100, 116, 139);
       doc.setFont("courier", "oblique");
-      doc.setFontSize(4.5);
-      doc.text(isHeadTeacher ? (member.lastName || 'Head Teacher') : 'Authorized', x + 53.5, bottomY + 6.0, { align: 'center' });
+      doc.setFontSize(4.0);
+      doc.text(isHeadTeacher ? (member.lastName || 'Head Teacher') : 'Authorized', x + 44.5, bottomY + 7.5);
       doc.restoreGraphicsState();
     }
 
-    // Col 4: Expiry Date
+    // Col 4 Value: Expiry Date
     let expDateStr = 'Not Available';
     if (member.activeCard && member.activeCard.expiry_date) {
       expDateStr = formatDate(member.activeCard.expiry_date);
@@ -1829,16 +1864,10 @@ export async function generateStaffIdCardsPdf({
       expDate.setFullYear(expDate.getFullYear() + 5);
       expDateStr = formatDate(expDate);
     }
-
-    doc.setTextColor(107, 114, 128); // Neutral Gray
-    doc.setFont("helvetica", "bold");
-    doc.setFontSize(3.4);
-    doc.text("Expiry Date", x + 74.9, bottomY + 2.8, { align: 'center' });
-
     doc.setTextColor(47, 128, 237); // Accent Blue
     doc.setFont("helvetica", "bold");
-    doc.setFontSize(4.4);
-    doc.text(expDateStr, x + 74.9, bottomY + 6.8, { align: 'center' });
+    doc.setFontSize(4.0);
+    doc.text(expDateStr, x + 66.0, bottomY + 7.5);
 
     // Redraw inner border to cleanly frame the footer area
     doc.setDrawColor(234, 244, 255);

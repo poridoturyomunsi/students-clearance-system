@@ -1,6 +1,7 @@
 import React from 'react';
 import { Staff } from '../types.ts';
 import SchoolLogo from './SchoolLogo.tsx';
+import { Calendar, PenTool, CheckCircle2, Clock } from 'lucide-react';
 
 interface StaffCardProps {
   staff: Staff;
@@ -121,15 +122,15 @@ export default function StaffCard({ staff, logoBase64, showWatermark = true }: S
           </div>
         </div>
 
-        {/* Middle Section (Body Area) */}
-        <div className="relative z-10 flex-1 flex flex-col mt-[0.5cqw] min-h-0">
+        {/* Middle Section (Body Area - shifted down slightly for breathing room) */}
+        <div className="relative z-10 flex-1 flex flex-col mt-[1.5cqw] min-h-0">
           
           {/* Three-Column Body Layout */}
           <div className="flex-1 flex items-center justify-between gap-[2cqw] min-h-0">
             
             {/* Column 1: Passport Photo */}
             <div className="shrink-0 relative">
-              <div className="w-[39cqw] h-[48cqw] bg-white border-[0.25cqw] border-[#2F80ED]/20 rounded-[12px] p-[0.25cqw] shadow-md flex items-center justify-center overflow-hidden">
+              <div className="w-[41cqw] h-[50cqw] bg-white border-[0.18cqw] border-[#2F80ED]/15 rounded-[12px] p-[0.2cqw] shadow-md flex items-center justify-center overflow-hidden">
                 {staff.photo ? (
                   <img 
                     src={staff.photo} 
@@ -153,66 +154,77 @@ export default function StaffCard({ staff, logoBase64, showWatermark = true }: S
             </div>
 
             {/* Column 2: Staff Details List (expanded width) */}
-            <div className="flex-1 flex flex-col justify-center text-left min-w-0 h-[48cqw] pl-[1cqw]">
-              <div className="grid grid-cols-[22cqw_1fr] gap-x-[1cqw] gap-y-[1.6cqw] text-[3.2cqw] text-slate-800">
+            <div className="flex-1 flex flex-col justify-center text-left min-w-0 h-[50cqw] pl-[1cqw]">
+              <div className="grid grid-cols-[22cqw_1fr] gap-x-[1cqw] gap-y-[2.2cqw] text-[3.2cqw] text-slate-800">
                 
                 {/* Name */}
                 <span className="font-bold text-[#6B7280] tracking-[0.5px] self-start pt-[0.4cqw]">Name:</span>
-                <span className="font-extrabold text-[#0B4A8B] uppercase text-[4.0cqw] leading-[1.15] break-words pr-[1cqw]">{fullName}</span>
+                <span className="font-extrabold text-[#0B4A8B] uppercase text-[4.2cqw] leading-[1.15] break-words pr-[1cqw]">{fullName}</span>
 
                 {/* Staff No */}
                 <span className="font-bold text-[#6B7280] tracking-[0.5px]">Staff No:</span>
-                <span className="font-bold text-slate-700 uppercase font-mono truncate text-[3.6cqw]">{staffNo}</span>
+                <span className="font-bold text-[#1E3A5F] uppercase font-mono truncate text-[3.6cqw]">{staffNo}</span>
 
                 {/* Designation */}
                 <span className="font-bold text-[#6B7280] tracking-[0.5px]">Designation:</span>
-                <span className="font-bold text-slate-700 uppercase truncate text-[3.6cqw]">{position}</span>
+                <span className="font-bold text-[#1E3A5F] uppercase truncate text-[3.6cqw]">{position}</span>
 
                 {/* Department */}
                 <span className="font-bold text-[#6B7280] tracking-[0.5px]">Department:</span>
-                <span className="font-bold text-slate-700 uppercase truncate text-[3.6cqw]">{department}</span>
+                <span className="font-bold text-[#1E3A5F] uppercase truncate text-[3.6cqw]">{department}</span>
 
                 {/* Gender */}
                 <span className="font-bold text-[#6B7280] tracking-[0.5px]">Gender:</span>
-                <span className="font-bold text-slate-700 uppercase truncate text-[3.6cqw]">{staff.gender || 'Female'}</span>
+                <span className="font-bold text-[#1E3A5F] uppercase truncate text-[3.6cqw]">{staff.gender || 'Female'}</span>
               </div>
             </div>
 
             {/* Column 3: Verification QR Code Section (narrower, 20% smaller QR) */}
-            <div className="shrink-0 w-[25cqw] h-[48cqw] flex flex-col items-center justify-end pb-[2cqw] z-10">
-              <div className="bg-[#EAF4FF] border border-[#2F80ED]/30 rounded-xl p-[1.5cqw] flex flex-col items-center justify-center gap-[1.2cqw] shadow-xs w-full">
+            <div className="shrink-0 w-[25cqw] h-[50cqw] flex flex-col items-center justify-end pb-[2cqw] z-10">
+              <div className="bg-[#EAF4FF] border border-[#2F80ED]/20 rounded-xl p-[1.5cqw] flex flex-col items-center justify-center gap-[1cqw] shadow-xs w-full">
                 <img src={qrCodeUrl} alt="Verification QR" className="w-[17cqw] h-[17cqw] object-contain rounded-md" />
-                <span className="text-[1.5cqw] font-bold text-[#0B4A8B] tracking-[0.5px] text-center uppercase leading-none">
-                  Scan to Verify
-                </span>
+                <div className="flex flex-col items-center leading-none text-center">
+                  <span className="text-[1.3cqw] font-medium text-[#6B7280] tracking-[0.2px] uppercase">
+                    Digital Verification
+                  </span>
+                  <span className="text-[1.5cqw] font-bold text-[#0B4A8B] tracking-[0.5px] mt-[0.5cqw] uppercase">
+                    Scan QR Code
+                  </span>
+                </div>
               </div>
             </div>
 
           </div>
         </div>
 
-        {/* Bottom Section (4 equally sized columns with vertical separation lines) */}
-        <div className="relative z-20 grid grid-cols-4 items-end justify-between pt-[1cqw] border-t border-slate-100 mt-[1.2cqw] shrink-0 h-[7.5cqw] w-full text-center bg-white">
+        {/* Bottom Section (Premium Shaded Corporate Footer with Icons) */}
+        <div className="relative z-20 grid grid-cols-4 items-center justify-between pt-[1.5cqw] pb-[1cqw] border-t border-slate-100 mt-[1.5cqw] shrink-0 h-[10.5cqw] w-full text-center bg-[#F8FAFC]">
           
           {/* Column 1: Issue Date */}
-          <div className="flex flex-col items-center justify-end h-full">
-            <span className="text-[2.4cqw] text-[#6B7280] font-bold tracking-wide leading-none">
-              Issue Date
-            </span>
-            <span className="text-slate-800 font-extrabold text-[3.2cqw] mt-[0.3cqw] leading-none">
+          <div className="flex flex-col items-center justify-center h-full gap-[0.4cqw]">
+            <div className="flex items-center gap-[0.8cqw] text-[#6B7280]">
+              <Calendar className="w-[2.2cqw] h-[2.2cqw] stroke-[2]" />
+              <span className="text-[1.8cqw] font-semibold tracking-wide uppercase leading-none">
+                Issue Date
+              </span>
+            </div>
+            <span className="text-[#1E3A5F] font-extrabold text-[2.6cqw] leading-none">
               {issueDateStr}
             </span>
           </div>
 
           {/* Vertical divider */}
-          <div className="absolute left-[25%] bottom-[0.5cqw] w-[1px] h-[5cqw] bg-slate-100" />
+          <div className="absolute left-[25%] bottom-[1cqw] w-[1px] h-[6cqw] bg-slate-200/60" />
 
           {/* Column 2: Holder's Signature */}
-          <div className="flex flex-col items-center justify-end h-full relative">
-            <span className="text-[2.4cqw] text-[#6B7280] font-bold tracking-wide leading-none mb-[0.2cqw]">
-              Holder's Signature
-            </span>
-            <div className="h-[3.6cqw] border-b border-slate-100 w-[16cqw] flex items-end justify-center pb-[0.2cqw]">
+          <div className="flex flex-col items-center justify-center h-full relative gap-[0.4cqw]">
+            <div className="flex items-center gap-[0.8cqw] text-[#6B7280]">
+              <PenTool className="w-[2.2cqw] h-[2.2cqw] stroke-[2]" />
+              <span className="text-[1.8cqw] font-semibold tracking-wide uppercase leading-none">
+                Holder Signature
+              </span>
+            </div>
+            <div className="h-[3.6cqw] flex items-center justify-center pb-[0.2cqw]">
               {staff.signature ? (
                 <img 
                   src={staff.signature} 
@@ -220,7 +232,7 @@ export default function StaffCard({ staff, logoBase64, showWatermark = true }: S
                   className="max-h-full object-contain" 
                 />
               ) : (
-                <span className="text-[2cqw] font-mono italic text-slate-400 capitalize">
+                <span className="text-[2.2cqw] font-mono italic text-slate-400 capitalize">
                   {staff.lastName || 'Staff'}
                 </span>
               )}
@@ -228,14 +240,17 @@ export default function StaffCard({ staff, logoBase64, showWatermark = true }: S
           </div>
 
           {/* Vertical divider */}
-          <div className="absolute left-[50%] bottom-[0.5cqw] w-[1px] h-[5cqw] bg-slate-100" />
+          <div className="absolute left-[50%] bottom-[1cqw] w-[1px] h-[6cqw] bg-slate-200/60" />
 
           {/* Column 3: Authorised Signature */}
-          <div className="flex flex-col items-center justify-end h-full relative">
-            <span className="text-[2.4cqw] text-[#6B7280] font-bold tracking-wide leading-none mb-[0.2cqw]">
-              Authorised Signature
-            </span>
-            <div className="h-[3.6cqw] border-b border-slate-100 w-[16cqw] flex items-end justify-center pb-[0.2cqw]">
+          <div className="flex flex-col items-center justify-center h-full relative gap-[0.4cqw]">
+            <div className="flex items-center gap-[0.8cqw] text-[#6B7280]">
+              <CheckCircle2 className="w-[2.2cqw] h-[2.2cqw] stroke-[2]" />
+              <span className="text-[1.8cqw] font-semibold tracking-wide uppercase leading-none">
+                Authorized Signature
+              </span>
+            </div>
+            <div className="h-[3.6cqw] flex items-center justify-center pb-[0.2cqw]">
               {staff.signature ? (
                 <img 
                   src={staff.signature} 
@@ -243,7 +258,7 @@ export default function StaffCard({ staff, logoBase64, showWatermark = true }: S
                   className="max-h-full object-contain brightness-95" 
                 />
               ) : (
-                <span className="text-[2cqw] font-mono italic text-slate-400 capitalize">
+                <span className="text-[2.2cqw] font-mono italic text-slate-400 capitalize">
                   {isHeadTeacher ? (staff.lastName || 'Head Teacher') : 'Authorized'}
                 </span>
               )}
@@ -251,14 +266,17 @@ export default function StaffCard({ staff, logoBase64, showWatermark = true }: S
           </div>
 
           {/* Vertical divider */}
-          <div className="absolute left-[75%] bottom-[0.5cqw] w-[1px] h-[5cqw] bg-slate-100" />
+          <div className="absolute left-[75%] bottom-[1cqw] w-[1px] h-[6cqw] bg-slate-200/60" />
 
           {/* Column 4: Expiry Date */}
-          <div className="flex flex-col items-center justify-end h-full">
-            <span className="text-[2.4cqw] text-[#6B7280] font-bold tracking-wide leading-none">
-              Expiry Date
-            </span>
-            <span className="text-[#2F80ED] font-extrabold text-[3.2cqw] mt-[0.3cqw] leading-none">
+          <div className="flex flex-col items-center justify-center h-full gap-[0.4cqw]">
+            <div className="flex items-center gap-[0.8cqw] text-[#6B7280]">
+              <Clock className="w-[2.2cqw] h-[2.2cqw] stroke-[2]" />
+              <span className="text-[1.8cqw] font-semibold tracking-wide uppercase leading-none">
+                Expiry Date
+              </span>
+            </div>
+            <span className="text-[#2F80ED] font-extrabold text-[2.6cqw] leading-none">
               {expiryDateStr}
             </span>
           </div>
