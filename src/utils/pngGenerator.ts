@@ -131,7 +131,7 @@ export async function generateStaffIdCardPng(
     try {
       const wmImg = await loadImage(schoolLogoBase64);
       ctx.save();
-      ctx.globalAlpha = 0.04;
+      ctx.globalAlpha = 0.02;
       const wmSize = 340;
       ctx.drawImage(
         wmImg,
@@ -329,10 +329,10 @@ export async function generateStaffIdCardPng(
 
   // --- 10. Middle Column: Staff Details List (Sentence Case & Premium Hierarchy) ---
   const labelX = 360;
-  const valueX = 500;
+  const valueX = 490;
   
-  const startRowY = 230;
-  const rowSpacing = 68;
+  const startRowY = 235;
+  const rowSpacing = 58;
 
   const labels = ['Name:', 'Staff No:', 'Designation:', 'Department:', 'Gender:'];
   const fullName = `${member.firstName || ''} ${member.middleName ? member.middleName + ' ' : ''}${member.lastName || ''}`.toUpperCase().trim() || member.name || 'Not Available';
@@ -342,8 +342,44 @@ export async function generateStaffIdCardPng(
   const gender = (member.gender || 'Female').toUpperCase();
   const values = [fullName, staffNo, position, department, gender];
 
+  // Wrap name if it exceeds details width (782 - 490 = 292 pixels)
+  ctx.save();
   ctx.textAlign = 'left';
-  for (let i = 0; i < labels.length; i++) {
+  
+  // Set font to measure name lines
+  ctx.font = 'bold 22px "Poppins", "Montserrat", sans-serif';
+  const maxNameWidth = 280;
+  const nameWords = fullName.split(' ');
+  let nameLine1 = '';
+  let nameLine2 = '';
+  
+  for (let i = 0; i < nameWords.length; i++) {
+    const testLine = nameLine1 ? nameLine1 + ' ' + nameWords[i] : nameWords[i];
+    if (ctx.measureText(testLine).width <= maxNameWidth && !nameLine2) {
+      nameLine1 = testLine;
+    } else {
+      nameLine2 = nameLine2 ? nameLine2 + ' ' + nameWords[i] : nameWords[i];
+    }
+  }
+
+  // Draw Name Row (allow 2 lines if needed)
+  ctx.fillStyle = '#6B7280'; // Neutral Gray
+  ctx.font = 'bold 15px "Poppins", "Montserrat", sans-serif';
+  if (nameLine2) {
+    ctx.fillText('Name:', labelX, startRowY - 5);
+    ctx.fillStyle = '#0B4A8B'; // Primary Blue
+    ctx.font = 'bold 20px "Poppins", "Montserrat", sans-serif'; // slightly smaller for 2 lines
+    ctx.fillText(nameLine1, valueX, startRowY - 5);
+    ctx.fillText(nameLine2, valueX, startRowY + 18);
+  } else {
+    ctx.fillText('Name:', labelX, startRowY);
+    ctx.fillStyle = '#0B4A8B'; // Primary Blue
+    ctx.font = 'bold 22px "Poppins", "Montserrat", sans-serif';
+    ctx.fillText(nameLine1, valueX, startRowY);
+  }
+
+  // Draw remaining details rows at fixed Y spacing
+  for (let i = 1; i < labels.length; i++) {
     const rowY = startRowY + i * rowSpacing;
 
     // Label styling (sentence case, neutral gray)
@@ -352,16 +388,11 @@ export async function generateStaffIdCardPng(
     ctx.fillText(labels[i], labelX, rowY);
 
     // Value styling
-    if (i === 0) {
-      ctx.fillStyle = '#0B4A8B'; // Primary Blue
-      ctx.font = 'bold 22px "Poppins", "Montserrat", sans-serif';
-    } else {
-      ctx.fillStyle = '#1E293B';
-      ctx.font = 'bold 16px "Poppins", "Montserrat", sans-serif';
-    }
+    ctx.fillStyle = '#1E293B';
+    ctx.font = 'bold 16px "Poppins", "Montserrat", sans-serif';
 
     let valStr = values[i];
-    const maxWidth = 210;
+    const maxWidth = 280;
     if (ctx.measureText(valStr).width > maxWidth) {
       while (ctx.measureText(valStr + '...').width > maxWidth && valStr.length > 0) {
         valStr = valStr.substring(0, valStr.length - 1);
@@ -370,9 +401,10 @@ export async function generateStaffIdCardPng(
     }
     ctx.fillText(valStr, valueX, rowY);
   }
+  ctx.restore();
 
-  // --- 11. Verification Box containing QR Code & Label ---
-  const qrBoxW = 235;
+  // --- 11. Verification Box containing QR Code & Label (narrower, 20% smaller QR) ---
+  const qrBoxW = 190;
   const qrBoxH = 270;
   const qrBoxX = canvas.width - qrBoxW - 40;
   const qrBoxY = 210;
@@ -386,7 +418,7 @@ export async function generateStaffIdCardPng(
   ctx.stroke();
   ctx.restore();
 
-  const qrSize = 196;
+  const qrSize = 156;
   const qrX = qrBoxX + (qrBoxW - qrSize) / 2;
   const qrY = qrBoxY + 15;
 
@@ -401,9 +433,9 @@ export async function generateStaffIdCardPng(
 
   // Label underneath
   ctx.fillStyle = '#0B4A8B'; // Primary Blue
-  ctx.font = 'bold 15px "Poppins", "Montserrat", sans-serif';
+  ctx.font = 'bold 13px "Poppins", "Montserrat", sans-serif';
   ctx.textAlign = 'center';
-  ctx.fillText('Scan to Verify', qrBoxX + qrBoxW / 2, qrBoxY + 245);
+  ctx.fillText('Scan to Verify', qrBoxX + qrBoxW / 2, qrBoxY + 242);
 
   // --- 12. Bottom Row: 4 equal columns separated by vertical divider lines ---
   const bottomY = 530;

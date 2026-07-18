@@ -1512,9 +1512,9 @@ export async function generateStaffIdCardsPdf({
     doc.setLineWidth(0.35);
     doc.roundedRect(x + 0.8, y + 0.8, cardW - 1.6, cardH - 1.6, 2.5, 2.5, 'D');
 
-    // 5. Faint Watermark Crest in background
+    // 5. Faint Watermark Crest in background (softer 2% opacity)
     if (activeLogoPng) {
-      drawSafeWatermark(doc, activeLogoPng, x + cardW / 2 - 13, y + cardH / 2 - 13, 26, 26, 0.04);
+      drawSafeWatermark(doc, activeLogoPng, x + cardW / 2 - 13, y + cardH / 2 - 13, 26, 26, 0.02);
     }
 
     // 6. Header block (School logo and info)
@@ -1640,35 +1640,49 @@ export async function generateStaffIdCardsPdf({
     } catch (e) {}
 
     // 10. Staff Details (Middle Column)
-    const labelX = x + 31.0;
-    const valueX = x + 46.0;
+    const labelX = x + 30.5;
+    const valueX = x + 44.5;
     const fullName = `${member.firstName || ''} ${member.middleName ? member.middleName + ' ' : ''}${member.lastName || ''}`.toUpperCase().trim() || member.name || 'Not Available';
     
+    // Split the name to wrap if it exceeds 21.0 mm
+    const nameLines = doc.splitTextToSize(fullName, 21.0);
+    doc.setTextColor(107, 114, 128); // Neutral Gray
+    doc.setFont("helvetica", "bold");
+    doc.setFontSize(4.0);
+    
+    if (nameLines.length > 1) {
+      doc.text("Name:", labelX, y + 19.5);
+      doc.setTextColor(11, 74, 139); // Primary Blue
+      doc.setFont("helvetica", "bold");
+      doc.setFontSize(5.5); // Slightly smaller to ensure fit on two lines
+      doc.text(nameLines[0], valueX, y + 19.5);
+      doc.text(nameLines[1], valueX, y + 22.8);
+    } else {
+      doc.text("Name:", labelX, y + 20.5);
+      doc.setTextColor(11, 74, 139); // Primary Blue
+      doc.setFont("helvetica", "bold");
+      doc.setFontSize(6.2);
+      doc.text(nameLines[0], valueX, y + 20.5);
+    }
+
     const drawDetailRow = (
       lbl: string, 
       val: string, 
-      rowY: number, 
-      isName: boolean = false
+      rowY: number
     ) => {
       // Label Text (sentence case, neutral gray)
-      doc.setTextColor(107, 114, 128); // #6B7280
+      doc.setTextColor(107, 114, 128);
       doc.setFont("helvetica", "bold");
       doc.setFontSize(4.0);
       doc.text(lbl, labelX, rowY);
 
       // Value Text
-      if (isName) {
-        doc.setTextColor(11, 74, 139); // Primary Blue #0B4A8B
-        doc.setFont("helvetica", "bold");
-        doc.setFontSize(6.2);
-      } else {
-        doc.setTextColor(30, 41, 59); // Slate-700
-        doc.setFont("helvetica", "bold");
-        doc.setFontSize(5.0);
-      }
+      doc.setTextColor(30, 41, 59); // Slate-700
+      doc.setFont("helvetica", "bold");
+      doc.setFontSize(5.0);
       
       let valStr = val || 'Not Available';
-      const maxValW = 14.5;
+      const maxValW = 21.0;
       if (doc.getTextWidth(valStr) > maxValW) {
         while (doc.getTextWidth(valStr + '...') > maxValW && valStr.length > 0) {
           valStr = valStr.substring(0, valStr.length - 1);
@@ -1678,14 +1692,13 @@ export async function generateStaffIdCardsPdf({
       doc.text(valStr, valueX, rowY);
     };
 
-    drawDetailRow("Name:", fullName, y + 21.0, true);
     drawDetailRow("Staff No:", member.employeeNumber || member.id || 'Not Available', y + 26.5);
-    drawDetailRow("Designation:", (member.position || 'Not Available').toUpperCase(), y + 32.0);
-    drawDetailRow("Department:", (member.department || 'Not Available').toUpperCase(), y + 37.5);
-    drawDetailRow("Gender:", (member.gender || 'Female').toUpperCase(), y + 43.0);
+    drawDetailRow("Designation:", (member.position || 'Not Available').toUpperCase(), y + 31.0);
+    drawDetailRow("Department:", (member.department || 'Not Available').toUpperCase(), y + 35.5);
+    drawDetailRow("Gender:", (member.gender || 'Female').toUpperCase(), y + 40.0);
 
     // 11. Verification Box containing QR Code & Label
-    const qrBoxW = 19.5;
+    const qrBoxW = 15.5;
     const qrBoxH = 22.8;
     const qrBoxX = x + cardW - qrBoxW - 3.5;
     const qrBoxY = y + 20.2;
@@ -1695,7 +1708,7 @@ export async function generateStaffIdCardsPdf({
     doc.setLineWidth(0.18);
     doc.roundedRect(qrBoxX, qrBoxY, qrBoxW, qrBoxH, 1.5, 1.5, 'FD');
 
-    const qrSize = 16.5;
+    const qrSize = 13.0;
     const qrX = qrBoxX + (qrBoxW - qrSize) / 2;
     const qrY = qrBoxY + 1.2;
 
@@ -1711,7 +1724,7 @@ export async function generateStaffIdCardsPdf({
 
     doc.setTextColor(11, 74, 139); // Primary Blue
     doc.setFont("helvetica", "bold");
-    doc.setFontSize(3.4);
+    doc.setFontSize(2.8); // Slightly smaller label to fit inside the narrower box
     doc.text("Scan to Verify", qrBoxX + qrBoxW / 2, qrBoxY + 20.2, { align: 'center' });
 
     // 12. Bottom Row (4 equally spaced columns separated by vertical line vectors)

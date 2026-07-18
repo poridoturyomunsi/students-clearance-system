@@ -85,9 +85,9 @@ export default function StaffCard({ staff, logoBase64, showWatermark = true }: S
           <path d="M 4,4 C 25,2 75,2 96,4 C 98,25 98,75 96,96 C 75,98 25,98 4,96 C 2,75 2,25 4,4 Z" fill="none" stroke="currentColor" strokeWidth="0.15" />
         </svg>
 
-        {/* Faint School Crest Watermark in Center (4% opacity) */}
+        {/* Faint School Crest Watermark in Center (softer 2% opacity) */}
         {showWatermark && (
-          <div className="absolute inset-0 flex items-center justify-center opacity-[0.04] scale-[1.25] rotate-6">
+          <div className="absolute inset-0 flex items-center justify-center opacity-[0.02] scale-[1.25] rotate-6">
             <SchoolLogo className="w-[48%] h-[48%]" logoBase64={logoBase64} />
           </div>
         )}
@@ -152,37 +152,37 @@ export default function StaffCard({ staff, logoBase64, showWatermark = true }: S
               <div className="absolute -right-[1cqw] top-1/2 -translate-y-1/2 w-[2.4cqw] h-[2.4cqw] bg-gradient-to-r from-sky-300 to-cyan-300 rounded-full opacity-80 blur-[0.5px] shadow-xs pointer-events-none z-20" />
             </div>
 
-            {/* Column 2: Staff Details List */}
+            {/* Column 2: Staff Details List (expanded width) */}
             <div className="flex-1 flex flex-col justify-center text-left min-w-0 h-[48cqw] pl-[1cqw]">
-              <div className="grid grid-cols-[26cqw_1fr] gap-x-[1cqw] gap-y-[2cqw] text-[3.4cqw] items-center text-slate-800 leading-none">
+              <div className="grid grid-cols-[22cqw_1fr] gap-x-[1cqw] gap-y-[1.6cqw] text-[3.2cqw] text-slate-800">
                 
                 {/* Name */}
-                <span className="font-bold text-[#6B7280] tracking-[0.5px]">Name:</span>
-                <span className="font-extrabold text-[#0B4A8B] uppercase truncate text-[4.6cqw]">{fullName}</span>
+                <span className="font-bold text-[#6B7280] tracking-[0.5px] self-start pt-[0.4cqw]">Name:</span>
+                <span className="font-extrabold text-[#0B4A8B] uppercase text-[4.0cqw] leading-[1.15] break-words pr-[1cqw]">{fullName}</span>
 
                 {/* Staff No */}
                 <span className="font-bold text-[#6B7280] tracking-[0.5px]">Staff No:</span>
-                <span className="font-bold text-slate-700 uppercase font-mono truncate text-[3.8cqw]">{staffNo}</span>
+                <span className="font-bold text-slate-700 uppercase font-mono truncate text-[3.6cqw]">{staffNo}</span>
 
                 {/* Designation */}
                 <span className="font-bold text-[#6B7280] tracking-[0.5px]">Designation:</span>
-                <span className="font-bold text-slate-700 uppercase truncate text-[3.8cqw]">{position}</span>
+                <span className="font-bold text-slate-700 uppercase truncate text-[3.6cqw]">{position}</span>
 
                 {/* Department */}
                 <span className="font-bold text-[#6B7280] tracking-[0.5px]">Department:</span>
-                <span className="font-bold text-slate-700 uppercase truncate text-[3.8cqw]">{department}</span>
+                <span className="font-bold text-slate-700 uppercase truncate text-[3.6cqw]">{department}</span>
 
                 {/* Gender */}
                 <span className="font-bold text-[#6B7280] tracking-[0.5px]">Gender:</span>
-                <span className="font-bold text-slate-700 uppercase truncate text-[3.8cqw]">{staff.gender || 'Female'}</span>
+                <span className="font-bold text-slate-700 uppercase truncate text-[3.6cqw]">{staff.gender || 'Female'}</span>
               </div>
             </div>
 
-            {/* Column 3: Verification QR Code Section */}
-            <div className="shrink-0 w-[34cqw] h-[48cqw] flex flex-col items-center justify-end pb-[2cqw] z-10">
-              <div className="bg-[#EAF4FF] border border-[#2F80ED]/30 rounded-2xl p-[2cqw] flex flex-col items-center justify-center gap-[1.5cqw] shadow-xs">
-                <img src={qrCodeUrl} alt="Verification QR" className="w-[22cqw] h-[22cqw] object-contain rounded-md" />
-                <span className="text-[1.8cqw] font-bold text-[#0B4A8B] tracking-[0.5px] text-center uppercase leading-none">
+            {/* Column 3: Verification QR Code Section (narrower, 20% smaller QR) */}
+            <div className="shrink-0 w-[25cqw] h-[48cqw] flex flex-col items-center justify-end pb-[2cqw] z-10">
+              <div className="bg-[#EAF4FF] border border-[#2F80ED]/30 rounded-xl p-[1.5cqw] flex flex-col items-center justify-center gap-[1.2cqw] shadow-xs w-full">
+                <img src={qrCodeUrl} alt="Verification QR" className="w-[17cqw] h-[17cqw] object-contain rounded-md" />
+                <span className="text-[1.5cqw] font-bold text-[#0B4A8B] tracking-[0.5px] text-center uppercase leading-none">
                   Scan to Verify
                 </span>
               </div>
