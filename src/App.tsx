@@ -3466,7 +3466,7 @@ function AppContent() {
 
   // --- SESSION RENDER GATEWAYS ---
   // Public route bypass for Document Verification Portal
-  if (typeof window !== 'undefined' && window.location && window.location.pathname.startsWith('/verify/')) {
+  if (typeof window !== 'undefined' && window.location && (window.location.pathname.startsWith('/verify/') || window.location.pathname.startsWith('/staff/verify/'))) {
     return (
       <Suspense fallback={<Loading message="Opening secure verification link..." />}>
         <DocumentVerificationPortal />

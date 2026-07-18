@@ -989,6 +989,37 @@ export async function updateStaffStatus(id: string, status: string): Promise<{ s
   });
 }
 
+export async function activateStaffCard(id: string): Promise<{ success: boolean }> {
+  return await apiCall(`/api/staff/${id}/card/activate`, {
+    method: 'POST'
+  });
+}
+
+export async function deactivateStaffCard(id: string): Promise<{ success: boolean }> {
+  return await apiCall(`/api/staff/${id}/card/deactivate`, {
+    method: 'POST'
+  });
+}
+
+export async function revokeStaffCard(id: string): Promise<{ success: boolean }> {
+  return await apiCall(`/api/staff/${id}/card/revoke`, {
+    method: 'POST'
+  });
+}
+
+export async function reissueStaffCard(id: string, issueDate?: string, expiryDate?: string): Promise<{ success: boolean, cardId: string, verificationToken: string }> {
+  return await apiCall(`/api/staff/${id}/card/reissue`, {
+    method: 'POST',
+    body: JSON.stringify({ issueDate, expiryDate })
+  });
+}
+
+export async function regenerateStaffQr(id: string): Promise<{ success: boolean, verificationToken: string }> {
+  return await apiCall(`/api/staff/${id}/card/regenerate-qr`, {
+    method: 'POST'
+  });
+}
+
 export async function changeStaffPassword(payload: { oldPassword: string; newPassword: string }): Promise<{ success: boolean }> {
   return await apiCall('/api/staff/change-password', {
     method: 'POST',

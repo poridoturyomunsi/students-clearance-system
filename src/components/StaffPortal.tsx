@@ -7,6 +7,9 @@ import {
 import * as XLSX from 'xlsx';
 import SchoolLogo from './SchoolLogo.tsx';
 import AttendanceModule from './modules/AttendanceModule.tsx';
+import StaffCard from './StaffCard.tsx';
+import { generateStaffIdCardsPdf } from '../utils/pdfGenerator.ts';
+import { generateStaffIdCardPng } from '../utils/pngGenerator.ts';
 import { 
   fetchTeacherStudents, 
   fetchTeacherMarks, 
@@ -913,31 +916,125 @@ export default function StaffPortal({
 
               {/* QR ID card scanner details card */}
               <div className="bg-slate-950 border border-slate-850 p-6 rounded-2xl space-y-6 flex flex-col justify-between">
-                <div className="space-y-4">
+                <div className="space-y-4 flex flex-col items-stretch">
                   <h3 className="text-sm font-black uppercase tracking-wider text-indigo-400 border-b border-slate-850 pb-2 flex items-center gap-2">
                     <ShieldCheck className="w-4 h-4 text-green-400" /> Digital Credentials
                   </h3>
-                  <div className="bg-white/5 border border-white/5 p-4 rounded-xl text-center space-y-3">
-                    <span className="text-[10px] font-black uppercase tracking-wider text-slate-500">ID Verification Badge</span>
-                    <div className="bg-white p-2 rounded-xl inline-block shadow-inner mx-auto">
-                      <img 
-                        src={`https://api.qrserver.com/v1/create-qr-code/?size=130x130&data=${encodeURIComponent(window.location.origin + '/verify/' + (staffProfile?.verification_token || ''))}`}
-                        alt="QR verification code"
-                        className="w-24 h-24"
+                  
+                  {/* Premium ID Card Preview Container - centered horizontally and vertically, responsive */}
+                  <div className="flex flex-col items-center justify-center p-3 bg-slate-900/30 border border-slate-850 rounded-2xl min-h-[260px] w-full relative">
+                    <div className="w-[90%] flex items-center justify-center">
+                      <StaffCard 
+                        staff={{
+                          id: staffId,
+                          name: staffName,
+                          username: staffUsername || '',
+                          category: category,
+                          position: position || staffProfile?.position || 'Staff Member',
+                          department: staffProfile?.department || 'General',
+                          employeeNumber: staffProfile?.employee_number || '',
+                          gender: gender || staffProfile?.gender || '',
+                          photo: staffProfile?.photo || photo || '',
+                          signature: staffProfile?.signature || '',
+                          activeCard: staffProfile?.activeCard || null,
+                          status: staffProfile?.status || 'Active',
+                          forcePasswordChange: forcePasswordChange,
+                          subjects: assignedSubjects,
+                          classes: assignedClasses,
+                          employmentStatus: staffProfile?.employment_status || 'Permanent'
+                        }} 
+                        logoBase64={schoolLogo} 
                       />
                     </div>
-                    <p className="text-[10px] text-slate-400 font-medium">Scan to check credential authenticity and validation details instantly.</p>
                   </div>
                 </div>
 
                 <a
-                  href={window.location.origin + '/verify/' + (staffProfile?.verification_token || '')}
+                  href={window.location.origin + '/verify/' + (staffProfile?.id || '')}
                   target="_blank"
                   rel="noreferrer"
                   className="w-full text-center py-2.5 bg-slate-900 hover:bg-slate-850 text-indigo-400 border border-indigo-500/25 rounded-xl text-xs font-bold uppercase tracking-wider block transition"
                 >
                   View Verification Page
                 </a>
+
+                <button
+                  onClick={async () => {
+                    try {
+                      const doc = await generateStaffIdCardsPdf({
+                        staffMembers: [{
+                          id: staffId,
+                          firstName: staffName.split(' ')[0] || '',
+                          middleName: staffName.split(' ').slice(1, -1).join(' ') || '',
+                          lastName: staffName.split(' ').slice(-1)[0] || '',
+                          name: staffName,
+                          username: staffUsername || '',
+                          category: category,
+                          position: position || staffProfile?.position || 'Staff Member',
+                          department: staffProfile?.department || 'General',
+                          employeeNumber: staffProfile?.employee_number || '',
+                          gender: gender || staffProfile?.gender || '',
+                          photo: staffProfile?.photo || photo || '',
+                          signature: staffProfile?.signature || '',
+                          activeCard: staffProfile?.activeCard || null,
+                          status: staffProfile?.status || 'Active',
+                          forcePasswordChange: forcePasswordChange,
+                          subjects: assignedSubjects,
+                          classes: assignedClasses,
+                          employmentStatus: staffProfile?.employment_status || 'Permanent'
+                        }],
+                        schoolLogoBase64: schoolLogo,
+                        printSide: 'front'
+                      });
+                      doc.save(`staff_id_card_${staffId}.pdf`);
+                    } catch (e: any) {
+                      alert('Failed to download PDF card: ' + e.message);
+                    }
+                  }}
+                  className="w-full text-center py-2.5 mt-2 bg-[#003E7E] hover:bg-indigo-650 text-white border border-[#EAF5FF]/10 rounded-xl text-xs font-bold uppercase tracking-wider block transition"
+                >
+                  Download PDF Card
+                </button>
+
+                <button
+                  onClick={async () => {
+                    try {
+                      const dataUrl = await generateStaffIdCardPng({
+                        id: staffId,
+                        firstName: staffName.split(' ')[0] || '',
+                        middleName: staffName.split(' ').slice(1, -1).join(' ') || '',
+                        lastName: staffName.split(' ').slice(-1)[0] || '',
+                        name: staffName,
+                        username: staffUsername || '',
+                        category: category,
+                        position: position || staffProfile?.position || 'Staff Member',
+                        department: staffProfile?.department || 'General',
+                        employeeNumber: staffProfile?.employee_number || '',
+                        gender: gender || staffProfile?.gender || '',
+                        photo: staffProfile?.photo || photo || '',
+                        signature: staffProfile?.signature || '',
+                        activeCard: staffProfile?.activeCard || null,
+                        status: staffProfile?.status || 'Active',
+                        forcePasswordChange: forcePasswordChange,
+                        subjects: assignedSubjects,
+                        classes: assignedClasses,
+                        employmentStatus: staffProfile?.employment_status || 'Permanent'
+                      }, schoolLogo);
+                      
+                      const link = document.createElement('a');
+                      link.href = dataUrl;
+                      link.download = `staff_id_${staffId}.png`;
+                      document.body.appendChild(link);
+                      link.click();
+                      document.body.removeChild(link);
+                    } catch (e: any) {
+                      alert('Failed to download PNG card: ' + e.message);
+                    }
+                  }}
+                  className="w-full text-center py-2.5 mt-2 bg-[#0B6CB8] hover:bg-[#003E7E] text-white border border-[#EAF5FF]/10 rounded-xl text-xs font-bold uppercase tracking-wider block transition"
+                >
+                  Download PNG Card
+                </button>
               </div>
             </div>
           </div>

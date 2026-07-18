@@ -887,6 +887,24 @@ async function runStaffMigrations(conn) {
     await conn.query('ALTER TABLE class_teachers ADD CONSTRAINT fk_class_teachers_staff FOREIGN KEY (teacher_id) REFERENCES staff(id) ON DELETE CASCADE');
   } catch (e) {}
 
+  // Create staff_cards table
+  try {
+    await conn.query(`
+      CREATE TABLE IF NOT EXISTS staff_cards (
+        id INT AUTO_INCREMENT PRIMARY KEY,
+        staff_id VARCHAR(50) NOT NULL,
+        card_id VARCHAR(50) NOT NULL,
+        status VARCHAR(20) NOT NULL DEFAULT 'Active',
+        issue_date DATE NOT NULL,
+        expiry_date DATE NOT NULL,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        FOREIGN KEY (staff_id) REFERENCES staff(id) ON DELETE CASCADE
+      ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+    `);
+  } catch (e) {
+    console.error('[MIGRATION] Failed to create staff_cards table:', e.message);
+  }
+
   // Create leave_requests table
   await conn.query(`
     CREATE TABLE IF NOT EXISTS leave_requests (
@@ -1165,6 +1183,17 @@ async function ensureDbInitialized() {
         photo LONGTEXT NULL,
         status VARCHAR(20) DEFAULT 'Active',
         createdAt TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+      ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;`,
+
+      `CREATE TABLE IF NOT EXISTS staff_cards (
+        id INT AUTO_INCREMENT PRIMARY KEY,
+        staff_id VARCHAR(50) NOT NULL,
+        card_id VARCHAR(50) NOT NULL,
+        status VARCHAR(20) NOT NULL DEFAULT 'Active',
+        issue_date DATE NOT NULL,
+        expiry_date DATE NOT NULL,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        FOREIGN KEY (staff_id) REFERENCES staff(id) ON DELETE CASCADE
       ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;`,
 
       `CREATE TABLE IF NOT EXISTS student_accounts (
@@ -7283,10 +7312,15 @@ app.get('/api/staff/:id', async (req, res) => {
       return res.status(404).json({ error: 'Staff member not found' });
     }
     const staff = rows[0];
+    const [activeCards] = await pool.query('SELECT * FROM staff_cards WHERE staff_id = ? AND status = "Active" LIMIT 1', [req.params.id]);
+    const [cardHistory] = await pool.query('SELECT * FROM staff_cards WHERE staff_id = ? ORDER BY created_at DESC', [req.params.id]);
+    
     res.json({
       ...staff,
       subjects: typeof staff.subjects === 'string' ? JSON.parse(staff.subjects || '[]') : (staff.subjects || []),
       classes: typeof staff.classes === 'string' ? JSON.parse(staff.classes || '[]') : (staff.classes || []),
+      activeCard: activeCards[0] || null,
+      cardHistory: cardHistory
     });
   } catch (err) {
     res.status(500).json({ error: err.message });
@@ -7310,7 +7344,7 @@ app.post('/api/staff', async (req, res) => {
     }
 
     // Auto-generate unique Staff ID
-    const prefix = category === 'Teaching' ? 'SPSS-TS-' : 'SPSS-NTS-';
+    const prefix = category === 'Teaching' ? 'STP-T-2026-' : 'STP-N-2026-';
     const [lastStaff] = await connection.query('SELECT id FROM staff WHERE id LIKE ? ORDER BY id DESC LIMIT 1', [`${prefix}%`]);
     let nextNum = 1;
     if (lastStaff.length > 0) {
@@ -7320,7 +7354,7 @@ app.post('/api/staff', async (req, res) => {
         nextNum = lastVal + 1;
       }
     }
-    const id = prefix + String(nextNum).padStart(4, '0');
+    const id = prefix + String(nextNum).padStart(3, '0');
 
     // Auto-generate username
     const baseUser = (firstName.toLowerCase() + '.' + lastName.toLowerCase()).replace(/[^a-z0-9]/g, '');
@@ -7395,12 +7429,18 @@ app.post('/api/staff', async (req, res) => {
       position: position || (category === 'Teaching' ? 'Teacher' : 'Staff Member'),
       employmentStatus: employmentStatus || 'Permanent',
       issueDate: new Date().toISOString().split('T')[0],
-      expiryDate: new Date(Date.now() + 365*24*60*60*1000).toISOString().split('T')[0],
+      expiryDate: new Date(Date.now() + 5*365*24*60*60*1000).toISOString().split('T')[0], // 5 years expiry
       status: status || 'Active'
     };
     await connection.query(
       'INSERT INTO verifications (token, document_type, reference_id, metadata, status, expiresAt) VALUES (?, ?, ?, ?, ?, ?)',
       [verificationToken, 'Staff ID', id, JSON.stringify(metadata), metadata.status === 'Active' ? 'Active' : 'Inactive', metadata.expiryDate]
+    );
+
+    // Also insert into staff_cards for active card tracking
+    await connection.query(
+      'INSERT INTO staff_cards (staff_id, card_id, status, issue_date, expiry_date) VALUES (?, ?, ?, ?, ?)',
+      [id, id, metadata.status === 'Active' ? 'Active' : 'Inactive', metadata.issueDate, metadata.expiryDate]
     );
 
     await connection.commit();
@@ -7564,6 +7604,191 @@ app.post('/api/staff/:id/status', async (req, res) => {
     res.json({ success: true });
   } catch (err) {
     res.status(500).json({ error: err.message });
+  }
+});
+
+// --- ID CARD MANAGEMENT ENDPOINTS ---
+
+// POST Activate active card
+app.post('/api/staff/:id/card/activate', async (req, res) => {
+  let connection;
+  try {
+    connection = await pool.getConnection();
+    await connection.beginTransaction();
+    await connection.query('UPDATE staff_cards SET status = "Active" WHERE staff_id = ? AND status = "Inactive"', [req.params.id]);
+    
+    // Also update verification status in staff and verifications
+    const [rows] = await connection.query('SELECT verification_token FROM staff WHERE id = ?', [req.params.id]);
+    if (rows.length > 0 && rows[0].verification_token) {
+      await connection.query('UPDATE verifications SET status = "Active" WHERE token = ?', [rows[0].verification_token]);
+    }
+    await connection.commit();
+    res.json({ success: true });
+  } catch (err) {
+    if (connection) await connection.rollback().catch(() => {});
+    res.status(500).json({ error: err.message });
+  } finally {
+    if (connection) connection.release();
+  }
+});
+
+// POST Deactivate active card
+app.post('/api/staff/:id/card/deactivate', async (req, res) => {
+  let connection;
+  try {
+    connection = await pool.getConnection();
+    await connection.beginTransaction();
+    await connection.query('UPDATE staff_cards SET status = "Inactive" WHERE staff_id = ? AND status = "Active"', [req.params.id]);
+    
+    // Also update verification status in verifications
+    const [rows] = await connection.query('SELECT verification_token FROM staff WHERE id = ?', [req.params.id]);
+    if (rows.length > 0 && rows[0].verification_token) {
+      await connection.query('UPDATE verifications SET status = "Inactive" WHERE token = ?', [rows[0].verification_token]);
+    }
+    await connection.commit();
+    res.json({ success: true });
+  } catch (err) {
+    if (connection) await connection.rollback().catch(() => {});
+    res.status(500).json({ error: err.message });
+  } finally {
+    if (connection) connection.release();
+  }
+});
+
+// POST Revoke active card
+app.post('/api/staff/:id/card/revoke', async (req, res) => {
+  let connection;
+  try {
+    connection = await pool.getConnection();
+    await connection.beginTransaction();
+    await connection.query('UPDATE staff_cards SET status = "Revoked" WHERE staff_id = ? AND status = "Active"', [req.params.id]);
+    
+    // Also update verification status in verifications
+    const [rows] = await connection.query('SELECT verification_token FROM staff WHERE id = ?', [req.params.id]);
+    if (rows.length > 0 && rows[0].verification_token) {
+      await connection.query('UPDATE verifications SET status = "Inactive" WHERE token = ?', [rows[0].verification_token]);
+    }
+    await connection.commit();
+    res.json({ success: true });
+  } catch (err) {
+    if (connection) await connection.rollback().catch(() => {});
+    res.status(500).json({ error: err.message });
+  } finally {
+    if (connection) connection.release();
+  }
+});
+
+// POST Reissue card
+app.post('/api/staff/:id/card/reissue', async (req, res) => {
+  let connection;
+  try {
+    connection = await pool.getConnection();
+    const { issueDate, expiryDate } = req.body;
+    
+    await connection.beginTransaction();
+    
+    // Revoke any existing active card first
+    await connection.query('UPDATE staff_cards SET status = "Revoked" WHERE staff_id = ? AND status = "Active"', [req.params.id]);
+    
+    // Create new card
+    const d = new Date();
+    d.setFullYear(d.getFullYear() + 5);
+    const finalIssue = issueDate || new Date().toISOString().split('T')[0];
+    const finalExpiry = expiryDate || d.toISOString().split('T')[0];
+    
+    const [history] = await connection.query('SELECT COUNT(*) as count FROM staff_cards WHERE staff_id = ?', [req.params.id]);
+    const versionNum = history[0].count + 1;
+    const cardId = `${req.params.id}-C${versionNum}`;
+    
+    // Update verification token in staff table to invalidate previous scans!
+    const crypto = require('crypto');
+    const newVerificationToken = crypto.randomBytes(16).toString('hex');
+    await connection.query('UPDATE staff SET verification_token = ? WHERE id = ?', [newVerificationToken, req.params.id]);
+    
+    // Fetch staff info for metadata
+    const [sRows] = await connection.query('SELECT * FROM staff WHERE id = ?', [req.params.id]);
+    const staff = sRows[0];
+    
+    const metadata = {
+      name: staff.name,
+      photo: staff.photo || null,
+      category: staff.category,
+      department: staff.department || 'N/A',
+      position: staff.position || 'N/A',
+      employmentStatus: staff.employment_status || 'Permanent',
+      issueDate: finalIssue,
+      expiryDate: finalExpiry,
+      status: 'Active'
+    };
+    
+    // Invalidate/delete old verification and insert new one
+    await connection.query('DELETE FROM verifications WHERE reference_id = ? AND document_type = "Staff ID"', [req.params.id]);
+    await connection.query(
+      'INSERT INTO verifications (token, document_type, reference_id, metadata, status, expiresAt) VALUES (?, ?, ?, ?, "Active", ?)',
+      [newVerificationToken, 'Staff ID', req.params.id, JSON.stringify(metadata), finalExpiry]
+    );
+    
+    await connection.query(
+      'INSERT INTO staff_cards (staff_id, card_id, status, issue_date, expiry_date) VALUES (?, ?, "Active", ?, ?)',
+      [req.params.id, cardId, finalIssue, finalExpiry]
+    );
+    
+    await connection.commit();
+    res.json({ success: true, cardId, verificationToken: newVerificationToken });
+  } catch (err) {
+    if (connection) await connection.rollback().catch(() => {});
+    res.status(500).json({ error: err.message });
+  } finally {
+    if (connection) connection.release();
+  }
+});
+
+// POST Regenerate QR Code
+app.post('/api/staff/:id/card/regenerate-qr', async (req, res) => {
+  let connection;
+  try {
+    connection = await pool.getConnection();
+    const crypto = require('crypto');
+    const newVerificationToken = crypto.randomBytes(16).toString('hex');
+    
+    await connection.beginTransaction();
+    
+    await connection.query('UPDATE staff SET verification_token = ? WHERE id = ?', [newVerificationToken, req.params.id]);
+    
+    // Fetch active card dates to update verification record
+    const [cRows] = await connection.query('SELECT * FROM staff_cards WHERE staff_id = ? AND status = "Active" ORDER BY created_at DESC LIMIT 1', [req.params.id]);
+    const card = cRows[0];
+    const [sRows] = await connection.query('SELECT * FROM staff WHERE id = ?', [req.params.id]);
+    const staff = sRows[0];
+    
+    const issueDate = card ? new Date(card.issue_date).toISOString().split('T')[0] : new Date().toISOString().split('T')[0];
+    const expiryDate = card ? new Date(card.expiry_date).toISOString().split('T')[0] : new Date(Date.now() + 5*365*24*60*60*1000).toISOString().split('T')[0];
+    
+    const metadata = {
+      name: staff.name,
+      photo: staff.photo || null,
+      category: staff.category,
+      department: staff.department || 'N/A',
+      position: staff.position || 'N/A',
+      employmentStatus: staff.employment_status || 'Permanent',
+      issueDate,
+      expiryDate,
+      status: 'Active'
+    };
+    
+    await connection.query('DELETE FROM verifications WHERE reference_id = ? AND document_type = "Staff ID"', [req.params.id]);
+    await connection.query(
+      'INSERT INTO verifications (token, document_type, reference_id, metadata, status, expiresAt) VALUES (?, ?, ?, ?, "Active", ?)',
+      [newVerificationToken, 'Staff ID', req.params.id, JSON.stringify(metadata), expiryDate]
+    );
+    
+    await connection.commit();
+    res.json({ success: true, verificationToken: newVerificationToken });
+  } catch (err) {
+    if (connection) await connection.rollback().catch(() => {});
+    res.status(500).json({ error: err.message });
+  } finally {
+    if (connection) connection.release();
   }
 });
 

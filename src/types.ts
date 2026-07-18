@@ -193,6 +193,8 @@ export interface Staff {
   signature?: string;
   status: 'Active' | 'On Leave' | 'Suspended' | 'Retired' | 'Resigned';
   createdAt?: string;
+  activeCard?: { id: number; staff_id: string; card_id: string; status: 'Active' | 'Inactive' | 'Revoked'; issue_date: string; expiry_date: string; created_at: string } | null;
+  cardHistory?: { id: number; staff_id: string; card_id: string; status: 'Active' | 'Inactive' | 'Revoked'; issue_date: string; expiry_date: string; created_at: string }[];
   hasSignature?: boolean;
 }
 

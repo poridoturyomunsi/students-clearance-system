@@ -1408,195 +1408,567 @@ export async function generateStaffIdCardsPdf({
     format: 'a4',
   });
 
-  const cardW = 90;
-  const cardH = 58;
-  const marginX = 10;
-  const marginY = 13;
-  const spacingX = 10;
-  const spacingY = 13;
+  const cardW = 85.6;
+  const cardH = 54.0;
+  const marginX = 14.4;
+  const marginY = 20.0;
+  const spacingX = 10.0;
+  const spacingY = 13.0;
 
   const staffList = Array.isArray(staffMembers) ? staffMembers : [];
 
-  const drawStaffFront = (doc: jsPDF, x: number, y: number, member: Staff) => {
-    // Card Base
-    doc.setDrawColor(30, 41, 59); // slate-800
+  const drawGeometricPattern = (doc: jsPDF, x: number, y: number) => {
+    doc.saveGraphicsState();
+    doc.setFillColor(245, 250, 255); // Very soft premium light blue
+    doc.setDrawColor(225, 238, 255);
+    doc.setLineWidth(0.12);
+
+    // Triangle top-right
+    doc.triangle(x + 55, y + 0.5, x + cardW - 0.5, y + 0.5, x + cardW - 0.5, y + 25, 'FD');
+
+    // Triangle bottom-left
+    doc.triangle(x + 0.5, y + 30, x + 0.5, y + cardH - 0.5, x + 35, y + cardH - 0.5, 'FD');
+
+    // Accent circles
+    doc.circle(x + cardW - 5, y + 8, 14, 'D');
+    doc.circle(x + cardW - 5, y + 8, 9, 'D');
+
+    // Elegant intersecting vector lines
+    doc.line(x + cardW - 25, y + 0.5, x + cardW - 0.5, y + 25);
+    doc.line(x + cardW - 30, y + 0.5, x + cardW - 0.5, y + 30);
+    doc.line(x + 0.5, y + cardH - 25, x + 25, y + cardH - 0.5);
+    doc.line(x + 0.5, y + cardH - 30, x + 30, y + cardH - 0.5);
+
+    doc.restoreGraphicsState();
+  };
+
+  const drawStaffFront = async (doc: jsPDF, x: number, y: number, member: Staff) => {
+    // Helper to format date cleanly
+    const formatDate = (dateInput: any) => {
+      if (!dateInput) return 'Not Available';
+      try {
+        const d = new Date(dateInput);
+        if (isNaN(d.getTime())) return 'Not Available';
+        const day = String(d.getDate()).padStart(2, '0');
+        const month = String(d.getMonth() + 1).padStart(2, '0');
+        const year = d.getFullYear();
+        return `${day}/${month}/${year}`;
+      } catch (e) {
+        return 'Not Available';
+      }
+    };
+
+    // Vector icon drawing helpers inside PDF
+    const drawPdfUserIcon = (ix: number, iy: number, isize: number) => {
+      doc.saveGraphicsState();
+      doc.setDrawColor(11, 108, 184); // #0B6CB8
+      doc.setLineWidth(0.2);
+      // Head
+      doc.circle(ix + isize / 2, iy + isize / 3, isize / 5, 'S');
+      // Shoulders
+      doc.ellipse(ix + isize / 2, iy + isize * 0.85, isize / 2.2, isize / 4, 'S');
+      doc.restoreGraphicsState();
+    };
+
+    const drawPdfIdCardIcon = (ix: number, iy: number, isize: number) => {
+      doc.saveGraphicsState();
+      doc.setDrawColor(11, 108, 184);
+      doc.setLineWidth(0.2);
+      // Outer border of id card
+      doc.roundedRect(ix, iy + isize * 0.1, isize, isize * 0.75, 0.4, 0.4, 'D');
+      // Picture frame
+      doc.rect(ix + 0.4, iy + isize * 0.25, isize * 0.35, isize * 0.4, 'D');
+      // Detail lines
+      doc.line(ix + isize * 0.5, iy + isize * 0.38, ix + isize * 0.85, iy + isize * 0.38);
+      doc.line(ix + isize * 0.5, iy + isize * 0.55, ix + isize * 0.85, iy + isize * 0.55);
+      doc.restoreGraphicsState();
+    };
+
+    const drawPdfBriefcaseIcon = (ix: number, iy: number, isize: number) => {
+      doc.saveGraphicsState();
+      doc.setDrawColor(11, 108, 184);
+      doc.setLineWidth(0.2);
+      // Suitcase body
+      doc.roundedRect(ix, iy + isize * 0.2, isize, isize * 0.6, 0.4, 0.4, 'D');
+      // Top handle
+      doc.rect(ix + isize * 0.3, iy + isize * 0.02, isize * 0.4, isize * 0.18, 'D');
+      doc.restoreGraphicsState();
+    };
+
+    const drawPdfBuildingIcon = (ix: number, iy: number, isize: number) => {
+      doc.saveGraphicsState();
+      doc.setDrawColor(11, 108, 184);
+      doc.setLineWidth(0.2);
+      // Tall office block
+      doc.rect(ix + isize * 0.15, iy, isize * 0.7, isize, 'D');
+      // Tiny windows
+      doc.rect(ix + isize * 0.28, iy + isize * 0.2, isize * 0.15, isize * 0.15, 'D');
+      doc.rect(ix + isize * 0.57, iy + isize * 0.2, isize * 0.15, isize * 0.15, 'D');
+      doc.rect(ix + isize * 0.28, iy + isize * 0.5, isize * 0.15, isize * 0.15, 'D');
+      doc.rect(ix + isize * 0.57, iy + isize * 0.5, isize * 0.15, isize * 0.15, 'D');
+      doc.restoreGraphicsState();
+    };
+
+    const drawPdfGenderIcon = (ix: number, iy: number, isize: number) => {
+      doc.saveGraphicsState();
+      doc.setDrawColor(11, 108, 184);
+      doc.setLineWidth(0.2);
+      const isFemale = (member.gender || 'Female').toLowerCase() === 'female';
+      if (isFemale) {
+        doc.circle(ix + isize / 2, iy + isize / 3, isize / 4.5, 'S');
+        doc.line(ix + isize / 2, iy + isize * 0.55, ix + isize / 2, iy + isize * 0.95);
+        doc.line(ix + isize * 0.3, iy + isize * 0.75, ix + isize * 0.7, iy + isize * 0.75);
+      } else {
+        doc.circle(ix + isize * 0.4, iy + isize * 0.6, isize / 4.5, 'S');
+        doc.line(ix + isize * 0.55, iy + isize * 0.45, ix + isize * 0.85, iy + isize * 0.15);
+        doc.line(ix + isize * 0.6, iy + isize * 0.15, ix + isize * 0.85, iy + isize * 0.15);
+        doc.line(ix + isize * 0.85, iy + isize * 0.15, ix + isize * 0.85, iy + isize * 0.4);
+      }
+      doc.restoreGraphicsState();
+    };
+
+    // 1. Soft Shadow
+    doc.setFillColor(235, 240, 247);
+    doc.roundedRect(x + 0.5, y + 0.5, cardW, cardH, 3.18, 3.18, 'F');
+
+    // 2. Card Base White
+    doc.setFillColor(255, 255, 255);
+    doc.roundedRect(x, y, cardW, cardH, 3.18, 3.18, 'F');
+
+    // 3. Background Fine Grid Pattern (opacity ~4%)
+    doc.saveGraphicsState();
+    doc.setDrawColor(235, 243, 255);
+    doc.setLineWidth(0.08);
+    for (let gx = x + 2; gx <= x + cardW - 2; gx += 2) {
+      doc.line(gx, y + 1.5, gx, y + cardH - 1.5);
+    }
+    for (let gy = y + 2; gy <= y + cardH - 2; gy += 2) {
+      doc.line(x + 1.5, gy, x + cardW - 1.5, gy);
+    }
+    
+    // Curved graphic elements in background
+    doc.setDrawColor(220, 233, 255);
+    doc.setLineWidth(0.12);
+    doc.circle(x + cardW, y + cardH / 2, 20, 'D');
+    doc.circle(x + cardW, y + cardH / 2, 12, 'D');
+    doc.restoreGraphicsState();
+
+    // Vertical Security Margin Text (faint opacity)
+    doc.saveGraphicsState();
+    try {
+      const gStateClass = (doc as any).GState || (doc.constructor as any).GState;
+      if (gStateClass) {
+        doc.setGState(new gStateClass({ opacity: 0.18 }));
+      }
+    } catch (e) {}
+    doc.setTextColor(0, 62, 126);
+    doc.setFont("helvetica", "bold");
+    doc.setFontSize(3.2);
+    doc.text("ST. PAUL SEC. SCH SECURITY DOCUMENT", x + 2.2, y + 38.0, { angle: 90 });
+    doc.restoreGraphicsState();
+
+    // 4. Double Rounded Borders
+    doc.setDrawColor(0, 62, 126);
+    doc.setLineWidth(0.8);
+    doc.roundedRect(x, y, cardW, cardH, 3.18, 3.18, 'D');
+
+    doc.setDrawColor(234, 245, 255);
     doc.setLineWidth(0.35);
-    doc.roundedRect(x, y, cardW, cardH, 3.5, 3.5, 'D');
+    doc.roundedRect(x + 0.8, y + 0.8, cardW - 1.6, cardH - 1.6, 2.5, 2.5, 'D');
 
-    // Header strip
-    const isTeaching = member.category === 'Teaching';
-    const headerColor = isTeaching ? { r: 30, g: 58, b: 138 } : { r: 15, g: 23, b: 42 }; // indigo-900 or slate-900
-    doc.setFillColor(headerColor.r, headerColor.g, headerColor.b);
-    doc.roundedRect(x + 0.5, y + 0.5, cardW - 1, 14, 3, 3, 'F');
-    doc.rect(x + 0.5, y + 8, cardW - 1, 6.5, 'F');
+    // 5. Watermark Crest
+    if (activeLogoPng) {
+      drawSafeWatermark(doc, activeLogoPng, x + cardW / 2 - 13, y + cardH / 2 - 13, 26, 26, 0.04);
+    }
 
-    // Logo
+    // 6. Header block (Larger logo and layout)
+    const crestBoxX = x + 3.5;
+    const crestBoxY = y + 2.8;
+    const crestBoxW = 9.8;
+    const crestBoxH = 9.8;
+    doc.setFillColor(255, 255, 255);
+    doc.setDrawColor(234, 245, 255);
+    doc.setLineWidth(0.18);
+    doc.roundedRect(crestBoxX, crestBoxY, crestBoxW, crestBoxH, 0.8, 0.8, 'FD');
+
     if (activeLogoPng) {
       try {
-        doc.addImage(activeLogoPng, 'PNG', x + 3, y + 2, 10, 10);
+        doc.addImage(activeLogoPng, 'PNG', crestBoxX + 0.6, crestBoxY + 0.6, crestBoxW - 1.2, crestBoxH - 1.2);
       } catch (e) {
-        console.warn("Logo draw failed", e);
+        console.warn("Crest logo draw failed", e);
       }
     }
 
-    // Title
+    doc.setTextColor(0, 62, 126); // #003E7E
+    doc.setFont("helvetica", "bold");
+    doc.setFontSize(7.5); // size ~30px equivalent
+    doc.text("ST. PAUL SECONDARY SCHOOL, NASUTI", x + 14.5, y + 6.2);
+
+    doc.setTextColor(100, 116, 139);
+    doc.setFont("helvetica", "bold");
+    doc.setFontSize(5.2);
+    doc.text("P.O. BOX 678, NASUTI, IGANGA", x + 14.5, y + 9.6);
+
+    const badgeW = 12.5;
+    const badgeH = 3.5;
+    const badgeX = x + cardW - badgeW - 3.5;
+    const badgeY = y + 4.8;
+    doc.setFillColor(11, 108, 184); // #0B6CB8
+    doc.roundedRect(badgeX, badgeY, badgeW, badgeH, 1.75, 1.75, 'F');
     doc.setTextColor(255, 255, 255);
     doc.setFont("helvetica", "bold");
-    doc.setFontSize(10);
-    doc.text("ST. PAUL SECONDARY SCHOOL", x + 15, y + 6);
-    doc.setFont("helvetica", "normal");
-    doc.setFontSize(6.5);
-    doc.text("STAFF IDENTIFICATION CARD", x + 15, y + 9.5);
+    doc.setFontSize(4.5);
+    doc.text("STAFF", badgeX + badgeW / 2, badgeY + 2.4, { align: 'center' });
 
-    // Photo
-    const photoX = x + 4;
-    const photoY = y + 17;
-    const photoW = 20;
-    const photoH = 26;
-    doc.setDrawColor(226, 232, 240);
-    doc.setFillColor(241, 245, 249);
-    doc.rect(photoX, photoY, photoW, photoH, 'FD');
+    // 7. Divider Line
+    doc.setDrawColor(11, 108, 184);
+    doc.setLineWidth(0.25);
+    doc.line(x + 3.5, y + 14.2, x + cardW - 3.5, y + 14.2);
+
+    // 8. STAFF IDENTITY CARD pill
+    const idBadgeW = 32;
+    const idBadgeH = 3.5;
+    const idBadgeX = x + (cardW - idBadgeW) / 2;
+    const idBadgeY = y + 15.2;
+    doc.setFillColor(0, 62, 126); // #003E7E
+    doc.roundedRect(idBadgeX, idBadgeY, idBadgeW, idBadgeH, 1.75, 1.75, 'F');
+    doc.setTextColor(255, 255, 255);
+    doc.setFont("helvetica", "bold");
+    doc.setFontSize(4.5);
+    doc.text("STAFF IDENTITY CARD", idBadgeX + idBadgeW / 2, idBadgeY + 2.4, { align: 'center' });
+
+    // 9. Photo Section (Col 1 - 140x170px proportional size: 20x24.3mm)
+    const photoX = x + 3.5;
+    const photoY = y + 19.8;
+    const photoW = 20.0;
+    const photoH = 24.3;
+
+    // Photo Drop Shadow (soft gray rect behind it)
+    doc.setFillColor(225, 230, 240);
+    doc.roundedRect(photoX + 0.3, photoY + 0.3, photoW, photoH, 1.2, 1.2, 'F');
+
+    // Photo Frame Box
+    doc.setFillColor(255, 255, 255);
+    doc.roundedRect(photoX, photoY, photoW, photoH, 1.2, 1.2, 'F');
+
+    doc.saveGraphicsState();
+    doc.roundedRect(photoX, photoY, photoW, photoH, 1.2, 1.2, 'F');
+    doc.clip();
+    
     if (member.photo) {
       try {
-        doc.addImage(member.photo, 'PNG', photoX + 0.5, photoY + 0.5, photoW - 1, photoH - 1);
+        doc.addImage(member.photo, 'PNG', photoX, photoY, photoW, photoH);
       } catch (e) {
-        console.warn("Error drawing photo:", e);
+        console.warn("Failed drawing staff photo in PDF", e);
+        doc.setFillColor(241, 245, 249);
+        doc.rect(photoX, photoY, photoW, photoH, 'F');
         doc.setDrawColor(200, 200, 200);
-        doc.circle(photoX + photoW / 2, photoY + 10, 5, 'D');
-        doc.ellipse(photoX + photoW / 2, photoY + 20, 7, 5, 'D');
+        doc.circle(photoX + photoW / 2, photoY + 8, 3, 'D');
+        doc.ellipse(photoX + photoW / 2, photoY + 16, 5, 3.5, 'D');
       }
     } else {
-      // Draw placeholder avatar
+      doc.setFillColor(241, 245, 249);
+      doc.rect(photoX, photoY, photoW, photoH, 'F');
       doc.setDrawColor(200, 200, 200);
-      doc.circle(photoX + photoW / 2, photoY + 10, 5, 'D');
-      doc.ellipse(photoX + photoW / 2, photoY + 20, 7, 5, 'D');
+      doc.circle(photoX + photoW / 2, photoY + 8, 3, 'D');
+      doc.ellipse(photoX + photoW / 2, photoY + 16, 5, 3.5, 'D');
+    }
+    doc.restoreGraphicsState();
+
+    // Photo outer blue border
+    doc.setDrawColor(11, 108, 184);
+    doc.setLineWidth(0.35);
+    doc.roundedRect(photoX, photoY, photoW, photoH, 1.2, 1.2, 'D');
+
+    // Glowing cyan/sky bubble overlay
+    try {
+      const gStateClass = (doc as any).GState || (doc.constructor as any).GState;
+      if (gStateClass) {
+        doc.saveGraphicsState();
+        doc.setGState(new gStateClass({ opacity: 0.4 }));
+        doc.setFillColor(125, 211, 252);
+        doc.circle(photoX + photoW, photoY + photoH / 2, 2.5, 'F');
+        doc.restoreGraphicsState();
+      }
+    } catch (e) {}
+
+    // 10. Staff Details (Middle Column)
+    const detailsX = x + 25.5;
+    const labelX = x + 29.5;
+    const valueX = x + 44.5;
+    const fullName = `${member.firstName || ''} ${member.middleName ? member.middleName + ' ' : ''}${member.lastName || ''}`.toUpperCase().trim() || member.name || 'Not Available';
+    
+    const drawDetailRow = (
+      lbl: string, 
+      val: string, 
+      rowY: number, 
+      drawIcon: (ix: number, iy: number, isize: number) => void
+    ) => {
+      // Draw Vector Icon
+      drawIcon(detailsX, rowY - 2.4, 3.0);
+
+      // Label Text
+      doc.setTextColor(0, 62, 126); // #003E7E
+      doc.setFont("helvetica", "bold");
+      doc.setFontSize(4.5);
+      doc.text(lbl, labelX, rowY);
+
+      // Value Text
+      doc.setTextColor(0, 0, 0);
+      doc.setFont("helvetica", "bold");
+      doc.setFontSize(5.2);
+      
+      let valStr = val || 'Not Available';
+      // Truncate if it overlaps QR
+      if (doc.getTextWidth(valStr) > 20) {
+        while (doc.getTextWidth(valStr + '...') > 20 && valStr.length > 0) {
+          valStr = valStr.substring(0, valStr.length - 1);
+        }
+        valStr += '...';
+      }
+      doc.text(valStr, valueX, rowY);
+    };
+
+    drawDetailRow("NAME:", fullName, y + 21.0, drawPdfUserIcon);
+    drawDetailRow("STAFF NO:", member.employeeNumber || member.id || 'Not Available', y + 25.5, drawPdfIdCardIcon);
+    drawDetailRow("DESIGNATION:", (member.position || 'Not Available').toUpperCase(), y + 30.0, drawPdfBriefcaseIcon);
+    drawDetailRow("DEPARTMENT:", (member.department || 'Not Available').toUpperCase(), y + 34.5, drawPdfBuildingIcon);
+    drawDetailRow("GENDER:", (member.gender || 'Female').toUpperCase(), y + 39.0, drawPdfGenderIcon);
+
+    // 11. Redesigned QR Verification Box (Aspect ratio matches 135x165px)
+    const qrBoxW = 20.0;
+    const qrBoxH = 24.3;
+    const qrBoxX = x + cardW - qrBoxW - 3.5;
+    const qrBoxY = y + 19.8;
+
+    // Outer shadow (soft gray offset rectangle)
+    doc.saveGraphicsState();
+    doc.setFillColor(242, 245, 250);
+    doc.roundedRect(qrBoxX + 0.3, qrBoxY + 0.3, qrBoxW, qrBoxH, 1.2, 1.2, 'F');
+
+    // Main Box (White bg, blue border)
+    doc.setFillColor(255, 255, 255);
+    doc.setDrawColor(11, 108, 184); // #0B6CB8
+    doc.setLineWidth(0.35); // thin blue border
+    doc.roundedRect(qrBoxX, qrBoxY, qrBoxW, qrBoxH, 1.2, 1.2, 'FD');
+    doc.restoreGraphicsState();
+
+    // QR Code Container
+    const qrSize = 14.5;
+    const qrX = qrBoxX + (qrBoxW - qrSize) / 2;
+    const qrY = qrBoxY + 2.0;
+
+    // Scanned URL Points to /staff/verify/{staffNo}
+    const verificationUrl = `${window.location.origin}/staff/verify/${member.employeeNumber || member.id}`;
+    try {
+      const qrDataUrl = await QRCode.toDataURL(verificationUrl, { margin: 1, errorCorrectionLevel: 'M' });
+      doc.addImage(qrDataUrl, 'PNG', qrX, qrY, qrSize, qrSize);
+    } catch (e) {
+      console.warn("Failed drawing QR Code in PDF", e);
+      doc.setDrawColor(180, 180, 180);
+      doc.rect(qrX, qrY, qrSize, qrSize, 'D');
     }
 
-    // Staff Info text fields
-    doc.setTextColor(15, 23, 42); // dark slate
+    doc.setTextColor(11, 108, 184); // #0B6CB8
     doc.setFont("helvetica", "bold");
-    doc.setFontSize(8.5);
-    const fullName = `${member.firstName || ''} ${member.middleName ? member.middleName + ' ' : ''}${member.lastName || ''}`.toUpperCase();
-    doc.text(fullName, x + 27, y + 21);
+    doc.setFontSize(3.2);
+    doc.text("SCAN TO VERIFY", qrBoxX + qrBoxW / 2, qrBoxY + 21.5, { align: 'center' });
 
-    doc.setFont("helvetica", "normal");
-    doc.setFontSize(7);
-    doc.setTextColor(71, 85, 105);
-    doc.text("Designation:", x + 27, y + 26);
-    doc.setFont("helvetica", "bold");
-    doc.setTextColor(15, 23, 42);
-    doc.text(member.position || 'Staff Member', x + 43, y + 26);
+    // 12. Bottom Row (4 equally spaced columns separated by vertical line vectors)
+    const bottomY = y + 45.0;
 
-    doc.setFont("helvetica", "normal");
-    doc.setTextColor(71, 85, 105);
-    doc.text("Department:", x + 27, y + 30);
-    doc.setFont("helvetica", "bold");
-    doc.setTextColor(15, 23, 42);
-    doc.text(member.department || 'General', x + 43, y + 30);
+    // Horizontal Divider
+    doc.setDrawColor(220, 225, 235);
+    doc.setLineWidth(0.18);
+    doc.line(x + 3.5, bottomY, x + cardW - 3.5, bottomY);
 
-    doc.setFont("helvetica", "normal");
-    doc.setTextColor(71, 85, 105);
-    doc.text("Employment Status:", x + 27, y + 34);
-    doc.setFont("helvetica", "bold");
-    doc.setTextColor(15, 23, 42);
-    doc.text(member.employmentStatus || 'Permanent', x + 53, y + 34);
+    // Vertical Divider 1
+    doc.setDrawColor(200, 205, 215);
+    doc.setLineWidth(0.2);
+    doc.line(x + 21.4, bottomY + 1.0, x + 21.4, bottomY + 8.0);
 
-    doc.setFont("helvetica", "normal");
-    doc.setTextColor(71, 85, 105);
-    doc.text("Staff ID Code:", x + 27, y + 38);
-    doc.setFont("helvetica", "bold");
-    doc.setTextColor(37, 99, 235); // Blue Accent
-    doc.text(member.id, x + 45, y + 38);
+    // Vertical Divider 2
+    doc.line(x + 42.8, bottomY + 1.0, x + 42.8, bottomY + 8.0);
 
-    // Category Badge
-    const badgeColor = isTeaching ? { bg: [239, 246, 255], txt: [37, 99, 235] } : { bg: [241, 245, 249], txt: [71, 85, 105] };
-    doc.setFillColor(badgeColor.bg[0], badgeColor.bg[1], badgeColor.bg[2]);
-    doc.roundedRect(x + 27, y + 42, 38, 4.5, 1, 1, 'F');
-    doc.setTextColor(badgeColor.txt[0], badgeColor.txt[1], badgeColor.txt[2]);
-    doc.setFont("helvetica", "bold");
-    doc.setFontSize(6);
-    doc.text(isTeaching ? "TEACHING STAFF" : "NON-TEACHING STAFF", x + 31, y + 45.2);
+    // Vertical Divider 3
+    doc.line(x + 64.2, bottomY + 1.0, x + 64.2, bottomY + 8.0);
 
-    // Footer Ribbon
-    doc.setFillColor(248, 250, 252);
-    doc.rect(x + 0.5, y + cardH - 5.5, cardW - 1, 5, 'F');
-    doc.setTextColor(148, 163, 184);
+    // Col 1: Issue Date
+    let issueDateStr = 'Not Available';
+    if (member.activeCard && member.activeCard.issue_date) {
+      issueDateStr = formatDate(member.activeCard.issue_date);
+    } else {
+      issueDateStr = formatDate(member.createdAt || new Date());
+    }
+
+    doc.setTextColor(11, 108, 184); // #0B6CB8
     doc.setFont("helvetica", "bold");
-    doc.setFontSize(5);
-    doc.text("SPSS SECURE STAFF CARD", x + 4, y + cardH - 2.2);
+    doc.setFontSize(3.6);
+    doc.text("ISSUE DATE", x + 10.7, bottomY + 2.8, { align: 'center' });
+    
+    doc.setTextColor(0, 0, 0);
+    doc.setFont("helvetica", "bold");
+    doc.setFontSize(4.8);
+    doc.text(issueDateStr, x + 10.7, bottomY + 6.8, { align: 'center' });
+
+    // Col 2: Holder's Signature
+    doc.setTextColor(11, 108, 184);
+    doc.setFont("helvetica", "bold");
+    doc.setFontSize(3.6);
+    doc.text("HOLDER'S SIGNATURE", x + 32.1, bottomY + 2.8, { align: 'center' });
+
+    doc.setDrawColor(220, 225, 235);
+    doc.setLineWidth(0.15);
+    doc.line(x + 24.0, bottomY + 7.0, x + 40.0, bottomY + 7.0);
+
+    if (member.signature) {
+      try {
+        doc.addImage(member.signature, 'PNG', x + 24.5, bottomY + 3.2, 15, 3.8);
+      } catch (e) {
+        console.warn("Failed drawing signature in PDF", e);
+      }
+    } else {
+      doc.saveGraphicsState();
+      doc.setTextColor(100, 116, 139);
+      doc.setFont("courier", "oblique");
+      doc.setFontSize(4.5);
+      doc.text(member.lastName || 'Staff', x + 32.1, bottomY + 6.0, { align: 'center' });
+      doc.restoreGraphicsState();
+    }
+
+    // Col 3: Authorised Signature
+    doc.setTextColor(11, 108, 184);
+    doc.setFont("helvetica", "bold");
+    doc.setFontSize(3.6);
+    doc.text("AUTHORISED SIGNATURE", x + 53.5, bottomY + 2.8, { align: 'center' });
+
+    doc.setDrawColor(220, 225, 235);
+    doc.setLineWidth(0.15);
+    doc.line(x + 45.5, bottomY + 7.0, x + 61.5, bottomY + 7.0);
+
+    if (member.signature) {
+      try {
+        doc.addImage(member.signature, 'PNG', x + 46.0, bottomY + 3.2, 15, 3.8);
+      } catch (e) {
+        console.warn("Failed drawing authorized signature in PDF", e);
+      }
+    } else {
+      doc.saveGraphicsState();
+      doc.setTextColor(100, 116, 139);
+      doc.setFont("courier", "oblique");
+      doc.setFontSize(4.5);
+      doc.text('Authorized', x + 53.5, bottomY + 6.0, { align: 'center' });
+      doc.restoreGraphicsState();
+    }
+
+    // Col 4: Expiry Date
+    let expDateStr = 'Not Available';
+    if (member.activeCard && member.activeCard.expiry_date) {
+      expDateStr = formatDate(member.activeCard.expiry_date);
+    } else {
+      const expDate = member.createdAt ? new Date(member.createdAt) : new Date();
+      expDate.setFullYear(expDate.getFullYear() + 5);
+      expDateStr = formatDate(expDate);
+    }
+
+    doc.setTextColor(11, 108, 184);
+    doc.setFont("helvetica", "bold");
+    doc.setFontSize(3.6);
+    doc.text("EXPIRY DATE", x + 74.9, bottomY + 2.8, { align: 'center' });
+
+    doc.setTextColor(220, 38, 38); // Red
+    doc.setFont("helvetica", "bold");
+    doc.setFontSize(4.8);
+    doc.text(expDateStr, x + 74.9, bottomY + 6.8, { align: 'center' });
   };
 
   const drawStaffBack = async (doc: jsPDF, x: number, y: number, member: Staff) => {
-    // Card Base
-    doc.setDrawColor(30, 41, 59);
+    // 1. Shadow
+    doc.setFillColor(235, 240, 247);
+    doc.roundedRect(x + 0.5, y + 0.5, cardW, cardH, 3.18, 3.18, 'F');
+
+    // 2. Card Base
+    doc.setFillColor(255, 255, 255);
+    doc.roundedRect(x, y, cardW, cardH, 3.18, 3.18, 'F');
+
+    // 3. Subtle blue geometric pattern (matching the front)
+    drawGeometricPattern(doc, x, y);
+
+    // 4. Double border layout
+    // Outer border (Dark navy)
+    doc.setDrawColor(0, 62, 126);
+    doc.setLineWidth(0.8);
+    doc.roundedRect(x, y, cardW, cardH, 3.18, 3.18, 'D');
+
+    // Inner border (Light blue)
+    doc.setDrawColor(234, 245, 255);
     doc.setLineWidth(0.35);
-    doc.roundedRect(x, y, cardW, cardH, 3.5, 3.5, 'D');
+    doc.roundedRect(x + 0.8, y + 0.8, cardW - 1.6, cardH - 1.6, 2.5, 2.5, 'D');
 
-    // Subtle Grid / Top Strip
-    doc.setFillColor(248, 250, 252);
-    doc.roundedRect(x + 0.5, y + 0.5, cardW - 1, 5, 3, 3, 'F');
-    doc.rect(x + 0.5, y + 3, cardW - 1, 2.5, 'F');
-    doc.setTextColor(71, 85, 105);
+    // 5. Header Banner (Navy blue background with school name in white)
+    doc.setFillColor(0, 62, 126); // #003E7E
+    doc.roundedRect(x + 1.2, y + 1.2, cardW - 2.4, 8.5, 2.5, 2.5, 'F');
+    doc.rect(x + 1.2, y + 5.5, cardW - 2.4, 4.2, 'F');
+
+    doc.setTextColor(255, 255, 255);
     doc.setFont("helvetica", "bold");
-    doc.setFontSize(5.5);
-    doc.text("TERMS AND CONDITIONS", x + 4, y + 4);
+    doc.setFontSize(6.8);
+    doc.text("ST. PAUL SECONDARY SCHOOL, NASUTI", x + cardW / 2, y + 6.8, { align: 'center' });
 
-    // Terms body text
-    doc.setTextColor(100, 116, 139);
+    // 6. Card Number Block
+    doc.setTextColor(0, 62, 126);
+    doc.setFont("helvetica", "bold");
+    doc.setFontSize(5.8);
+    doc.text(`CARD NO: SPSS-ST-${member.id}`, x + 5, y + 14.5);
+
+    // 7. Ownership Rules
+    doc.setTextColor(0, 62, 126);
+    doc.setFont("helvetica", "bold");
+    doc.setFontSize(5.0);
+    doc.text("CARD USE POLICY & TERMS", x + 5, y + 19.5);
+
+    doc.setTextColor(71, 85, 105);
     doc.setFont("helvetica", "normal");
-    doc.setFontSize(4.8);
+    doc.setFontSize(4.4);
     const terms = [
       "1. This card is the property of St. Paul Secondary School.",
-      "2. It must be worn at all times while on school premises.",
-      "3. If found, please return to the school administration office.",
-      "4. Loss of this card must be reported immediately.",
-      "5. Scan the QR code to verify credential authenticity."
+      "2. It must be worn prominently at all times while on school premises.",
+      "3. The holder is responsible for the security and custody of this card.",
+      "4. If found, please return to the school administration office."
     ];
-    let ty = y + 9.5;
+    let ty = y + 23.0;
     terms.forEach(term => {
-      doc.text(term, x + 4, ty);
-      ty += 3.2;
+      doc.text(term, x + 5, ty);
+      ty += 2.8;
     });
 
-    // QR Code
-    const verificationUrl = `${window.location.origin}/verify/${member.verification_token || ''}`;
-    try {
-      const qrDataUrl = await QRCode.toDataURL(verificationUrl, { margin: 1, errorCorrectionLevel: 'M' });
-      doc.addImage(qrDataUrl, 'PNG', x + 67, y + 7, 18, 18);
-      doc.setTextColor(100, 116, 139);
-      doc.setFont("helvetica", "bold");
-      doc.setFontSize(4);
-      doc.text("SCAN TO VERIFY", x + 69.5, y + 26.5);
-    } catch (e) {
-      console.warn("Failed to draw QR code:", e);
-    }
+    // 8. Contact Information
+    doc.setTextColor(100, 116, 139);
+    doc.setFont("helvetica", "bold");
+    doc.setFontSize(4.0);
+    doc.text("Email: admin@stpaul.edu | Web: www.stpaul.edu | Tel: +256 701 234 567", x + 5, y + 36.0);
 
-    // Code 39 Barcode
-    const barcodeVal = member.id;
-    drawPdfBarcode(doc, x + 4, y + 29, barcodeVal, 6.5, 0.7);
+    // 9. Divider line
+    doc.setDrawColor(226, 232, 240);
+    doc.setLineWidth(0.2);
+    doc.line(x + 5, y + 38.5, x + cardW - 5, y + 38.5);
+
+    // 10. Barcode generated from staff number (employeeNumber || id)
+    const barcodeVal = member.employeeNumber || member.id;
+    drawPdfBarcode(doc, x + 5, y + 41.5, barcodeVal, 5.5, 0.55);
+
+    // Text representation of barcode below it
     doc.setTextColor(71, 85, 105);
     doc.setFont("Courier", "bold");
-    doc.setFontSize(6.5);
-    doc.text(barcodeVal, x + 16, y + 38);
+    doc.setFontSize(5.5);
+    doc.text(barcodeVal, x + 16, y + 49.5);
 
-    // Signatures / Authority
-    doc.setDrawColor(203, 213, 225);
-    doc.setLineWidth(0.2);
-    doc.line(x + 55, y + 43, x + 85, y + 43);
-    
-    doc.setTextColor(71, 85, 105);
-    doc.setFont("helvetica", "normal");
-    doc.setFontSize(5);
-    doc.text("AUTHORIZING SIGNATURE", x + 59, y + 46);
-
-    // Draw school signature
-    if (member.signature) {
-      try {
-        doc.addImage(member.signature, 'PNG', x + 60, y + 36, 20, 6.5);
-      } catch (e) {
-        console.warn("Failed to render signature:", e);
-      }
-    }
+    // 11. Unique Serial Number (bottom right)
+    const serialNo = `SPSSN-2026-${(member.employeeNumber || member.id || "0000").replace(/[^0-9]/g, "").slice(0, 5).padStart(5, "0")}`;
+    doc.setTextColor(100, 116, 139);
+    doc.setFont("helvetica", "bold");
+    doc.setFontSize(4.5);
+    doc.text(`S/N: ${serialNo}`, x + cardW - 5, y + 48.0, { align: 'right' });
   };
 
   if (printSide === 'front') {
@@ -1608,8 +1980,8 @@ export async function generateStaffIdCardsPdf({
       const rowIdx = counter % 4;
       const py = marginY + rowIdx * (cardH + spacingY);
 
-      drawStaffFront(doc, marginX, py, member);
-      drawStaffFront(doc, marginX + cardW + spacingX, py, member);
+      await drawStaffFront(doc, marginX, py, member);
+      await drawStaffFront(doc, marginX + cardW + spacingX, py, member);
 
       counter++;
       if (counter % 4 === 0 && i < staffList.length - 1) {
@@ -1650,8 +2022,8 @@ export async function generateStaffIdCardsPdf({
         const rowIdx = (i - startIdx) % perPage;
         const py = marginY + rowIdx * (cardH + spacingY);
 
-        drawStaffFront(doc, marginX, py, member);
-        drawStaffFront(doc, marginX + cardW + spacingX, py, member);
+        await drawStaffFront(doc, marginX, py, member);
+        await drawStaffFront(doc, marginX + cardW + spacingX, py, member);
       }
 
       // Back Page

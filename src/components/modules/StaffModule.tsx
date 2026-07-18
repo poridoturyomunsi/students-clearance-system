@@ -7,9 +7,12 @@ import { Staff, LeaveRequest, TimetableSlot } from '../../types.ts';
 import { 
   fetchStaffList, createStaffMember, updateStaffMember, deleteStaffMember, 
   resetStaffPassword, updateStaffStatus, importStaffBulk, fetchAllLeaveRequestsAdmin, 
-  updateLeaveRequestAdmin, fetchClassTeachers, saveClassTeacher, fetchSettings
+  updateLeaveRequestAdmin, fetchClassTeachers, saveClassTeacher, fetchSettings,
+  fetchStaffMember, activateStaffCard, deactivateStaffCard, revokeStaffCard, reissueStaffCard, regenerateStaffQr
 } from '../../utils/api.ts';
 import { generateStaffIdCardsPdf } from '../../utils/pdfGenerator.ts';
+import { generateStaffIdCardPng, generateStaffIdCardsPngZip } from '../../utils/pngGenerator.ts';
+import StaffCard from '../StaffCard.tsx';
 import * as XLSX from 'xlsx';
 import { compressStudentPhoto, compressSignatureImage } from '../../utils/imageProcessor.ts';
 
@@ -54,6 +57,40 @@ export default function StaffModule() {
     }
   };
 
+  const handleDownloadPngCards = async () => {
+    if (printingMembers.length === 0) return;
+    setLoading(true);
+    setError(null);
+    try {
+      if (printingMembers.length === 1) {
+        const member = printingMembers[0];
+        const dataUrl = await generateStaffIdCardPng(member, settings.schoolLogo);
+        const link = document.createElement('a');
+        link.href = dataUrl;
+        link.download = `staff_id_${member.employeeNumber || member.id}.png`;
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+        setSuccess('PNG Staff ID card downloaded successfully.');
+      } else {
+        const zipBlob = await generateStaffIdCardsPngZip(printingMembers, settings.schoolLogo);
+        const link = document.createElement('a');
+        link.href = URL.createObjectURL(zipBlob);
+        link.download = `staff_id_cards_png.zip`;
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+        setSuccess('ZIP package of PNG Staff ID cards downloaded successfully.');
+      }
+      setShowPrintModal(false);
+      setTimeout(() => setSuccess(null), 3000);
+    } catch (e: any) {
+      setError('Failed to generate PNG cards: ' + e.message);
+    } finally {
+      setLoading(false);
+    }
+  };
+
   // Tab Management
   const [activeTab, setActiveTab] = useState<'registry' | 'leave' | 'assignments' | 'streamallocation' | 'upload' | 'reports'>('registry');
   
@@ -70,6 +107,121 @@ export default function StaffModule() {
   const [settings, setSettings] = useState<any>({});
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
+
+  // ID Card Management States
+  const [showCardManagementModal, setShowCardManagementModal] = useState(false);
+  const [cardManagementStaff, setCardManagementStaff] = useState<Staff | null>(null);
+  const [cardLoading, setCardLoading] = useState(false);
+  const [cardIssueDate, setCardIssueDate] = useState('');
+  const [cardExpiryDate, setCardExpiryDate] = useState('');
+  const [showReissueForm, setShowReissueForm] = useState(false);
+
+  const openCardManagement = async (item: Staff) => {
+    setCardLoading(true);
+    setCardManagementStaff(item);
+    setShowCardManagementModal(true);
+    setShowReissueForm(false);
+    try {
+      const data = await fetchStaffMember(item.id);
+      setCardManagementStaff(data);
+      const today = new Date().toISOString().split('T')[0];
+      const nextFiveYears = new Date();
+      nextFiveYears.setFullYear(nextFiveYears.getFullYear() + 5);
+      setCardIssueDate(today);
+      setCardExpiryDate(nextFiveYears.toISOString().split('T')[0]);
+    } catch (e: any) {
+      setError('Failed to load card details: ' + e.message);
+    } finally {
+      setCardLoading(false);
+    }
+  };
+
+  const handleRefreshCardDetails = async () => {
+    if (!cardManagementStaff) return;
+    setCardLoading(true);
+    try {
+      const data = await fetchStaffMember(cardManagementStaff.id);
+      setCardManagementStaff(data);
+      setStaff(prev => prev.map(s => s.id === data.id ? { ...s, status: data.status } : s));
+    } catch (e: any) {
+      setError('Failed to refresh details: ' + e.message);
+    } finally {
+      setCardLoading(false);
+    }
+  };
+
+  const handleActivateCard = async () => {
+    if (!cardManagementStaff) return;
+    setCardLoading(true);
+    try {
+      await activateStaffCard(cardManagementStaff.id);
+      setSuccess('ID Card activated successfully.');
+      setTimeout(() => setSuccess(null), 3000);
+      await handleRefreshCardDetails();
+    } catch (e: any) {
+      setError('Failed to activate card: ' + e.message);
+      setCardLoading(false);
+    }
+  };
+
+  const handleDeactivateCard = async () => {
+    if (!cardManagementStaff) return;
+    setCardLoading(true);
+    try {
+      await deactivateStaffCard(cardManagementStaff.id);
+      setSuccess('ID Card deactivated successfully.');
+      setTimeout(() => setSuccess(null), 3000);
+      await handleRefreshCardDetails();
+    } catch (e: any) {
+      setError('Failed to deactivate card: ' + e.message);
+      setCardLoading(false);
+    }
+  };
+
+  const handleRevokeCard = async () => {
+    if (!cardManagementStaff) return;
+    if (!window.confirm('Are you sure you want to revoke this card? Scans of this card will return an invalid warning status. This action is not reversible.')) return;
+    setCardLoading(true);
+    try {
+      await revokeStaffCard(cardManagementStaff.id);
+      setSuccess('ID Card has been revoked.');
+      setTimeout(() => setSuccess(null), 3000);
+      await handleRefreshCardDetails();
+    } catch (e: any) {
+      setError('Failed to revoke card: ' + e.message);
+      setCardLoading(false);
+    }
+  };
+
+  const handleReissueCardSubmit = async () => {
+    if (!cardManagementStaff) return;
+    setCardLoading(true);
+    try {
+      await reissueStaffCard(cardManagementStaff.id, cardIssueDate, cardExpiryDate);
+      setSuccess('New ID Card issued successfully.');
+      setTimeout(() => setSuccess(null), 3000);
+      setShowReissueForm(false);
+      await handleRefreshCardDetails();
+    } catch (e: any) {
+      setError('Failed to reissue card: ' + e.message);
+      setCardLoading(false);
+    }
+  };
+
+  const handleRegenerateQrSubmit = async () => {
+    if (!cardManagementStaff) return;
+    if (!window.confirm('Regenerating the QR code will invalidate any existing printed cards immediately. You will need to print the new card. Continue?')) return;
+    setCardLoading(true);
+    try {
+      await regenerateStaffQr(cardManagementStaff.id);
+      setSuccess('QR Code and verification token regenerated successfully.');
+      setTimeout(() => setSuccess(null), 3000);
+      await handleRefreshCardDetails();
+    } catch (e: any) {
+      setError('Failed to regenerate QR code: ' + e.message);
+      setCardLoading(false);
+    }
+  };
   
   // Bulk Upload states
   const [isImporting, setIsImporting] = useState(false);
@@ -568,6 +720,9 @@ export default function StaffModule() {
                       <div className="flex justify-end gap-1.5 font-sans">
                         <button onClick={() => triggerPrintFlow([item])} className="px-2.5 py-1 bg-indigo-950 hover:bg-indigo-900 text-indigo-400 border border-indigo-900/40 rounded text-[9px] font-bold uppercase transition">
                           Print Card
+                        </button>
+                        <button onClick={() => openCardManagement(item)} className="px-2.5 py-1 bg-slate-900 hover:bg-slate-800 text-indigo-400 border border-slate-800 rounded text-[9px] font-bold uppercase transition">
+                          Manage ID
                         </button>
                         <button onClick={() => handleOpenEditForm(item)} className="px-2.5 py-1 bg-slate-900 hover:bg-slate-800 text-slate-300 border border-slate-800 rounded text-[9px] font-bold uppercase transition">
                           Edit
@@ -1104,28 +1259,257 @@ export default function StaffModule() {
               </div>
 
               <div className="bg-slate-900/40 p-3 rounded-lg border border-slate-800/60 text-[10px] text-slate-400 space-y-1.5 font-medium">
-                <p>• Renders as standard CR80 size (90mm x 58mm).</p>
+                <p>• Renders as standard CR80 size (85.6mm x 54mm).</p>
                 <p>• Includes Code 39 Barcodes and QR verification code tags.</p>
                 <p>• Generates standard crop guides separating rows/columns.</p>
               </div>
 
-              <div className="flex items-center justify-end gap-3 pt-2">
+              <div className="flex items-center justify-end gap-2 pt-2">
                 <button 
                   type="button" 
                   onClick={() => setShowPrintModal(false)} 
-                  className="px-4 py-2 bg-slate-900 hover:bg-slate-850 text-slate-400 border border-slate-800 rounded-xl text-xs font-bold uppercase transition"
+                  className="px-3 py-2 bg-slate-900 hover:bg-slate-850 text-slate-400 border border-slate-800 rounded-xl text-xs font-bold uppercase transition"
                 >
                   Cancel
                 </button>
                 <button 
                   type="button" 
+                  onClick={handleDownloadPngCards} 
+                  disabled={loading} 
+                  className="px-3 py-2 bg-[#0B6CB8] hover:bg-[#003E7E] text-white rounded-xl text-xs font-black uppercase tracking-wider transition"
+                >
+                  {loading ? 'Generating...' : 'Download PNG'}
+                </button>
+                <button 
+                  type="button" 
                   onClick={handlePrintCards} 
                   disabled={loading} 
-                  className="px-4 py-2 bg-indigo-600 hover:bg-indigo-500 text-white rounded-xl text-xs font-black uppercase tracking-wider transition"
+                  className="px-3 py-2 bg-[#003E7E] hover:bg-indigo-600 text-white rounded-xl text-xs font-black uppercase tracking-wider transition"
                 >
                   {loading ? 'Generating...' : 'Download PDF'}
                 </button>
               </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ID CARD MANAGEMENT MODAL */}
+      {showCardManagementModal && cardManagementStaff && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm overflow-y-auto">
+          <div className="relative w-full max-w-2xl bg-[#0a0f24] border border-white/10 rounded-2xl shadow-2xl overflow-hidden font-sans my-8">
+            {/* Modal Header */}
+            <div className="flex items-center justify-between p-6 border-b border-white/5">
+              <div>
+                <h3 className="text-base font-black text-indigo-400 uppercase tracking-wide">
+                  ID Card Management
+                </h3>
+                <p className="text-[11px] text-slate-500 font-mono mt-0.5">
+                  Staff: {cardManagementStaff.name} ({cardManagementStaff.id})
+                </p>
+              </div>
+              <button 
+                onClick={() => setShowCardManagementModal(false)}
+                className="p-1.5 hover:bg-white/5 rounded-lg text-slate-400 hover:text-white transition"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            {/* Modal Body */}
+            <div className="p-6 space-y-6 max-h-[70vh] overflow-y-auto">
+              {cardLoading ? (
+                <div className="flex flex-col items-center justify-center py-12 gap-3">
+                  <RefreshCw className="w-8 h-8 text-indigo-500 animate-spin" />
+                  <p className="text-xs text-slate-400">Loading credentials...</p>
+                </div>
+              ) : (
+                <>
+                  {/* Premium ID Card Visual Preview */}
+                  <div className="flex flex-col items-center justify-center p-4 bg-slate-950 border border-white/5 rounded-xl min-h-[260px] w-full relative">
+                    <span className="text-[10px] text-slate-500 font-black uppercase tracking-wider mb-3 block">ID Card Visual Preview</span>
+                    <div className="w-[85%] max-w-[380px] flex items-center justify-center">
+                      <StaffCard 
+                        staff={cardManagementStaff} 
+                        logoBase64={settings.schoolLogo} 
+                      />
+                    </div>
+                  </div>
+
+                  {/* Current Active Card Section */}
+                  <div className="bg-white/5 border border-white/5 p-5 rounded-xl space-y-4">
+                    <div className="flex items-center justify-between">
+                      <span className="text-xs font-bold text-slate-300 uppercase tracking-wide">Active ID Card Status</span>
+                      <span className={`px-2.5 py-0.5 rounded text-[10px] font-black uppercase tracking-wider ${
+                        cardManagementStaff.activeCard && cardManagementStaff.activeCard.status === 'Active'
+                          ? 'bg-emerald-950 text-emerald-400 border border-emerald-900/30'
+                          : cardManagementStaff.activeCard && cardManagementStaff.activeCard.status === 'Inactive'
+                          ? 'bg-slate-800 text-slate-400 border border-slate-700'
+                          : 'bg-rose-950 text-rose-455 border border-rose-900/30'
+                      }`}>
+                        {cardManagementStaff.activeCard ? cardManagementStaff.activeCard.status : 'No Card Issued'}
+                      </span>
+                    </div>
+
+                    {cardManagementStaff.activeCard ? (
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 text-xs">
+                        <div className="space-y-1">
+                          <p className="text-slate-500">Card Number:</p>
+                          <p className="text-slate-200 font-mono font-semibold">{cardManagementStaff.activeCard.card_id}</p>
+                        </div>
+                        <div className="space-y-1">
+                          <p className="text-slate-500">Verification URL:</p>
+                          <p className="text-indigo-400 font-mono break-all font-semibold">
+                            {window.location.origin}/verify/{cardManagementStaff.id}
+                          </p>
+                        </div>
+                        <div className="space-y-1">
+                          <p className="text-slate-500">Issue Date:</p>
+                          <p className="text-slate-200 font-semibold">{new Date(cardManagementStaff.activeCard.issue_date).toLocaleDateString()}</p>
+                        </div>
+                        <div className="space-y-1">
+                          <p className="text-slate-500">Expiry Date:</p>
+                          <p className="text-slate-200 font-semibold">{new Date(cardManagementStaff.activeCard.expiry_date).toLocaleDateString()}</p>
+                        </div>
+                      </div>
+                    ) : (
+                      <p className="text-xs text-slate-400 leading-relaxed">
+                        This staff member does not have an active ID card record. Click **Reissue Card** below to generate one.
+                      </p>
+                    )}
+
+                    {/* Actions Panel */}
+                    <div className="flex flex-wrap gap-2 pt-4 border-t border-white/5">
+                      {cardManagementStaff.activeCard && cardManagementStaff.activeCard.status === 'Inactive' && (
+                        <button onClick={handleActivateCard} className="px-3 py-1.5 bg-emerald-950 hover:bg-emerald-900 text-emerald-400 border border-emerald-900/30 rounded text-[10px] font-bold uppercase transition">
+                          Activate Card
+                        </button>
+                      )}
+                      {cardManagementStaff.activeCard && cardManagementStaff.activeCard.status === 'Active' && (
+                        <button onClick={handleDeactivateCard} className="px-3 py-1.5 bg-slate-800 hover:bg-slate-700 text-slate-350 border border-slate-700 rounded text-[10px] font-bold uppercase transition">
+                          Deactivate Card
+                        </button>
+                      )}
+                      {cardManagementStaff.activeCard && cardManagementStaff.activeCard.status === 'Active' && (
+                        <button onClick={handleRevokeCard} className="px-3 py-1.5 bg-rose-950/40 hover:bg-rose-950 text-rose-400 border border-rose-900/30 rounded text-[10px] font-bold uppercase transition">
+                          Revoke Card
+                        </button>
+                      )}
+                      <button onClick={() => setShowReissueForm(!showReissueForm)} className="px-3 py-1.5 bg-indigo-950 hover:bg-indigo-900 text-indigo-400 border border-indigo-900/40 rounded text-[10px] font-bold uppercase transition">
+                        {showReissueForm ? 'Cancel Reissue' : 'Reissue / Update Card'}
+                      </button>
+                      <button onClick={handleRegenerateQrSubmit} className="px-3 py-1.5 bg-slate-900 hover:bg-slate-850 text-amber-500 border border-slate-800 rounded text-[10px] font-bold uppercase transition">
+                        Regenerate QR Token
+                      </button>
+                       <button onClick={() => { setShowCardManagementModal(false); triggerPrintFlow([cardManagementStaff]); }} className="px-3 py-1.5 bg-indigo-600 hover:bg-indigo-500 text-white rounded text-[10px] font-bold uppercase transition">
+                        Print Card
+                      </button>
+                      <button 
+                        onClick={async () => {
+                          if (!cardManagementStaff) return;
+                          setCardLoading(true);
+                          try {
+                            const dataUrl = await generateStaffIdCardPng(cardManagementStaff, settings.schoolLogo);
+                            const link = document.createElement('a');
+                            link.href = dataUrl;
+                            link.download = `staff_id_${cardManagementStaff.employeeNumber || cardManagementStaff.id}.png`;
+                            document.body.appendChild(link);
+                            link.click();
+                            document.body.removeChild(link);
+                            setSuccess('PNG Staff ID card downloaded successfully.');
+                          } catch (err: any) {
+                            setError('Failed to download PNG: ' + err.message);
+                          } finally {
+                            setCardLoading(false);
+                          }
+                        }} 
+                        className="px-3 py-1.5 bg-[#0B6CB8] hover:bg-[#003E7E] text-white rounded text-[10px] font-bold uppercase transition"
+                      >
+                        Download PNG
+                      </button>
+                    </div>
+                  </div>
+
+                  {/* Reissue Form Section */}
+                  {showReissueForm && (
+                    <div className="bg-white/5 border border-white/5 p-5 rounded-xl space-y-4">
+                      <h4 className="text-xs font-bold text-slate-300 uppercase tracking-wide">Configure Reissued Card Parameters</h4>
+                      <div className="grid grid-cols-2 gap-4">
+                        <div className="space-y-1.5">
+                          <label className="text-[9px] text-slate-500 uppercase font-black tracking-wider block">Issue Date</label>
+                          <input 
+                            type="date" 
+                            value={cardIssueDate} 
+                            onChange={e => setCardIssueDate(e.target.value)} 
+                            className="w-full bg-slate-900 border border-slate-850 rounded-xl px-3 py-2 text-xs text-slate-200 focus:outline-none focus:border-indigo-500" 
+                          />
+                        </div>
+                        <div className="space-y-1.5">
+                          <label className="text-[9px] text-slate-500 uppercase font-black tracking-wider block">Expiry Date</label>
+                          <input 
+                            type="date" 
+                            value={cardExpiryDate} 
+                            onChange={e => setCardExpiryDate(e.target.value)} 
+                            className="w-full bg-slate-900 border border-slate-850 rounded-xl px-3 py-2 text-xs text-slate-200 focus:outline-none focus:border-indigo-500" 
+                          />
+                        </div>
+                      </div>
+                      <div className="flex justify-end pt-2">
+                        <button onClick={handleReissueCardSubmit} className="px-4 py-2 bg-indigo-600 hover:bg-indigo-500 text-white rounded-xl text-xs font-black uppercase tracking-wider transition">
+                          Commit Reissue
+                        </button>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Card Issue History Table */}
+                  <div className="space-y-3">
+                    <h4 className="text-xs font-bold text-slate-300 uppercase tracking-wide">Issued Cards History</h4>
+                    <div className="border border-white/5 rounded-xl overflow-hidden">
+                      <table className="w-full text-left border-collapse">
+                        <thead>
+                          <tr className="bg-white/5 border-b border-white/5 text-[10px] text-slate-400 font-bold uppercase tracking-wider">
+                            <th className="py-2.5 px-3">Card ID</th>
+                            <th className="py-2.5 px-3">Issue Date</th>
+                            <th className="py-2.5 px-3">Expiry Date</th>
+                            <th className="py-2.5 px-3">Status</th>
+                            <th className="py-2.5 px-3">Created</th>
+                          </tr>
+                        </thead>
+                        <tbody className="divide-y divide-white/5 text-xs text-slate-350">
+                          {cardManagementStaff.cardHistory && cardManagementStaff.cardHistory.length > 0 ? (
+                            cardManagementStaff.cardHistory.map((h, i) => (
+                              <tr key={h.id || i} className="hover:bg-white/5">
+                                <td className="py-2 px-3 font-mono font-semibold text-slate-200">{h.card_id}</td>
+                                <td className="py-2 px-3">{new Date(h.issue_date).toLocaleDateString()}</td>
+                                <td className="py-2 px-3">{new Date(h.expiry_date).toLocaleDateString()}</td>
+                                <td className="py-2 px-3">
+                                  <span className={`px-1.5 py-0.5 rounded text-[8px] font-bold uppercase ${
+                                    h.status === 'Active'
+                                      ? 'bg-emerald-950 text-emerald-400 border border-emerald-900/30'
+                                      : h.status === 'Inactive'
+                                      ? 'bg-slate-800 text-slate-400'
+                                      : 'bg-rose-950 text-rose-400 border border-rose-900/30'
+                                  }`}>
+                                    {h.status}
+                                  </span>
+                                </td>
+                                <td className="py-2 px-3 text-[10px] text-slate-500 font-mono">
+                                  {h.created_at ? new Date(h.created_at).toLocaleString() : 'N/A'}
+                                </td>
+                              </tr>
+                            ))
+                          ) : (
+                            <tr>
+                              <td colSpan={5} className="py-6 text-center text-slate-500 font-black uppercase tracking-wider text-[10px]">No historical card records.</td>
+                            </tr>
+                          )}
+                        </tbody>
+                      </table>
+                    </div>
+                  </div>
+                </>
+              )}
             </div>
           </div>
         </div>
