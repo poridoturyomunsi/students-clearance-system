@@ -463,6 +463,10 @@ export async function generateStaffIdCardPng(
   // --- 12. Bottom Row: 4 equal columns separated by vertical divider lines ---
   const bottomY = 530;
 
+  // Solid white background for the footer to cover any grid, watermark, or security text
+  ctx.fillStyle = '#FFFFFF';
+  ctx.fillRect(10, bottomY, canvas.width - 20, canvas.height - 10 - bottomY);
+
   // Divider Line
   ctx.strokeStyle = 'rgba(226, 232, 240, 0.8)';
   ctx.lineWidth = 2;
@@ -566,12 +570,11 @@ export async function generateStaffIdCardPng(
   ctx.font = 'bold 16px "Courier New", Courier, monospace';
   ctx.fillText(expDateStr, 885.5, footerValY);
 
-  // Draw unique serial number (bottom left)
-  const serialNo = `SPSSN-2026-${(member.employeeNumber || member.id || "0000").replace(/[^0-9]/g, "").slice(0, 5).padStart(5, "0")}`;
-  ctx.fillStyle = '#94A3B8';
-  ctx.font = 'bold 12px "Poppins", "Montserrat", sans-serif';
-  ctx.textAlign = 'left';
-  ctx.fillText('S/N: ' + serialNo, 40, canvas.height - 18);
+  // Redraw inner border to cleanly frame the footer area
+  ctx.strokeStyle = '#EAF5FF';
+  ctx.lineWidth = 4;
+  drawRoundedRect(ctx, 10, 10, canvas.width - 20, canvas.height - 20, 20);
+  ctx.stroke();
 
   return canvas.toDataURL('image/png');
 }

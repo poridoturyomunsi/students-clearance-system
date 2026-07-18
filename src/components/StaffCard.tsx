@@ -218,7 +218,7 @@ export default function StaffCard({ staff, logoBase64, showWatermark = true }: S
         </div>
 
         {/* Bottom Section (4 equally sized columns with vertical separation lines) */}
-        <div className="relative z-10 grid grid-cols-4 items-end justify-between pt-[1cqw] border-t border-slate-200 mt-[1.2cqw] shrink-0 h-[7.5cqw] w-full text-center">
+        <div className="relative z-20 grid grid-cols-4 items-end justify-between pt-[1cqw] border-t border-slate-200 mt-[1.2cqw] shrink-0 h-[7.5cqw] w-full text-center bg-white">
           
           {/* Column 1: Issue Date */}
           <div className="flex flex-col items-center justify-end h-full">
@@ -289,11 +289,6 @@ export default function StaffCard({ staff, logoBase64, showWatermark = true }: S
             </span>
           </div>
 
-        </div>
-
-        {/* Card Serial Number at the absolute bottom edge */}
-        <div className="absolute bottom-[0.5cqw] left-[3cqw] text-[1.8cqw] text-slate-400 font-mono z-20">
-          S/N: {serialNo}
         </div>
 
       </div>

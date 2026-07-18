@@ -1748,6 +1748,10 @@ export async function generateStaffIdCardsPdf({
     // 12. Bottom Row (4 equally spaced columns separated by vertical line vectors)
     const bottomY = y + 45.0;
 
+    // Draw solid white background for the footer area to cover grid/watermark/rotated text
+    doc.setFillColor(255, 255, 255);
+    doc.rect(x + 0.8, bottomY, cardW - 1.6, cardH - 0.8 - 45.0, 'F');
+
     // Horizontal Divider
     doc.setDrawColor(220, 225, 235);
     doc.setLineWidth(0.18);
@@ -1852,12 +1856,10 @@ export async function generateStaffIdCardsPdf({
     doc.setFontSize(4.8);
     doc.text(expDateStr, x + 74.9, bottomY + 6.8, { align: 'center' });
 
-    // Draw unique serial number (bottom left)
-    const serialNo = `SPSSN-2026-${(member.employeeNumber || member.id || "0000").replace(/[^0-9]/g, "").slice(0, 5).padStart(5, "0")}`;
-    doc.setTextColor(148, 163, 184);
-    doc.setFont("helvetica", "bold");
-    doc.setFontSize(3.5);
-    doc.text(`S/N: ${serialNo}`, x + 3.5, y + cardH - 1.5);
+    // Redraw inner border to cleanly frame the footer area
+    doc.setDrawColor(234, 245, 255);
+    doc.setLineWidth(0.35);
+    doc.roundedRect(x + 0.8, y + 0.8, cardW - 1.6, cardH - 1.6, 2.5, 2.5, 'D');
   };
 
 
