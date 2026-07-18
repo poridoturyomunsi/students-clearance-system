@@ -54,22 +54,23 @@ export async function generateStaffIdCardPng(
   const ctx = canvas.getContext('2d');
   if (!ctx) throw new Error('Could not get 2D context from canvas');
 
-  // Format Date Helper
+  // Format Date Helper to '24 Jun 2026'
   const formatDate = (dateInput: any) => {
     if (!dateInput) return 'Not Available';
     try {
       const d = new Date(dateInput);
       if (isNaN(d.getTime())) return 'Not Available';
-      const day = String(d.getDate()).padStart(2, '0');
-      const month = String(d.getMonth() + 1).padStart(2, '0');
+      const day = d.getDate();
+      const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+      const monthName = months[d.getMonth()];
       const year = d.getFullYear();
-      return `${day}/${month}/${year}`;
+      return `${day} ${monthName} ${year}`;
     } catch {
       return 'Not Available';
     }
   };
 
-  // Canvas Icon Drawing Helpers
+  // Canvas Icon Drawing Helpers (larger size support)
   const drawCanvasUserIcon = (ix: number, iy: number, isize: number) => {
     ctx.save();
     ctx.strokeStyle = '#0B6CB8';
@@ -191,6 +192,27 @@ export async function generateStaffIdCardPng(
   ctx.arc(0, canvas.height, 200, 0, 2 * Math.PI);
   ctx.stroke();
 
+  // --- 3b. Subtle Security Guilloche Lines along borders (4% opacity) ---
+  ctx.save();
+  ctx.strokeStyle = 'rgba(11, 108, 184, 0.04)';
+  ctx.lineWidth = 2.5;
+  ctx.beginPath();
+  ctx.moveTo(30, 30);
+  ctx.bezierCurveTo(canvas.width / 2, 10, canvas.width / 2, 10, canvas.width - 30, 30);
+  ctx.bezierCurveTo(canvas.width - 10, canvas.height / 2, canvas.width - 10, canvas.height / 2, canvas.width - 30, canvas.height - 30);
+  ctx.bezierCurveTo(canvas.width / 2, canvas.height - 10, canvas.width / 2, canvas.height - 10, 30, canvas.height - 30);
+  ctx.bezierCurveTo(10, canvas.height / 2, 10, canvas.height / 2, 30, 30);
+  ctx.stroke();
+
+  ctx.beginPath();
+  ctx.moveTo(40, 40);
+  ctx.bezierCurveTo(canvas.width / 2, 20, canvas.width / 2, 20, canvas.width - 40, 40);
+  ctx.bezierCurveTo(canvas.width - 20, canvas.height / 2, canvas.width - 20, canvas.height / 2, canvas.width - 40, canvas.height - 40);
+  ctx.bezierCurveTo(canvas.width / 2, canvas.height - 20, canvas.width / 2, canvas.height - 20, 40, canvas.height - 40);
+  ctx.bezierCurveTo(20, canvas.height / 2, 20, canvas.height / 2, 40, 40);
+  ctx.stroke();
+  ctx.restore();
+
   // --- 4. Security Watermark (Middle, 4% Opacity) ---
   if (schoolLogoBase64) {
     try {
@@ -262,7 +284,7 @@ export async function generateStaffIdCardPng(
   ctx.font = 'bold 18px "Poppins", "Montserrat", sans-serif';
   ctx.fillText('P.O. BOX 678, NASUTI, IGANGA', 152, 102);
 
-  const badgeW = 125;
+  const badgeW = 145;
   const badgeH = 36;
   const badgeX = canvas.width - badgeW - 40;
   const badgeY = 56;
@@ -273,7 +295,7 @@ export async function generateStaffIdCardPng(
   ctx.fillStyle = '#FFFFFF';
   ctx.font = 'bold 18px "Poppins", "Montserrat", sans-serif';
   ctx.textAlign = 'center';
-  ctx.fillText('STAFF', badgeX + badgeW / 2, badgeY + 24);
+  ctx.fillText('STAFF ID', badgeX + badgeW / 2, badgeY + 24);
 
   // Horizontal Header Divider
   ctx.strokeStyle = '#0B6CB8';
@@ -283,29 +305,11 @@ export async function generateStaffIdCardPng(
   ctx.lineTo(canvas.width - 40, 142);
   ctx.stroke();
 
-  // --- 8. Center Pill: STAFF IDENTITY CARD ---
-  const pillW = 360;
-  const pillH = 40;
-  const pillX = canvas.width / 2 - pillW / 2;
-  const pillY = 158;
-  
-  const pillGrad = ctx.createLinearGradient(pillX, 0, pillX + pillW, 0);
-  pillGrad.addColorStop(0, '#0B6CB8');
-  pillGrad.addColorStop(1, '#003E7E');
-  ctx.fillStyle = pillGrad;
-  drawRoundedRect(ctx, pillX, pillY, pillW, pillH, 20);
-  ctx.fill();
-
-  ctx.fillStyle = '#FFFFFF';
-  ctx.font = 'bold 18px "Poppins", "Montserrat", sans-serif';
-  ctx.textAlign = 'center';
-  ctx.fillText('STAFF IDENTITY CARD', pillX + pillW / 2, pillY + 25);
-
-  // --- 9. Left Column: Passport Photo Frame (140x170px proportional size: 240x292px) ---
+  // --- 9. Left Column: Passport Photo Frame (Increased size by ~25%) ---
   const photoX = 40;
-  const photoY = 215;
-  const photoW = 240;
-  const photoH = 292;
+  const photoY = 152;
+  const photoW = 300;
+  const photoH = 365;
 
   // Shadow for passport frame
   ctx.save();
@@ -331,10 +335,10 @@ export async function generateStaffIdCardPng(
       ctx.fillRect(photoX, photoY, photoW, photoH);
       ctx.fillStyle = '#CBD5E1';
       ctx.beginPath();
-      ctx.arc(photoX + photoW / 2, photoY + 95, 50, 0, 2 * Math.PI);
+      ctx.arc(photoX + photoW / 2, photoY + 115, 60, 0, 2 * Math.PI);
       ctx.fill();
       ctx.beginPath();
-      ctx.ellipse(photoX + photoW / 2, photoY + 250, 90, 60, 0, 0, Math.PI, true);
+      ctx.ellipse(photoX + photoW / 2, photoY + 300, 110, 80, 0, 0, Math.PI, true);
       ctx.fill();
     }
   } else {
@@ -342,17 +346,17 @@ export async function generateStaffIdCardPng(
     ctx.fillRect(photoX, photoY, photoW, photoH);
     ctx.fillStyle = '#CBD5E1';
     ctx.beginPath();
-    ctx.arc(photoX + photoW / 2, photoY + 95, 50, 0, 2 * Math.PI);
+    ctx.arc(photoX + photoW / 2, photoY + 115, 60, 0, 2 * Math.PI);
     ctx.fill();
     ctx.beginPath();
-    ctx.ellipse(photoX + photoW / 2, photoY + 250, 90, 60, 0, 0, Math.PI, true);
+    ctx.ellipse(photoX + photoW / 2, photoY + 300, 110, 80, 0, 0, Math.PI, true);
     ctx.fill();
   }
   ctx.restore();
 
   // Border over photo frame
   ctx.strokeStyle = '#0B6CB8';
-  ctx.lineWidth = 4;
+  ctx.lineWidth = 2.5; // Thin blue border
   drawRoundedRect(ctx, photoX, photoY, photoW, photoH, 15);
   ctx.stroke();
 
@@ -371,13 +375,13 @@ export async function generateStaffIdCardPng(
   ctx.fill();
   ctx.restore();
 
-  // --- 10. Middle Column: Staff Details List with Vector Icons ---
-  const iconX = 310;
-  const labelX = 350;
-  const valueX = 510; // Perfectly aligned values column
+  // --- 10. Middle Column: Staff Details List with Vector Icons (Aligned and spaced) ---
+  const iconX = 370;
+  const labelX = 410;
+  const valueX = 540; // Perfectly aligned values column
   
-  const startRowY = 245;
-  const rowSpacing = 54;
+  const startRowY = 190;
+  const rowSpacing = 72;
 
   const labels = ['NAME:', 'STAFF NO:', 'DESIGNATION:', 'DEPARTMENT:', 'GENDER:'];
   const fullName = `${member.firstName || ''} ${member.middleName ? member.middleName + ' ' : ''}${member.lastName || ''}`.toUpperCase().trim() || member.name || 'Not Available';
@@ -399,14 +403,14 @@ export async function generateStaffIdCardPng(
     const rowY = startRowY + i * rowSpacing;
 
     // Draw Vector Icon
-    drawIcons[i](iconX, rowY - 20, 26);
+    drawIcons[i](iconX, rowY - 22, 30);
 
     // Label styling
-    ctx.fillStyle = '#003E7E';
+    ctx.fillStyle = '#0B6CB8';
     ctx.font = 'bold 15px "Poppins", "Montserrat", sans-serif';
     ctx.save();
     let currentX = labelX;
-    const letterSpacing = 3;
+    const letterSpacing = 1.5;
     for (let charIdx = 0; charIdx < labels[i].length; charIdx++) {
       const char = labels[i][charIdx];
       ctx.fillText(char, currentX, rowY);
@@ -415,12 +419,19 @@ export async function generateStaffIdCardPng(
     ctx.restore();
 
     // Value styling
-    ctx.fillStyle = '#000000';
-    ctx.font = 'bold 16px "Poppins", "Montserrat", sans-serif';
+    if (i === 0) {
+      ctx.fillStyle = '#000000';
+      ctx.font = 'bold 22px "Poppins", "Montserrat", sans-serif';
+    } else {
+      ctx.fillStyle = '#1E293B';
+      ctx.font = 'bold 16px "Poppins", "Montserrat", sans-serif';
+    }
+
     let valStr = values[i];
-    // Truncate if too long to prevent overlapping right column
-    if (ctx.measureText(valStr).width > 240) {
-      while (ctx.measureText(valStr + '...').width > 240 && valStr.length > 0) {
+    // Truncate if too long to prevent overlapping right column (QR Box starts at 722)
+    const maxWidth = 172;
+    if (ctx.measureText(valStr).width > maxWidth) {
+      while (ctx.measureText(valStr + '...').width > maxWidth && valStr.length > 0) {
         valStr = valStr.substring(0, valStr.length - 1);
       }
       valStr += '...';
@@ -428,11 +439,11 @@ export async function generateStaffIdCardPng(
     ctx.fillText(valStr, valueX, rowY);
   }
 
-  // --- 11. Redesigned QR Verification Box (Aspect ratio matches 135x165px)
-  const qrBoxW = 240;
-  const qrBoxH = 292;
+  // --- 11. Redesigned QR Verification Box (Increased size and structured headers)
+  const qrBoxW = 250;
+  const qrBoxH = 365;
   const qrBoxX = canvas.width - qrBoxW - 40;
-  const qrBoxY = 215;
+  const qrBoxY = 152;
 
   // Outer shadow (soft gray offset)
   ctx.save();
@@ -451,10 +462,16 @@ export async function generateStaffIdCardPng(
   ctx.stroke();
   ctx.restore();
 
-  // QR Code Container (occupies ~72.5% width)
-  const qrSize = 174;
+  // Heading above QR code
+  ctx.fillStyle = '#0B6CB8';
+  ctx.font = 'bold 13px "Poppins", "Montserrat", sans-serif';
+  ctx.textAlign = 'center';
+  ctx.fillText('Official Verification', qrBoxX + qrBoxW / 2, qrBoxY + 32);
+
+  // QR Code Container (increased size)
+  const qrSize = 196;
   const qrX = qrBoxX + (qrBoxW - qrSize) / 2;
-  const qrY = qrBoxY + 24;
+  const qrY = qrBoxY + 54;
 
   // Scanned QR code URL: points to /staff/verify/{staffNumber}
   try {
@@ -468,9 +485,9 @@ export async function generateStaffIdCardPng(
 
   // SCAN TO VERIFY label underneath QR
   ctx.fillStyle = '#0B6CB8';
-  ctx.font = 'bold 15px "Poppins", "Montserrat", sans-serif';
+  ctx.font = 'bold 16px "Poppins", "Montserrat", sans-serif';
   ctx.textAlign = 'center';
-  ctx.fillText('SCAN TO VERIFY', qrBoxX + qrBoxW / 2, qrBoxY + 260);
+  ctx.fillText('Scan to Verify', qrBoxX + qrBoxW / 2, qrBoxY + 312);
 
   // --- 12. Bottom Row: 4 equal columns separated by vertical divider lines ---
   const bottomY = 530;
@@ -577,6 +594,13 @@ export async function generateStaffIdCardPng(
   ctx.fillStyle = '#DC2626'; // Expired date in red
   ctx.font = 'bold 16px "Courier New", Courier, monospace';
   ctx.fillText(expDateStr, 885.5, footerValY);
+
+  // Draw unique serial number (bottom left)
+  const serialNo = `SPSSN-2026-${(member.employeeNumber || member.id || "0000").replace(/[^0-9]/g, "").slice(0, 5).padStart(5, "0")}`;
+  ctx.fillStyle = '#94A3B8';
+  ctx.font = 'bold 12px "Poppins", "Montserrat", sans-serif';
+  ctx.textAlign = 'left';
+  ctx.fillText('S/N: ' + serialNo, 40, canvas.height - 18);
 
   return canvas.toDataURL('image/png');
 }

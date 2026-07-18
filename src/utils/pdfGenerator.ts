@@ -1443,16 +1443,17 @@ export async function generateStaffIdCardsPdf({
   };
 
   const drawStaffFront = async (doc: jsPDF, x: number, y: number, member: Staff) => {
-    // Helper to format date cleanly
+    // Helper to format date cleanly to '24 Jun 2026'
     const formatDate = (dateInput: any) => {
       if (!dateInput) return 'Not Available';
       try {
         const d = new Date(dateInput);
         if (isNaN(d.getTime())) return 'Not Available';
-        const day = String(d.getDate()).padStart(2, '0');
-        const month = String(d.getMonth() + 1).padStart(2, '0');
+        const day = d.getDate();
+        const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+        const monthName = months[d.getMonth()];
         const year = d.getFullYear();
-        return `${day}/${month}/${year}`;
+        return `${day} ${monthName} ${year}`;
       } catch (e) {
         return 'Not Available';
       }
@@ -1463,9 +1464,7 @@ export async function generateStaffIdCardsPdf({
       doc.saveGraphicsState();
       doc.setDrawColor(11, 108, 184); // #0B6CB8
       doc.setLineWidth(0.2);
-      // Head
       doc.circle(ix + isize / 2, iy + isize / 3, isize / 5, 'S');
-      // Shoulders
       doc.ellipse(ix + isize / 2, iy + isize * 0.85, isize / 2.2, isize / 4, 'S');
       doc.restoreGraphicsState();
     };
@@ -1474,11 +1473,8 @@ export async function generateStaffIdCardsPdf({
       doc.saveGraphicsState();
       doc.setDrawColor(11, 108, 184);
       doc.setLineWidth(0.2);
-      // Outer border of id card
       doc.roundedRect(ix, iy + isize * 0.1, isize, isize * 0.75, 0.4, 0.4, 'D');
-      // Picture frame
       doc.rect(ix + 0.4, iy + isize * 0.25, isize * 0.35, isize * 0.4, 'D');
-      // Detail lines
       doc.line(ix + isize * 0.5, iy + isize * 0.38, ix + isize * 0.85, iy + isize * 0.38);
       doc.line(ix + isize * 0.5, iy + isize * 0.55, ix + isize * 0.85, iy + isize * 0.55);
       doc.restoreGraphicsState();
@@ -1488,9 +1484,7 @@ export async function generateStaffIdCardsPdf({
       doc.saveGraphicsState();
       doc.setDrawColor(11, 108, 184);
       doc.setLineWidth(0.2);
-      // Suitcase body
       doc.roundedRect(ix, iy + isize * 0.2, isize, isize * 0.6, 0.4, 0.4, 'D');
-      // Top handle
       doc.rect(ix + isize * 0.3, iy + isize * 0.02, isize * 0.4, isize * 0.18, 'D');
       doc.restoreGraphicsState();
     };
@@ -1499,9 +1493,7 @@ export async function generateStaffIdCardsPdf({
       doc.saveGraphicsState();
       doc.setDrawColor(11, 108, 184);
       doc.setLineWidth(0.2);
-      // Tall office block
       doc.rect(ix + isize * 0.15, iy, isize * 0.7, isize, 'D');
-      // Tiny windows
       doc.rect(ix + isize * 0.28, iy + isize * 0.2, isize * 0.15, isize * 0.15, 'D');
       doc.rect(ix + isize * 0.57, iy + isize * 0.2, isize * 0.15, isize * 0.15, 'D');
       doc.rect(ix + isize * 0.28, iy + isize * 0.5, isize * 0.15, isize * 0.15, 'D');
@@ -1551,6 +1543,16 @@ export async function generateStaffIdCardsPdf({
     doc.setLineWidth(0.12);
     doc.circle(x + cardW, y + cardH / 2, 20, 'D');
     doc.circle(x + cardW, y + cardH / 2, 12, 'D');
+    doc.restoreGraphicsState();
+
+    // Subtle Guilloche lines around borders inside card limits
+    doc.saveGraphicsState();
+    doc.setDrawColor(220, 233, 255);
+    doc.setLineWidth(0.08);
+    doc.line(x + 3, y + 2.5, x + cardW - 3, y + 2.5);
+    doc.line(x + 3, y + 3.0, x + cardW - 3, y + 3.0);
+    doc.line(x + 3, y + cardH - 2.5, x + cardW - 3, y + cardH - 2.5);
+    doc.line(x + 3, y + cardH - 3.0, x + cardW - 3, y + cardH - 3.0);
     doc.restoreGraphicsState();
 
     // Vertical Security Margin Text (faint opacity)
@@ -1609,7 +1611,7 @@ export async function generateStaffIdCardsPdf({
     doc.setFontSize(5.2);
     doc.text("P.O. BOX 678, NASUTI, IGANGA", x + 14.5, y + 9.6);
 
-    const badgeW = 12.5;
+    const badgeW = 16.0;
     const badgeH = 3.5;
     const badgeX = x + cardW - badgeW - 3.5;
     const badgeY = y + 4.8;
@@ -1617,31 +1619,19 @@ export async function generateStaffIdCardsPdf({
     doc.roundedRect(badgeX, badgeY, badgeW, badgeH, 1.75, 1.75, 'F');
     doc.setTextColor(255, 255, 255);
     doc.setFont("helvetica", "bold");
-    doc.setFontSize(4.5);
-    doc.text("STAFF", badgeX + badgeW / 2, badgeY + 2.4, { align: 'center' });
+    doc.setFontSize(4.0);
+    doc.text("STAFF ID", badgeX + badgeW / 2, badgeY + 2.4, { align: 'center' });
 
     // 7. Divider Line
     doc.setDrawColor(11, 108, 184);
     doc.setLineWidth(0.25);
     doc.line(x + 3.5, y + 14.2, x + cardW - 3.5, y + 14.2);
 
-    // 8. STAFF IDENTITY CARD pill
-    const idBadgeW = 32;
-    const idBadgeH = 3.5;
-    const idBadgeX = x + (cardW - idBadgeW) / 2;
-    const idBadgeY = y + 15.2;
-    doc.setFillColor(0, 62, 126); // #003E7E
-    doc.roundedRect(idBadgeX, idBadgeY, idBadgeW, idBadgeH, 1.75, 1.75, 'F');
-    doc.setTextColor(255, 255, 255);
-    doc.setFont("helvetica", "bold");
-    doc.setFontSize(4.5);
-    doc.text("STAFF IDENTITY CARD", idBadgeX + idBadgeW / 2, idBadgeY + 2.4, { align: 'center' });
-
-    // 9. Photo Section (Col 1 - 140x170px proportional size: 20x24.3mm)
+    // 9. Photo Section (Col 1 - Increased size by ~25% proportional: 25.0x30.4mm)
     const photoX = x + 3.5;
-    const photoY = y + 19.8;
-    const photoW = 20.0;
-    const photoH = 24.3;
+    const photoY = y + 14.8;
+    const photoW = 25.0;
+    const photoH = 29.5;
 
     // Photo Drop Shadow (soft gray rect behind it)
     doc.setFillColor(225, 230, 240);
@@ -1651,33 +1641,30 @@ export async function generateStaffIdCardsPdf({
     doc.setFillColor(255, 255, 255);
     doc.roundedRect(photoX, photoY, photoW, photoH, 1.2, 1.2, 'F');
 
-    doc.saveGraphicsState();
-    doc.roundedRect(photoX, photoY, photoW, photoH, 1.2, 1.2, 'F');
-    doc.clip();
-    
     if (member.photo) {
       try {
-        doc.addImage(member.photo, 'PNG', photoX, photoY, photoW, photoH);
+        const fmtMatch = member.photo.match(/^data:image\/([a-zA-Z]+);base64,/);
+        const format = fmtMatch ? fmtMatch[1].toUpperCase() : 'JPEG';
+        doc.addImage(member.photo, format, photoX, photoY, photoW, photoH);
       } catch (e) {
         console.warn("Failed drawing staff photo in PDF", e);
         doc.setFillColor(241, 245, 249);
-        doc.rect(photoX, photoY, photoW, photoH, 'F');
+        doc.roundedRect(photoX, photoY, photoW, photoH, 1.2, 1.2, 'F');
         doc.setDrawColor(200, 200, 200);
-        doc.circle(photoX + photoW / 2, photoY + 8, 3, 'D');
-        doc.ellipse(photoX + photoW / 2, photoY + 16, 5, 3.5, 'D');
+        doc.circle(photoX + photoW / 2, photoY + 10, 4, 'D');
+        doc.ellipse(photoX + photoW / 2, photoY + 20, 7, 5, 'D');
       }
     } else {
       doc.setFillColor(241, 245, 249);
-      doc.rect(photoX, photoY, photoW, photoH, 'F');
+      doc.roundedRect(photoX, photoY, photoW, photoH, 1.2, 1.2, 'F');
       doc.setDrawColor(200, 200, 200);
-      doc.circle(photoX + photoW / 2, photoY + 8, 3, 'D');
-      doc.ellipse(photoX + photoW / 2, photoY + 16, 5, 3.5, 'D');
+      doc.circle(photoX + photoW / 2, photoY + 10, 4, 'D');
+      doc.ellipse(photoX + photoW / 2, photoY + 20, 7, 5, 'D');
     }
-    doc.restoreGraphicsState();
 
     // Photo outer blue border
     doc.setDrawColor(11, 108, 184);
-    doc.setLineWidth(0.35);
+    doc.setLineWidth(0.25);
     doc.roundedRect(photoX, photoY, photoW, photoH, 1.2, 1.2, 'D');
 
     // Glowing cyan/sky bubble overlay
@@ -1693,35 +1680,37 @@ export async function generateStaffIdCardsPdf({
     } catch (e) {}
 
     // 10. Staff Details (Middle Column)
-    const detailsX = x + 25.5;
-    const labelX = x + 29.5;
-    const valueX = x + 44.5;
+    const detailsX = x + 29.5;
+    const labelX = x + 33.0;
+    const valueX = x + 46.0;
     const fullName = `${member.firstName || ''} ${member.middleName ? member.middleName + ' ' : ''}${member.lastName || ''}`.toUpperCase().trim() || member.name || 'Not Available';
     
     const drawDetailRow = (
       lbl: string, 
       val: string, 
       rowY: number, 
-      drawIcon: (ix: number, iy: number, isize: number) => void
+      drawIcon: (ix: number, iy: number, isize: number) => void,
+      isName: boolean = false
     ) => {
       // Draw Vector Icon
       drawIcon(detailsX, rowY - 2.4, 3.0);
 
       // Label Text
-      doc.setTextColor(0, 62, 126); // #003E7E
+      doc.setTextColor(11, 108, 184); // #0B6CB8
       doc.setFont("helvetica", "bold");
-      doc.setFontSize(4.5);
+      doc.setFontSize(4.0);
       doc.text(lbl, labelX, rowY);
 
       // Value Text
-      doc.setTextColor(0, 0, 0);
+      doc.setTextColor(isName ? 0 : 30, isName ? 0 : 41, isName ? 0 : 59); // Black for name, Slate-700 for values
       doc.setFont("helvetica", "bold");
-      doc.setFontSize(5.2);
+      doc.setFontSize(isName ? 6.5 : 5.0);
       
       let valStr = val || 'Not Available';
-      // Truncate if it overlaps QR
-      if (doc.getTextWidth(valStr) > 20) {
-        while (doc.getTextWidth(valStr + '...') > 20 && valStr.length > 0) {
+      const maxValW = 13.5;
+      // Truncate if it overlaps QR Box (which starts at 60.1mm)
+      if (doc.getTextWidth(valStr) > maxValW) {
+        while (doc.getTextWidth(valStr + '...') > maxValW && valStr.length > 0) {
           valStr = valStr.substring(0, valStr.length - 1);
         }
         valStr += '...';
@@ -1729,17 +1718,17 @@ export async function generateStaffIdCardsPdf({
       doc.text(valStr, valueX, rowY);
     };
 
-    drawDetailRow("NAME:", fullName, y + 21.0, drawPdfUserIcon);
-    drawDetailRow("STAFF NO:", member.employeeNumber || member.id || 'Not Available', y + 25.5, drawPdfIdCardIcon);
+    drawDetailRow("NAME:", fullName, y + 18.0, drawPdfUserIcon, true);
+    drawDetailRow("STAFF NO:", member.employeeNumber || member.id || 'Not Available', y + 24.0, drawPdfIdCardIcon);
     drawDetailRow("DESIGNATION:", (member.position || 'Not Available').toUpperCase(), y + 30.0, drawPdfBriefcaseIcon);
-    drawDetailRow("DEPARTMENT:", (member.department || 'Not Available').toUpperCase(), y + 34.5, drawPdfBuildingIcon);
-    drawDetailRow("GENDER:", (member.gender || 'Female').toUpperCase(), y + 39.0, drawPdfGenderIcon);
+    drawDetailRow("DEPARTMENT:", (member.department || 'Not Available').toUpperCase(), y + 36.0, drawPdfBuildingIcon);
+    drawDetailRow("GENDER:", (member.gender || 'Female').toUpperCase(), y + 42.0, drawPdfGenderIcon);
 
-    // 11. Redesigned QR Verification Box (Aspect ratio matches 135x165px)
-    const qrBoxW = 20.0;
-    const qrBoxH = 24.3;
+    // 11. Redesigned QR Verification Box (Increased size to 22.0 x 29.5mm)
+    const qrBoxW = 22.0;
+    const qrBoxH = 29.5;
     const qrBoxX = x + cardW - qrBoxW - 3.5;
-    const qrBoxY = y + 19.8;
+    const qrBoxY = y + 14.8;
 
     // Outer shadow (soft gray offset rectangle)
     doc.saveGraphicsState();
@@ -1749,14 +1738,20 @@ export async function generateStaffIdCardsPdf({
     // Main Box (White bg, blue border)
     doc.setFillColor(255, 255, 255);
     doc.setDrawColor(11, 108, 184); // #0B6CB8
-    doc.setLineWidth(0.35); // thin blue border
+    doc.setLineWidth(0.25); // thin blue border
     doc.roundedRect(qrBoxX, qrBoxY, qrBoxW, qrBoxH, 1.2, 1.2, 'FD');
     doc.restoreGraphicsState();
 
+    // Heading inside QR box
+    doc.setTextColor(11, 108, 184);
+    doc.setFont("helvetica", "bold");
+    doc.setFontSize(3.2);
+    doc.text("Official Verification", qrBoxX + qrBoxW / 2, qrBoxY + 3.0, { align: 'center' });
+
     // QR Code Container
-    const qrSize = 14.5;
+    const qrSize = 16.5;
     const qrX = qrBoxX + (qrBoxW - qrSize) / 2;
-    const qrY = qrBoxY + 2.0;
+    const qrY = qrBoxY + 4.5;
 
     // Scanned URL Points to /staff/verify/{staffNo}
     const verificationUrl = `${window.location.origin}/staff/verify/${member.employeeNumber || member.id}`;
@@ -1771,8 +1766,8 @@ export async function generateStaffIdCardsPdf({
 
     doc.setTextColor(11, 108, 184); // #0B6CB8
     doc.setFont("helvetica", "bold");
-    doc.setFontSize(3.2);
-    doc.text("SCAN TO VERIFY", qrBoxX + qrBoxW / 2, qrBoxY + 21.5, { align: 'center' });
+    doc.setFontSize(3.8);
+    doc.text("Scan to Verify", qrBoxX + qrBoxW / 2, qrBoxY + 25.5, { align: 'center' });
 
     // 12. Bottom Row (4 equally spaced columns separated by vertical line vectors)
     const bottomY = y + 45.0;
@@ -1806,7 +1801,7 @@ export async function generateStaffIdCardsPdf({
     doc.setFontSize(3.6);
     doc.text("ISSUE DATE", x + 10.7, bottomY + 2.8, { align: 'center' });
     
-    doc.setTextColor(0, 0, 0);
+    doc.setTextColor(30, 41, 59);
     doc.setFont("helvetica", "bold");
     doc.setFontSize(4.8);
     doc.text(issueDateStr, x + 10.7, bottomY + 6.8, { align: 'center' });
@@ -1880,7 +1875,15 @@ export async function generateStaffIdCardsPdf({
     doc.setFont("helvetica", "bold");
     doc.setFontSize(4.8);
     doc.text(expDateStr, x + 74.9, bottomY + 6.8, { align: 'center' });
+
+    // Draw unique serial number (bottom left)
+    const serialNo = `SPSSN-2026-${(member.employeeNumber || member.id || "0000").replace(/[^0-9]/g, "").slice(0, 5).padStart(5, "0")}`;
+    doc.setTextColor(148, 163, 184);
+    doc.setFont("helvetica", "bold");
+    doc.setFontSize(3.5);
+    doc.text(`S/N: ${serialNo}`, x + 3.5, y + cardH - 1.5);
   };
+
 
   const drawStaffBack = async (doc: jsPDF, x: number, y: number, member: Staff) => {
     // 1. Shadow
