@@ -1699,9 +1699,9 @@ export async function generateStaffIdCardsPdf({
 
     // 11. Verification Box containing QR Code & Label
     const qrBoxW = 15.5;
-    const qrBoxH = 22.8;
+    const qrBoxH = 22.2;
     const qrBoxX = x + cardW - qrBoxW - 3.5;
-    const qrBoxY = y + 20.2;
+    const qrBoxY = y + 21.0;
 
     doc.setFillColor(234, 244, 255); // Light Blue #EAF4FF
     doc.setDrawColor(47, 128, 237); // Accent Blue #2F80ED
@@ -1710,7 +1710,7 @@ export async function generateStaffIdCardsPdf({
 
     const qrSize = 13.0;
     const qrX = qrBoxX + (qrBoxW - qrSize) / 2;
-    const qrY = qrBoxY + 1.2;
+    const qrY = qrBoxY + 1.8; // pushed down slightly
 
     const verificationUrl = `${window.location.origin}/staff/verify/${member.employeeNumber || member.id}`;
     try {
@@ -1725,7 +1725,7 @@ export async function generateStaffIdCardsPdf({
     doc.setTextColor(11, 74, 139); // Primary Blue
     doc.setFont("helvetica", "bold");
     doc.setFontSize(3.2);
-    doc.text("Scan QR Code", qrBoxX + qrBoxW / 2, qrBoxY + 19.8, { align: 'center' });
+    doc.text("Scan QR Code", qrBoxX + qrBoxW / 2, qrBoxY + 18.2, { align: 'center' }); // label positioned tighter
 
     // 12. Bottom Row (4 equally spaced columns separated by vertical line vectors)
     const bottomY = y + 43.5;

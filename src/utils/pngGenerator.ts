@@ -405,9 +405,9 @@ export async function generateStaffIdCardPng(
 
   // --- 11. Verification Box containing QR Code & Label (narrower, 20% smaller QR) ---
   const qrBoxW = 190;
-  const qrBoxH = 270;
+  const qrBoxH = 250; // slightly shorter box height
   const qrBoxX = canvas.width - qrBoxW - 40;
-  const qrBoxY = 210;
+  const qrBoxY = 222; // pushed down slightly
 
   ctx.save();
   ctx.fillStyle = '#EAF4FF'; // Light Blue
@@ -420,7 +420,7 @@ export async function generateStaffIdCardPng(
 
   const qrSize = 156;
   const qrX = qrBoxX + (qrBoxW - qrSize) / 2;
-  const qrY = qrBoxY + 15;
+  const qrY = qrBoxY + 28; // pushed down inside box
 
   try {
     const qrUrl = `${window.location.origin}/staff/verify/${member.employeeNumber || member.id}`;
@@ -435,7 +435,7 @@ export async function generateStaffIdCardPng(
   ctx.fillStyle = '#0B4A8B'; // Primary Blue
   ctx.font = 'bold 14px "Poppins", "Montserrat", sans-serif';
   ctx.textAlign = 'center';
-  ctx.fillText('Scan QR Code', qrBoxX + qrBoxW / 2, qrBoxY + 230);
+  ctx.fillText('Scan QR Code', qrBoxX + qrBoxW / 2, qrBoxY + 218); // tighter label gap
 
   // --- 12. Bottom Row: 4 equal columns separated by vertical divider lines ---
   const bottomY = 515;
