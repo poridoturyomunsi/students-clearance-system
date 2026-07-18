@@ -287,7 +287,7 @@ export async function generateStaffIdCardPng(
   const badgeW = 145;
   const badgeH = 36;
   const badgeX = canvas.width - badgeW - 40;
-  const badgeY = 56;
+  const badgeY = 96;
   ctx.fillStyle = '#0B6CB8';
   drawRoundedRect(ctx, badgeX, badgeY, badgeW, badgeH, 18);
   ctx.fill();

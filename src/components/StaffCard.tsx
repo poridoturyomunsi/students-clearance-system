@@ -122,7 +122,7 @@ export default function StaffCard({ staff, logoBase64, showWatermark = true }: S
             <div className="bg-white p-[0.3cqw] rounded-[0.8cqw] border border-[#EAF5FF] shadow-xs shrink-0 w-[9.2cqw] h-[9.2cqw] flex items-center justify-center">
               <SchoolLogo className="w-full h-full object-contain" logoBase64={logoBase64} />
             </div>
-            <div className="flex flex-col text-left">
+            <div className="flex flex-col text-left pr-[18cqw]">
               <span className="text-[6.8cqw] font-extrabold uppercase text-[#003E7E] leading-none tracking-wide" style={{ fontFamily: 'Poppins, sans-serif' }}>
                 ST. PAUL SECONDARY SCHOOL, NASUTI
               </span>
@@ -132,8 +132,8 @@ export default function StaffCard({ staff, logoBase64, showWatermark = true }: S
             </div>
           </div>
           
-          {/* STAFF ID badge with blue gradient, rounded corners, shadow */}
-          <div className="bg-gradient-to-r from-[#0B6CB8] to-[#003E7E] text-white text-[1.8cqw] font-black tracking-widest px-[2.4cqw] py-[0.6cqw] rounded-full uppercase shrink-0 shadow-md">
+          {/* STAFF ID badge with absolute positioning to prevent collision */}
+          <div className="absolute top-[5.8cqw] right-0 bg-gradient-to-r from-[#0B6CB8] to-[#003E7E] text-white text-[1.8cqw] font-black tracking-widest px-[2.4cqw] py-[0.6cqw] rounded-full uppercase shadow-md z-20">
             STAFF ID
           </div>
         </div>

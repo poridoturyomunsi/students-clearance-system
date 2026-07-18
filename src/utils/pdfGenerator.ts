@@ -1614,7 +1614,7 @@ export async function generateStaffIdCardsPdf({
     const badgeW = 16.0;
     const badgeH = 3.5;
     const badgeX = x + cardW - badgeW - 3.5;
-    const badgeY = y + 4.8;
+    const badgeY = y + 8.5;
     doc.setFillColor(11, 108, 184); // #0B6CB8
     doc.roundedRect(badgeX, badgeY, badgeW, badgeH, 1.75, 1.75, 'F');
     doc.setTextColor(255, 255, 255);
