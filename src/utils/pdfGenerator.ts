@@ -1592,14 +1592,31 @@ export async function generateStaffIdCardsPdf({
     doc.setLineWidth(0.25);
     doc.roundedRect(photoX, photoY, photoW, photoH, 1.2, 1.2, 'FD');
 
+    let hasPhotoDrawn = false;
     if (member.photo) {
       try {
-        const photoFormat = member.photo.includes('png') || member.photo.startsWith('data:image/png') ? 'PNG' : 'JPEG';
-        doc.addImage(member.photo, photoFormat, photoX + 0.4, photoY + 0.4, photoW - 0.8, photoH - 0.8);
+        let format = 'JPEG';
+        if (member.photo.startsWith('data:image/')) {
+          const fmtMatch = member.photo.match(/^data:image\/([a-zA-Z]+);base64,/);
+          format = fmtMatch ? fmtMatch[1].toUpperCase() : 'JPEG';
+        } else {
+          const ext = member.photo.split('.').pop()?.toLowerCase();
+          if (ext === 'png') format = 'PNG';
+          else if (ext === 'webp') format = 'WEBP';
+        }
+
+        if (format === 'PNG' || format === 'JPEG' || format === 'JPG') {
+          doc.addImage(member.photo, format, photoX + 0.4, photoY + 0.4, photoW - 0.8, photoH - 0.8, undefined, 'NONE');
+          hasPhotoDrawn = true;
+        } else {
+          console.warn("Unsupported staff photo format for PDF:", format);
+        }
       } catch (e) {
         console.warn("Failed rendering photo in PDF:", e);
       }
-    } else {
+    }
+
+    if (!hasPhotoDrawn) {
       doc.setFillColor(248, 250, 252);
       doc.rect(photoX + 0.4, photoY + 0.4, photoW - 0.8, photoH - 0.8, 'F');
       doc.setTextColor(148, 163, 184);
