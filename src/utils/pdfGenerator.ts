@@ -1625,36 +1625,7 @@ export async function generateStaffIdCardsPdf({
       doc.text("NO PHOTO", photoX + photoW / 2, photoY + photoH / 2 + 1, { align: 'center' });
     }
 
-    // Hologram security sticker (top right of photo)
-    const holoX = photoX + photoW - 3.5;
-    const holoY = photoY + 3.5;
-    const holoR = 1.8;
-    doc.saveGraphicsState();
-    try {
-      const gStateClass = (doc as any).GState || (doc.constructor as any).GState;
-      if (gStateClass) {
-        doc.setGState(new gStateClass({ opacity: 0.85 }));
-      }
-    } catch (e) {}
-    doc.setFillColor(255, 230, 150); // Yellow base
-    doc.circle(holoX, holoY, holoR, 'F');
-    doc.setFillColor(150, 220, 255); // Cyan overlay
-    doc.circle(holoX - 0.4, holoY + 0.4, holoR * 0.8, 'F');
-    doc.setFillColor(255, 180, 220); // Pink overlay
-    doc.circle(holoX + 0.4, holoY - 0.4, holoR * 0.6, 'F');
-    doc.restoreGraphicsState();
 
-    // Glowing cyan/sky bubble overlay on photo right edge
-    try {
-      const gStateClass = (doc as any).GState || (doc.constructor as any).GState;
-      if (gStateClass) {
-        doc.saveGraphicsState();
-        doc.setGState(new gStateClass({ opacity: 0.4 }));
-        doc.setFillColor(125, 211, 252);
-        doc.circle(photoX + photoW, photoY + photoH / 2, 2.5, 'F');
-        doc.restoreGraphicsState();
-      }
-    } catch (e) {}
 
     // 10. Staff Details (Middle Column)
     const labelX = x + 30.5;

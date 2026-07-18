@@ -295,37 +295,7 @@ export async function generateStaffIdCardPng(
   drawRoundedRect(ctx, photoX, photoY, photoW, photoH, 15);
   ctx.stroke();
 
-  // Hologram Sticker on photo
-  const holoX = photoX + photoW - 30;
-  const holoY = photoY + 30;
-  const holoR = 20;
-  ctx.save();
-  ctx.globalAlpha = 0.85;
-  const holoGrad = ctx.createRadialGradient(holoX - 5, holoY - 5, 2, holoX, holoY, holoR);
-  holoGrad.addColorStop(0, '#FFFFFF');
-  holoGrad.addColorStop(0.3, '#FDE047'); // yellow-300
-  holoGrad.addColorStop(0.7, '#F472B6'); // pink-400
-  holoGrad.addColorStop(1, '#67E8F9');   // cyan-300
-  ctx.fillStyle = holoGrad;
-  ctx.beginPath();
-  ctx.arc(holoX, holoY, holoR, 0, 2 * Math.PI);
-  ctx.fill();
-  ctx.restore();
 
-  // Glowing Cyan Bubble Overlay
-  ctx.save();
-  ctx.globalAlpha = 0.8;
-  const bubbleGrad = ctx.createRadialGradient(
-    photoX + photoW, photoY + photoH / 2, 0,
-    photoX + photoW, photoY + photoH / 2, 30
-  );
-  bubbleGrad.addColorStop(0, '#7DD3FC');
-  bubbleGrad.addColorStop(1, 'rgba(34, 211, 238, 0)');
-  ctx.fillStyle = bubbleGrad;
-  ctx.beginPath();
-  ctx.arc(photoX + photoW, photoY + photoH / 2, 30, 0, 2 * Math.PI);
-  ctx.fill();
-  ctx.restore();
 
   // --- 10. Middle Column: Staff Details List (Sentence Case & Premium Hierarchy) ---
   const labelX = 360;

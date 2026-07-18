@@ -143,14 +143,6 @@ export default function StaffCard({ staff, logoBase64, showWatermark = true }: S
                   </div>
                 )}
               </div>
-              
-              {/* Hologram security badge placeholder in top-right corner */}
-              <div className="absolute top-[1.2cqw] right-[1.2cqw] w-[5cqw] h-[5cqw] rounded-full bg-gradient-to-tr from-yellow-300 via-pink-400 to-cyan-300 opacity-80 border border-white/40 shadow-xs flex items-center justify-center pointer-events-none select-none overflow-hidden">
-                <div className="w-full h-full bg-radial-gradient" style={{ background: 'radial-gradient(circle, rgba(255,255,255,0.8) 0%, transparent 80%)' }} />
-              </div>
-
-              {/* Glowing sky-blue/cyan bubble decoration on the right edge of photo */}
-              <div className="absolute -right-[1cqw] top-1/2 -translate-y-1/2 w-[2.4cqw] h-[2.4cqw] bg-gradient-to-r from-sky-300 to-cyan-300 rounded-full opacity-80 blur-[0.5px] shadow-xs pointer-events-none z-20" />
             </div>
 
             {/* Column 2: Staff Details List (expanded width) */}
