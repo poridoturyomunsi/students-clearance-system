@@ -140,7 +140,7 @@ export default function StaffCard({ staff, logoBase64, showWatermark = true }: S
         </div>
 
         {/* Centered Pill: STAFF IDENTITY CARD */}
-        <div className="flex justify-center mt-[1.2cqw] mb-[0.2cqw] w-full z-10 shrink-0">
+        <div className="flex justify-start pl-[30cqw] mt-[1.2cqw] mb-[0.2cqw] w-full z-10 shrink-0">
           <div className="bg-gradient-to-r from-[#0B6CB8] to-[#003E7E] text-white text-[2cqw] font-black tracking-widest px-[4cqw] py-[0.6cqw] rounded-full uppercase shadow-xs">
             STAFF IDENTITY CARD
           </div>
@@ -200,7 +200,7 @@ export default function StaffCard({ staff, logoBase64, showWatermark = true }: S
             </div>
 
             {/* Column 3: Seamless QR Verification */}
-            <div className="shrink-0 w-[34cqw] h-[48cqw] flex flex-col items-center justify-center gap-[2cqw] z-10">
+            <div className="shrink-0 w-[34cqw] h-[48cqw] flex flex-col items-center justify-end pb-[2cqw] gap-[2cqw] z-10">
               <img src={qrCodeUrl} alt="Verification QR" className="w-[26cqw] h-[26cqw] object-contain" />
               <span className="text-[2.2cqw] font-black text-[#0B6CB8] tracking-[1px] text-center uppercase leading-none">
                 Scan to Verify

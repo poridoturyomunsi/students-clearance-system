@@ -1627,10 +1627,10 @@ export async function generateStaffIdCardsPdf({
     doc.setLineWidth(0.25);
     doc.line(x + 3.5, y + 14.2, x + cardW - 3.5, y + 14.2);
 
-    // Centered Pill Container: STAFF IDENTITY CARD
+    // Centered Pill Container: STAFF IDENTITY CARD (shifted right)
     const pillW = 38.0;
     const pillH = 3.6;
-    const pillX = x + (cardW - pillW) / 2;
+    const pillX = x + 29.5;
     const pillY = y + 15.0;
 
     doc.setFillColor(11, 108, 184); // #0B6CB8
@@ -1736,7 +1736,7 @@ export async function generateStaffIdCardsPdf({
     // 11. Seamless QR Verification (QR Code same size and position, no borders or containers)
     const qrSize = 16.5;
     const qrX = x + cardW - 22.75;
-    const qrY = y + 19.3;
+    const qrY = y + 21.5;
 
     // Scanned URL Points to /staff/verify/{staffNo}
     const verificationUrl = `${window.location.origin}/staff/verify/${member.employeeNumber || member.id}`;
@@ -1752,7 +1752,7 @@ export async function generateStaffIdCardsPdf({
     doc.setTextColor(11, 108, 184); // #0B6CB8
     doc.setFont("helvetica", "bold");
     doc.setFontSize(3.8);
-    doc.text("Scan to Verify", x + cardW - 14.5, y + 40.3, { align: 'center' });
+    doc.text("Scan to Verify", x + cardW - 14.5, y + 42.0, { align: 'center' });
 
     // 12. Bottom Row (4 equally spaced columns separated by vertical line vectors)
     const bottomY = y + 45.0;

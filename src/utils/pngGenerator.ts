@@ -305,10 +305,10 @@ export async function generateStaffIdCardPng(
   ctx.lineTo(canvas.width - 40, 142);
   ctx.stroke();
 
-  // --- Centered Pill: STAFF IDENTITY CARD ---
+  // --- Centered Pill: STAFF IDENTITY CARD (shifted right) ---
   const pillW = 440;
   const pillH = 42;
-  const pillX = (canvas.width - pillW) / 2;
+  const pillX = 350;
   const pillY = 158;
   
   const pillGrad = ctx.createLinearGradient(pillX, 0, pillX + pillW, 0);
@@ -441,7 +441,7 @@ export async function generateStaffIdCardPng(
   // --- 11. Seamless QR Verification (QR Code same size and position, no borders or containers)
   const qrSize = 196;
   const qrX = canvas.width - 263;
-  const qrY = 206;
+  const qrY = 232;
 
   // Scanned QR code URL: points to /staff/verify/{staffNumber}
   try {
@@ -457,7 +457,7 @@ export async function generateStaffIdCardPng(
   ctx.fillStyle = '#0B6CB8';
   ctx.font = 'bold 16px "Poppins", "Montserrat", sans-serif';
   ctx.textAlign = 'center';
-  ctx.fillText('Scan to Verify', canvas.width - 165, 464);
+  ctx.fillText('Scan to Verify', canvas.width - 165, 484);
 
   // --- 12. Bottom Row: 4 equal columns separated by vertical divider lines ---
   const bottomY = 530;
