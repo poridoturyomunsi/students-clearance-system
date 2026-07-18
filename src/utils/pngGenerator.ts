@@ -70,116 +70,28 @@ export async function generateStaffIdCardPng(
     }
   };
 
-  // Canvas Icon Drawing Helpers (larger size support)
-  const drawCanvasUserIcon = (ix: number, iy: number, isize: number) => {
-    ctx.save();
-    ctx.strokeStyle = '#0B6CB8';
-    ctx.lineWidth = 2.5;
-    ctx.beginPath();
-    ctx.arc(ix + isize / 2, iy + isize / 3, isize / 5, 0, 2 * Math.PI);
-    ctx.stroke();
-    ctx.beginPath();
-    ctx.ellipse(ix + isize / 2, iy + isize * 0.85, isize / 2.2, isize / 4, 0, 0, 2 * Math.PI);
-    ctx.stroke();
-    ctx.restore();
-  };
-
-  const drawCanvasIdCardIcon = (ix: number, iy: number, isize: number) => {
-    ctx.save();
-    ctx.strokeStyle = '#0B6CB8';
-    ctx.lineWidth = 2.5;
-    ctx.strokeRect(ix, iy + isize * 0.1, isize, isize * 0.75);
-    ctx.strokeRect(ix + 3, iy + isize * 0.25, isize * 0.35, isize * 0.4);
-    ctx.beginPath();
-    ctx.moveTo(ix + isize * 0.5, iy + isize * 0.38);
-    ctx.lineTo(ix + isize * 0.85, iy + isize * 0.38);
-    ctx.moveTo(ix + isize * 0.5, iy + isize * 0.55);
-    ctx.lineTo(ix + isize * 0.85, iy + isize * 0.55);
-    ctx.stroke();
-    ctx.restore();
-  };
-
-  const drawCanvasBriefcaseIcon = (ix: number, iy: number, isize: number) => {
-    ctx.save();
-    ctx.strokeStyle = '#0B6CB8';
-    ctx.lineWidth = 2.5;
-    ctx.strokeRect(ix, iy + isize * 0.2, isize, isize * 0.6);
-    ctx.strokeRect(ix + isize * 0.3, iy + isize * 0.02, isize * 0.4, isize * 0.18);
-    ctx.restore();
-  };
-
-  const drawCanvasBuildingIcon = (ix: number, iy: number, isize: number) => {
-    ctx.save();
-    ctx.strokeStyle = '#0B6CB8';
-    ctx.lineWidth = 2.5;
-    ctx.strokeRect(ix + isize * 0.15, iy, isize * 0.7, isize);
-    ctx.strokeRect(ix + isize * 0.28, iy + isize * 0.2, isize * 0.15, isize * 0.15);
-    ctx.strokeRect(ix + isize * 0.57, iy + isize * 0.2, isize * 0.15, isize * 0.15);
-    ctx.strokeRect(ix + isize * 0.28, iy + isize * 0.5, isize * 0.15, isize * 0.15);
-    ctx.strokeRect(ix + isize * 0.57, iy + isize * 0.5, isize * 0.15, isize * 0.15);
-    ctx.restore();
-  };
-
-  const drawCanvasGenderIcon = (ix: number, iy: number, isize: number) => {
-    ctx.save();
-    ctx.strokeStyle = '#0B6CB8';
-    ctx.lineWidth = 2.5;
-    const isFemale = (member.gender || 'Female').toLowerCase() === 'female';
-    if (isFemale) {
-      ctx.beginPath();
-      ctx.arc(ix + isize / 2, iy + isize / 3, isize / 4.5, 0, 2 * Math.PI);
-      ctx.stroke();
-      ctx.beginPath();
-      ctx.moveTo(ix + isize / 2, iy + isize * 0.55);
-      ctx.lineTo(ix + isize / 2, iy + isize * 0.95);
-      ctx.moveTo(ix + isize * 0.3, iy + isize * 0.75);
-      ctx.lineTo(ix + isize * 0.7, iy + isize * 0.75);
-      ctx.stroke();
-    } else {
-      ctx.beginPath();
-      ctx.arc(ix + isize * 0.4, iy + isize * 0.6, isize / 4.5, 0, 2 * Math.PI);
-      ctx.stroke();
-      ctx.beginPath();
-      ctx.moveTo(ix + isize * 0.55, iy + isize * 0.45);
-      ctx.lineTo(ix + isize * 0.85, iy + isize * 0.15);
-      ctx.moveTo(ix + isize * 0.6, iy + isize * 0.15);
-      ctx.lineTo(ix + isize * 0.85, iy + isize * 0.15);
-      ctx.lineTo(ix + isize * 0.85, iy + isize * 0.4);
-      ctx.stroke();
-    }
-    ctx.restore();
-  };
-
   // --- 1. Background Fill and Gradient ---
   ctx.fillStyle = '#FFFFFF';
   ctx.fillRect(0, 0, canvas.width, canvas.height);
 
   const bgGrad = ctx.createLinearGradient(0, 0, canvas.width, canvas.height);
   bgGrad.addColorStop(0, '#FFFFFF');
-  bgGrad.addColorStop(0.7, '#FFFFFF');
-  bgGrad.addColorStop(1, '#EAF5FF');
+  bgGrad.addColorStop(0.7, '#F4FAFF');
+  bgGrad.addColorStop(1, '#EAF4FF');
   ctx.fillStyle = bgGrad;
   ctx.fillRect(0, 0, canvas.width, canvas.height);
 
-  // --- 2. Faint Blueprint Grid (Opacity ~4%) ---
-  ctx.strokeStyle = 'rgba(11, 108, 184, 0.04)';
-  ctx.lineWidth = 1;
-  const gridSize = 25;
-  for (let gx = gridSize; gx < canvas.width; gx += gridSize) {
-    ctx.beginPath();
-    ctx.moveTo(gx, 0);
-    ctx.lineTo(gx, canvas.height);
-    ctx.stroke();
-  }
-  for (let gy = gridSize; gy < canvas.height; gy += gridSize) {
-    ctx.beginPath();
-    ctx.moveTo(0, gy);
-    ctx.lineTo(canvas.width, gy);
-    ctx.stroke();
-  }
+  // --- 2. Security Microtext Border at the top edge ---
+  ctx.save();
+  ctx.fillStyle = 'rgba(47, 128, 237, 0.3)'; // Accent Blue #2F80ED
+  ctx.font = 'bold 9px "Courier New", Courier, monospace';
+  ctx.textAlign = 'left';
+  ctx.fillText('ST. PAUL SECONDARY SCHOOL OFFICIAL SECURITY CREDENTIAL • VERIFY ONLINE', 120, 22);
+  ctx.restore();
 
   // --- 3. Abstract Background Circles & Curves ---
-  ctx.strokeStyle = 'rgba(11, 108, 184, 0.04)';
+  ctx.save();
+  ctx.strokeStyle = 'rgba(47, 128, 237, 0.04)';
   ctx.lineWidth = 1.5;
   ctx.beginPath();
   ctx.arc(canvas.width, canvas.height / 2, 220, 0, 2 * Math.PI);
@@ -191,10 +103,11 @@ export async function generateStaffIdCardPng(
   ctx.beginPath();
   ctx.arc(0, canvas.height, 200, 0, 2 * Math.PI);
   ctx.stroke();
+  ctx.restore();
 
   // --- 3b. Subtle Security Guilloche Lines along borders (4% opacity) ---
   ctx.save();
-  ctx.strokeStyle = 'rgba(11, 108, 184, 0.04)';
+  ctx.strokeStyle = 'rgba(47, 128, 237, 0.04)';
   ctx.lineWidth = 2.5;
   ctx.beginPath();
   ctx.moveTo(30, 30);
@@ -235,7 +148,7 @@ export async function generateStaffIdCardPng(
 
   // --- 5. Security Margin Text ---
   ctx.save();
-  ctx.fillStyle = 'rgba(0, 62, 126, 0.06)';
+  ctx.fillStyle = 'rgba(11, 74, 139, 0.05)'; // Primary Blue #0B4A8B
   ctx.font = 'bold 12px "Poppins", "Montserrat", sans-serif';
   ctx.translate(25, 450);
   ctx.rotate(-Math.PI / 2);
@@ -243,12 +156,12 @@ export async function generateStaffIdCardPng(
   ctx.restore();
 
   // --- 6. Double Rounded Borders ---
-  ctx.strokeStyle = '#003E7E';
+  ctx.strokeStyle = '#0B4A8B'; // Primary Blue
   ctx.lineWidth = 8;
   drawRoundedRect(ctx, 4, 4, canvas.width - 8, canvas.height - 8, 38);
   ctx.stroke();
 
-  ctx.strokeStyle = '#EAF5FF';
+  ctx.strokeStyle = '#EAF4FF'; // Light Blue
   ctx.lineWidth = 2.5;
   drawRoundedRect(ctx, 11, 11, canvas.width - 22, canvas.height - 22, 30);
   ctx.stroke();
@@ -259,7 +172,7 @@ export async function generateStaffIdCardPng(
   const crestSize = 98;
   ctx.save();
   ctx.fillStyle = '#FFFFFF';
-  ctx.strokeStyle = '#EAF5FF';
+  ctx.strokeStyle = '#EAF4FF';
   ctx.lineWidth = 2;
   drawRoundedRect(ctx, crestX, crestY, crestSize, crestSize, 10);
   ctx.fill();
@@ -275,31 +188,35 @@ export async function generateStaffIdCardPng(
   }
   ctx.restore();
 
-  ctx.fillStyle = '#003E7E';
+  ctx.fillStyle = '#0B4A8B'; // Primary Blue
   ctx.font = 'bold 30px "Poppins", "Montserrat", sans-serif';
   ctx.textAlign = 'left';
   ctx.fillText('ST. PAUL SECONDARY SCHOOL, NASUTI', 152, 68);
 
-  ctx.fillStyle = '#64748B';
+  ctx.fillStyle = '#6B7280'; // Neutral Gray
   ctx.font = 'bold 18px "Poppins", "Montserrat", sans-serif';
   ctx.fillText('P.O. BOX 678, NASUTI, IGANGA', 152, 102);
 
+  // STAFF badge (pill shaped corner badge)
   const badgeW = 90;
   const badgeH = 34;
   const badgeX = canvas.width - badgeW - 40;
   const badgeY = 96;
-  ctx.fillStyle = '#0B6CB8';
-  drawRoundedRect(ctx, badgeX, badgeY, badgeW, badgeH, 6);
+
+  ctx.save();
+  ctx.fillStyle = '#0B4A8B';
+  drawRoundedRect(ctx, badgeX, badgeY, badgeW, badgeH, 17);
   ctx.fill();
 
   ctx.fillStyle = '#FFFFFF';
-  ctx.font = 'bold 18px "Poppins", "Montserrat", sans-serif';
+  ctx.font = 'bold 15px "Poppins", "Montserrat", sans-serif';
   ctx.textAlign = 'center';
-  ctx.fillText('STAFF', badgeX + badgeW / 2, badgeY + 23);
+  ctx.fillText('STAFF', badgeX + badgeW / 2, badgeY + 22);
+  ctx.restore();
 
-  // Horizontal Header Divider
-  ctx.strokeStyle = '#0B6CB8';
-  ctx.lineWidth = 3;
+  // Divider Line
+  ctx.strokeStyle = '#2F80ED'; // Accent Blue
+  ctx.lineWidth = 2;
   ctx.beginPath();
   ctx.moveTo(40, 142);
   ctx.lineTo(canvas.width - 40, 142);
@@ -312,8 +229,8 @@ export async function generateStaffIdCardPng(
   const pillY = 158;
   
   const pillGrad = ctx.createLinearGradient(pillX, 0, pillX + pillW, 0);
-  pillGrad.addColorStop(0, '#0B6CB8');
-  pillGrad.addColorStop(1, '#003E7E');
+  pillGrad.addColorStop(0, '#0B4A8B');
+  pillGrad.addColorStop(1, '#2F80ED');
   ctx.fillStyle = pillGrad;
   drawRoundedRect(ctx, pillX, pillY, pillW, pillH, 21);
   ctx.fill();
@@ -349,7 +266,7 @@ export async function generateStaffIdCardPng(
       const photoImg = await loadImage(member.photo);
       ctx.drawImage(photoImg, photoX, photoY, photoW, photoH);
     } catch (e) {
-      ctx.fillStyle = '#F1F5F9';
+      ctx.fillStyle = '#F8FAFC';
       ctx.fillRect(photoX, photoY, photoW, photoH);
       ctx.fillStyle = '#CBD5E1';
       ctx.beginPath();
@@ -360,7 +277,7 @@ export async function generateStaffIdCardPng(
       ctx.fill();
     }
   } else {
-    ctx.fillStyle = '#F1F5F9';
+    ctx.fillStyle = '#F8FAFC';
     ctx.fillRect(photoX, photoY, photoW, photoH);
     ctx.fillStyle = '#CBD5E1';
     ctx.beginPath();
@@ -373,10 +290,27 @@ export async function generateStaffIdCardPng(
   ctx.restore();
 
   // Border over photo frame
-  ctx.strokeStyle = '#0B6CB8';
-  ctx.lineWidth = 2.5; // Thin blue border
+  ctx.strokeStyle = 'rgba(47, 128, 237, 0.2)'; // Accent blue border at 20% opacity
+  ctx.lineWidth = 2.5;
   drawRoundedRect(ctx, photoX, photoY, photoW, photoH, 15);
   ctx.stroke();
+
+  // Hologram Sticker on photo
+  const holoX = photoX + photoW - 30;
+  const holoY = photoY + 30;
+  const holoR = 20;
+  ctx.save();
+  ctx.globalAlpha = 0.85;
+  const holoGrad = ctx.createRadialGradient(holoX - 5, holoY - 5, 2, holoX, holoY, holoR);
+  holoGrad.addColorStop(0, '#FFFFFF');
+  holoGrad.addColorStop(0.3, '#FDE047'); // yellow-300
+  holoGrad.addColorStop(0.7, '#F472B6'); // pink-400
+  holoGrad.addColorStop(1, '#67E8F9');   // cyan-300
+  ctx.fillStyle = holoGrad;
+  ctx.beginPath();
+  ctx.arc(holoX, holoY, holoR, 0, 2 * Math.PI);
+  ctx.fill();
+  ctx.restore();
 
   // Glowing Cyan Bubble Overlay
   ctx.save();
@@ -393,14 +327,14 @@ export async function generateStaffIdCardPng(
   ctx.fill();
   ctx.restore();
 
-  // --- 10. Middle Column: Staff Details List (Aligned and spaced) ---
+  // --- 10. Middle Column: Staff Details List (Sentence Case & Premium Hierarchy) ---
   const labelX = 360;
   const valueX = 500;
   
   const startRowY = 230;
   const rowSpacing = 68;
 
-  const labels = ['NAME:', 'STAFF NO:', 'DESIGNATION:', 'DEPARTMENT:', 'GENDER:'];
+  const labels = ['Name:', 'Staff No:', 'Designation:', 'Department:', 'Gender:'];
   const fullName = `${member.firstName || ''} ${member.middleName ? member.middleName + ' ' : ''}${member.lastName || ''}`.toUpperCase().trim() || member.name || 'Not Available';
   const staffNo = member.employeeNumber || member.id || 'Not Available';
   const position = (member.position || 'Not Available').toUpperCase();
@@ -412,14 +346,14 @@ export async function generateStaffIdCardPng(
   for (let i = 0; i < labels.length; i++) {
     const rowY = startRowY + i * rowSpacing;
 
-    // Label styling
-    ctx.fillStyle = '#0B6CB8';
+    // Label styling (sentence case, neutral gray)
+    ctx.fillStyle = '#6B7280'; // Neutral Gray
     ctx.font = 'bold 15px "Poppins", "Montserrat", sans-serif';
     ctx.fillText(labels[i], labelX, rowY);
 
     // Value styling
     if (i === 0) {
-      ctx.fillStyle = '#000000';
+      ctx.fillStyle = '#0B4A8B'; // Primary Blue
       ctx.font = 'bold 22px "Poppins", "Montserrat", sans-serif';
     } else {
       ctx.fillStyle = '#1E293B';
@@ -427,7 +361,6 @@ export async function generateStaffIdCardPng(
     }
 
     let valStr = values[i];
-    // Truncate if too long (QR Box starts at 749, valueX is 500, so maxWidth is 210)
     const maxWidth = 210;
     if (ctx.measureText(valStr).width > maxWidth) {
       while (ctx.measureText(valStr + '...').width > maxWidth && valStr.length > 0) {
@@ -438,12 +371,25 @@ export async function generateStaffIdCardPng(
     ctx.fillText(valStr, valueX, rowY);
   }
 
-  // --- 11. Seamless QR Verification (QR Code same size and position, no borders or containers)
-  const qrSize = 196;
-  const qrX = canvas.width - 263;
-  const qrY = 232;
+  // --- 11. Verification Box containing QR Code & Label ---
+  const qrBoxW = 235;
+  const qrBoxH = 270;
+  const qrBoxX = canvas.width - qrBoxW - 40;
+  const qrBoxY = 210;
 
-  // Scanned QR code URL: points to /staff/verify/{staffNumber}
+  ctx.save();
+  ctx.fillStyle = '#EAF4FF'; // Light Blue
+  ctx.strokeStyle = 'rgba(47, 128, 237, 0.3)'; // Accent border
+  ctx.lineWidth = 2.0;
+  drawRoundedRect(ctx, qrBoxX, qrBoxY, qrBoxW, qrBoxH, 18);
+  ctx.fill();
+  ctx.stroke();
+  ctx.restore();
+
+  const qrSize = 196;
+  const qrX = qrBoxX + (qrBoxW - qrSize) / 2;
+  const qrY = qrBoxY + 15;
+
   try {
     const qrUrl = `${window.location.origin}/staff/verify/${member.employeeNumber || member.id}`;
     const qrDataUrl = await QRCode.toDataURL(qrUrl, { margin: 1, errorCorrectionLevel: 'M' });
@@ -453,11 +399,11 @@ export async function generateStaffIdCardPng(
     console.warn('Failed to draw QR image on PNG:', e);
   }
 
-  // SCAN TO VERIFY label underneath QR
-  ctx.fillStyle = '#0B6CB8';
-  ctx.font = 'bold 16px "Poppins", "Montserrat", sans-serif';
+  // Label underneath
+  ctx.fillStyle = '#0B4A8B'; // Primary Blue
+  ctx.font = 'bold 15px "Poppins", "Montserrat", sans-serif';
   ctx.textAlign = 'center';
-  ctx.fillText('Scan to Verify', canvas.width - 165, 484);
+  ctx.fillText('Scan to Verify', qrBoxX + qrBoxW / 2, qrBoxY + 245);
 
   // --- 12. Bottom Row: 4 equal columns separated by vertical divider lines ---
   const bottomY = 530;
@@ -467,7 +413,7 @@ export async function generateStaffIdCardPng(
   ctx.fillRect(10, bottomY, canvas.width - 20, canvas.height - 10 - bottomY);
 
   // Divider Line
-  ctx.strokeStyle = 'rgba(226, 232, 240, 0.8)';
+  ctx.strokeStyle = 'rgba(234, 240, 246, 0.8)';
   ctx.lineWidth = 2;
   ctx.beginPath();
   ctx.moveTo(40, bottomY);
@@ -475,7 +421,7 @@ export async function generateStaffIdCardPng(
   ctx.stroke();
 
   // Vertical Separators
-  ctx.strokeStyle = '#E2E8F0';
+  ctx.strokeStyle = '#F1F5F9';
   ctx.lineWidth = 2;
   ctx.beginPath();
   // Div 1
@@ -499,22 +445,22 @@ export async function generateStaffIdCardPng(
   } else {
     issueDateStr = formatDate(member.createdAt || new Date());
   }
-  ctx.fillStyle = '#0B6CB8';
+  ctx.fillStyle = '#6B7280'; // Neutral Gray
   ctx.font = 'bold 12px "Poppins", "Montserrat", sans-serif';
   ctx.textAlign = 'center';
-  ctx.fillText('ISSUE DATE', 126.5, footerLabelY);
+  ctx.fillText('Issue Date', 126.5, footerLabelY);
   
-  ctx.fillStyle = '#000000';
-  ctx.font = 'bold 16px "Courier New", Courier, monospace';
+  ctx.fillStyle = '#1E293B';
+  ctx.font = 'bold 16px "Poppins", "Montserrat", sans-serif';
   ctx.fillText(issueDateStr, 126.5, footerValY);
 
   // Holder's Signature (Col 2)
-  ctx.fillStyle = '#0B6CB8';
+  ctx.fillStyle = '#6B7280'; // Neutral Gray
   ctx.font = 'bold 12px "Poppins", "Montserrat", sans-serif';
   ctx.textAlign = 'center';
-  ctx.fillText("HOLDER'S SIGNATURE", 379.5, footerLabelY);
+  ctx.fillText("Holder's Signature", 379.5, footerLabelY);
 
-  ctx.strokeStyle = '#E2E8F0';
+  ctx.strokeStyle = '#F1F5F9';
   ctx.lineWidth = 1.5;
   ctx.beginPath();
   ctx.moveTo(300, footerValY + 5);
@@ -522,12 +468,12 @@ export async function generateStaffIdCardPng(
   ctx.stroke();
 
   // Authorised Signature (Col 3)
-  ctx.fillStyle = '#0B6CB8';
+  ctx.fillStyle = '#6B7280'; // Neutral Gray
   ctx.font = 'bold 12px "Poppins", "Montserrat", sans-serif';
   ctx.textAlign = 'center';
-  ctx.fillText('AUTHORISED SIGNATURE', 632.5, footerLabelY);
+  ctx.fillText('Authorised Signature', 632.5, footerLabelY);
 
-  ctx.strokeStyle = '#E2E8F0';
+  ctx.strokeStyle = '#F1F5F9';
   ctx.lineWidth = 1.5;
   ctx.beginPath();
   ctx.moveTo(553, footerValY + 5);
@@ -563,17 +509,17 @@ export async function generateStaffIdCardPng(
     expDate.setFullYear(expDate.getFullYear() + 5);
     expDateStr = formatDate(expDate);
   }
-  ctx.fillStyle = '#0B6CB8';
+  ctx.fillStyle = '#6B7280'; // Neutral Gray
   ctx.font = 'bold 12px "Poppins", "Montserrat", sans-serif';
   ctx.textAlign = 'center';
-  ctx.fillText('EXPIRY DATE', 885.5, footerLabelY);
+  ctx.fillText('Expiry Date', 885.5, footerLabelY);
   
-  ctx.fillStyle = '#DC2626'; // Expired date in red
-  ctx.font = 'bold 16px "Courier New", Courier, monospace';
+  ctx.fillStyle = '#2F80ED'; // Accent Blue
+  ctx.font = 'bold 16px "Poppins", "Montserrat", sans-serif';
   ctx.fillText(expDateStr, 885.5, footerValY);
 
   // Redraw inner border to cleanly frame the footer area
-  ctx.strokeStyle = '#EAF5FF';
+  ctx.strokeStyle = '#EAF4FF';
   ctx.lineWidth = 4;
   drawRoundedRect(ctx, 10, 10, canvas.width - 20, canvas.height - 20, 20);
   ctx.stroke();

@@ -1,7 +1,6 @@
 import React from 'react';
 import { Staff } from '../types.ts';
 import SchoolLogo from './SchoolLogo.tsx';
-import { User, IdCard, Briefcase, Building2, Users } from 'lucide-react';
 
 interface StaffCardProps {
   staff: Staff;
@@ -53,78 +52,54 @@ export default function StaffCard({ staff, logoBase64, showWatermark = true }: S
     window.location.origin + '/staff/verify/' + (staff.employeeNumber || staff.id)
   )}`;
 
-  const serialNo = `SPSSN-2026-${(staff.employeeNumber || staff.id || "0000").replace(/[^0-9]/g, "").slice(0, 5).padStart(5, "0")}`;
-
   return (
     <div 
-      className="relative w-full max-w-[420px] aspect-[1.585] bg-[#003E7E] rounded-[16px] p-[0.6cqw] shadow-2xl overflow-hidden flex flex-col justify-between select-none font-sans"
+      className="relative w-full max-w-[420px] aspect-[1.585] bg-[#0B4A8B] rounded-[16px] p-[0.6cqw] shadow-2xl overflow-hidden flex flex-col justify-between select-none font-sans"
       style={{ 
         containerType: 'inline-size',
-        boxShadow: '0 12px 30px -5px rgba(0, 62, 126, 0.3), 0 8px 16px -6px rgba(0, 62, 126, 0.25)'
+        boxShadow: '0 12px 30px -5px rgba(11, 74, 139, 0.3), 0 8px 16px -6px rgba(11, 74, 139, 0.25)'
       } as React.CSSProperties}
     >
       {/* Inner Card Container with Light Blue Inner Border */}
-      <div className="relative w-full h-full rounded-[12px] border-[1.5px] border-[#EAF5FF] overflow-hidden bg-white bg-gradient-to-br from-white via-white to-[#EAF5FF] flex flex-col justify-between p-[3cqw] z-10">
+      <div className="relative w-full h-full rounded-[12px] border-[1.5px] border-[#EAF5FF] overflow-hidden bg-gradient-to-br from-white via-[#F4FAFF] to-[#EAF4FF] flex flex-col justify-between p-[3cqw] z-10">
         
-        {/* Background Subtle Gradient & Modern Geometric Patterns */}
-        <div className="absolute inset-0 pointer-events-none select-none z-0 overflow-hidden">
-          {/* Fine grid pattern (blueprint style) at 4% opacity */}
-          <div 
-            className="absolute inset-0" 
-            style={{
-              backgroundImage: `
-                linear-gradient(to right, rgba(11, 108, 184, 0.04) 1px, transparent 1px),
-                linear-gradient(to bottom, rgba(11, 108, 184, 0.04) 1px, transparent 1px)
-              `,
-              backgroundSize: '2.5cqw 2.5cqw'
-            }}
-          />
+        {/* Background Subtle Gradient */}
+        <div className="absolute inset-0 pointer-events-none select-none z-0 overflow-hidden bg-gradient-to-br from-white via-[#F4FAFF] to-[#EAF4FF]" />
 
-          {/* Security Text Running Vertically on Left Margin (5% opacity) */}
-          <div 
-            className="absolute left-[1.2cqw] top-[38cqw] text-[1.3cqw] font-black text-[#003E7E]/5 tracking-wider uppercase select-none pointer-events-none origin-left"
-            style={{ transform: 'rotate(-90deg) translate(-50%, 0)' }}
-          >
-            ST. PAUL SEC. SCH SECURITY DOCUMENT
-          </div>
-
-          {/* Faint Abstract Circles and Geometric Patterns (4% opacity) */}
-          <svg className="absolute top-0 right-0 w-1/2 h-full opacity-[0.04] text-[#0B6CB8]" viewBox="0 0 100 100" preserveAspectRatio="none">
-            <polygon points="45,0 100,0 100,85" fill="currentColor" />
-            <path d="M35,0 Q65,40 100,50" stroke="currentColor" strokeWidth="0.8" fill="none" />
-            <path d="M25,0 Q60,45 100,68" stroke="currentColor" strokeWidth="0.8" fill="none" />
-            <circle cx="88" cy="22" r="16" stroke="currentColor" strokeWidth="0.8" fill="none" />
-            <circle cx="88" cy="22" r="10" stroke="currentColor" strokeWidth="0.8" fill="none" />
-          </svg>
-          
-          <svg className="absolute bottom-0 left-0 w-1/3 h-1/2 opacity-[0.04] text-[#003E7E]" viewBox="0 0 100 100" preserveAspectRatio="none">
-            <polygon points="0,35 0,100 65,100" fill="currentColor" />
-            <path d="M0,25 Q40,65 52,100" stroke="currentColor" strokeWidth="0.8" fill="none" />
-            <path d="M0,15 Q45,70 65,100" stroke="currentColor" strokeWidth="0.8" fill="none" />
-          </svg>
-
-          {/* Subtle Security Guilloche Lines around the border (4% opacity) */}
-          <svg className="absolute inset-0 w-full h-full pointer-events-none opacity-[0.04] text-[#0B6CB8]" viewBox="0 0 100 100" preserveAspectRatio="none">
-            <path d="M 3,3 C 25,1 75,1 97,3 C 99,25 99,75 97,97 C 75,99 25,99 3,97 C 1,75 1,25 3,3 Z" fill="none" stroke="currentColor" strokeWidth="0.25" />
-            <path d="M 4,4 C 25,2 75,2 96,4 C 98,25 98,75 96,96 C 75,98 25,98 4,96 C 2,75 2,25 4,4 Z" fill="none" stroke="currentColor" strokeWidth="0.15" />
-          </svg>
-
-          {/* Faint School Crest Watermark in Center (4% opacity) */}
-          {showWatermark && (
-            <div className="absolute inset-0 flex items-center justify-center opacity-[0.04] scale-[1.25] rotate-6">
-              <SchoolLogo className="w-[48%] h-[48%]" logoBase64={logoBase64} />
-            </div>
-          )}
+        {/* Security Text Running Vertically on Left Margin (5% opacity) */}
+        <div 
+          className="absolute left-[1.2cqw] top-[38cqw] text-[1.3cqw] font-black text-[#0B4A8B]/5 tracking-wider uppercase select-none pointer-events-none origin-left"
+          style={{ transform: 'rotate(-90deg) translate(-50%, 0)' }}
+        >
+          ST. PAUL SEC. SCH SECURITY DOCUMENT
         </div>
 
+        {/* Security Microtext Border at the top edge */}
+        <div className="absolute left-[3cqw] top-[0.6cqw] text-[0.8cqw] font-mono tracking-widest text-[#2F80ED]/30 uppercase select-none pointer-events-none">
+          ST. PAUL SECONDARY SCHOOL OFFICIAL SECURITY CREDENTIAL • VERIFY ONLINE
+        </div>
+
+        {/* Subtle Security Guilloche Lines around the border (4% opacity) */}
+        <svg className="absolute inset-0 w-full h-full pointer-events-none opacity-[0.04] text-[#2F80ED]" viewBox="0 0 100 100" preserveAspectRatio="none">
+          <path d="M 3,3 C 25,1 75,1 97,3 C 99,25 99,75 97,97 C 75,99 25,99 3,97 C 1,75 1,25 3,3 Z" fill="none" stroke="currentColor" strokeWidth="0.25" />
+          <path d="M 4,4 C 25,2 75,2 96,4 C 98,25 98,75 96,96 C 75,98 25,98 4,96 C 2,75 2,25 4,4 Z" fill="none" stroke="currentColor" strokeWidth="0.15" />
+        </svg>
+
+        {/* Faint School Crest Watermark in Center (4% opacity) */}
+        {showWatermark && (
+          <div className="absolute inset-0 flex items-center justify-center opacity-[0.04] scale-[1.25] rotate-6">
+            <SchoolLogo className="w-[48%] h-[48%]" logoBase64={logoBase64} />
+          </div>
+        )}
+
         {/* Header (Logo, School Details, Badge) */}
-        <div className="relative z-10 flex items-center justify-between pb-[0.8cqw] border-b-[1.5px] border-[#0B6CB8] w-full">
+        <div className="relative z-10 flex items-center justify-between pb-[0.8cqw] border-b-[1.5px] border-[#2F80ED]/30 w-full">
           <div className="flex items-center gap-[2cqw]">
-            <div className="bg-white p-[0.3cqw] rounded-[0.8cqw] border border-[#EAF5FF] shadow-xs shrink-0 w-[9.2cqw] h-[9.2cqw] flex items-center justify-center">
+            <div className="bg-white p-[0.3cqw] rounded-[0.8cqw] border border-[#EAF4FF] shadow-xs shrink-0 w-[9.2cqw] h-[9.2cqw] flex items-center justify-center">
               <SchoolLogo className="w-full h-full object-contain" logoBase64={logoBase64} />
             </div>
             <div className="flex flex-col text-left pr-[18cqw]">
-              <span className="text-[6.8cqw] font-extrabold uppercase text-[#003E7E] leading-none tracking-wide" style={{ fontFamily: 'Poppins, sans-serif' }}>
+              <span className="text-[6.8cqw] font-extrabold uppercase text-[#0B4A8B] leading-none tracking-wide" style={{ fontFamily: 'Poppins, sans-serif' }}>
                 ST. PAUL SECONDARY SCHOOL, NASUTI
               </span>
               <span className="text-[3.4cqw] text-slate-500 font-bold uppercase tracking-wider mt-[0.4cqw] leading-none">
@@ -133,15 +108,15 @@ export default function StaffCard({ staff, logoBase64, showWatermark = true }: S
             </div>
           </div>
           
-          {/* STAFF badge with absolute positioning */}
-          <div className="absolute top-[5.8cqw] right-0 bg-[#0B6CB8] text-white text-[1.8cqw] font-black tracking-widest px-[2cqw] py-[0.5cqw] rounded-[4px] uppercase z-20">
+          {/* STAFF pill-shaped corner badge */}
+          <div className="absolute top-[5.8cqw] right-0 bg-[#0B4A8B] text-white text-[1.6cqw] font-extrabold tracking-widest px-[3.2cqw] py-[0.8cqw] rounded-full uppercase shadow-xs z-20">
             STAFF
           </div>
         </div>
 
-        {/* Centered Pill: STAFF IDENTITY CARD */}
+        {/* Centered Pill: STAFF IDENTITY CARD (shifted right) */}
         <div className="flex justify-start pl-[30cqw] mt-[1.2cqw] mb-[0.2cqw] w-full z-10 shrink-0">
-          <div className="bg-gradient-to-r from-[#0B6CB8] to-[#003E7E] text-white text-[2cqw] font-black tracking-widest px-[4cqw] py-[0.6cqw] rounded-full uppercase shadow-xs">
+          <div className="bg-gradient-to-r from-[#0B4A8B] to-[#2F80ED] text-white text-[1.9cqw] font-black tracking-widest px-[4cqw] py-[0.6cqw] rounded-full uppercase shadow-xs">
             STAFF IDENTITY CARD
           </div>
         </div>
@@ -154,21 +129,25 @@ export default function StaffCard({ staff, logoBase64, showWatermark = true }: S
             
             {/* Column 1: Passport Photo */}
             <div className="shrink-0 relative">
-              <div className="w-[39cqw] h-[48cqw] bg-white border-[0.25cqw] border-[#0B6CB8] rounded-[1.2cqw] p-[0.25cqw] shadow-lg flex items-center justify-center overflow-hidden">
+              <div className="w-[39cqw] h-[48cqw] bg-white border-[0.25cqw] border-[#2F80ED]/20 rounded-[12px] p-[0.25cqw] shadow-md flex items-center justify-center overflow-hidden">
                 {staff.photo ? (
                   <img 
                     src={staff.photo} 
                     alt={fullName} 
-                    className="w-full h-full object-cover rounded-[0.8cqw]" 
+                    className="w-full h-full object-cover rounded-[10px]" 
                   />
                 ) : (
                   <div className="flex flex-col items-center justify-center text-center w-full h-full bg-slate-50">
-                    <User className="w-[10cqw] h-[10cqw] text-slate-300" />
-                    <span className="text-[1.8cqw] text-slate-400 font-bold mt-[0.5cqw] uppercase tracking-wider leading-none">No Photo</span>
+                    <span className="text-[1.8cqw] text-slate-400 font-bold uppercase tracking-wider leading-none">No Photo</span>
                   </div>
                 )}
               </div>
               
+              {/* Hologram security badge placeholder in top-right corner */}
+              <div className="absolute top-[1.2cqw] right-[1.2cqw] w-[5cqw] h-[5cqw] rounded-full bg-gradient-to-tr from-yellow-300 via-pink-400 to-cyan-300 opacity-80 border border-white/40 shadow-xs flex items-center justify-center pointer-events-none select-none overflow-hidden">
+                <div className="w-full h-full bg-radial-gradient" style={{ background: 'radial-gradient(circle, rgba(255,255,255,0.8) 0%, transparent 80%)' }} />
+              </div>
+
               {/* Glowing sky-blue/cyan bubble decoration on the right edge of photo */}
               <div className="absolute -right-[1cqw] top-1/2 -translate-y-1/2 w-[2.4cqw] h-[2.4cqw] bg-gradient-to-r from-sky-300 to-cyan-300 rounded-full opacity-80 blur-[0.5px] shadow-xs pointer-events-none z-20" />
             </div>
@@ -177,61 +156,63 @@ export default function StaffCard({ staff, logoBase64, showWatermark = true }: S
             <div className="flex-1 flex flex-col justify-center text-left min-w-0 h-[48cqw] pl-[1cqw]">
               <div className="grid grid-cols-[26cqw_1fr] gap-x-[1cqw] gap-y-[2cqw] text-[3.4cqw] items-center text-slate-800 leading-none">
                 
-                {/* NAME */}
-                <span className="font-extrabold text-[#0B6CB8] tracking-[1.5px] uppercase">NAME:</span>
-                <span className="font-black text-black uppercase truncate text-[4.6cqw]">{fullName}</span>
+                {/* Name */}
+                <span className="font-bold text-[#6B7280] tracking-[0.5px]">Name:</span>
+                <span className="font-extrabold text-[#0B4A8B] uppercase truncate text-[4.6cqw]">{fullName}</span>
 
-                {/* STAFF NO */}
-                <span className="font-extrabold text-[#0B6CB8] tracking-[1.5px] uppercase">STAFF NO:</span>
-                <span className="font-extrabold text-slate-700 uppercase font-mono truncate text-[3.8cqw]">{staffNo}</span>
+                {/* Staff No */}
+                <span className="font-bold text-[#6B7280] tracking-[0.5px]">Staff No:</span>
+                <span className="font-bold text-slate-700 uppercase font-mono truncate text-[3.8cqw]">{staffNo}</span>
 
-                {/* DESIGNATION */}
-                <span className="font-extrabold text-[#0B6CB8] tracking-[1.5px] uppercase">DESIGNATION:</span>
-                <span className="font-extrabold text-slate-700 uppercase truncate text-[3.8cqw]">{position}</span>
+                {/* Designation */}
+                <span className="font-bold text-[#6B7280] tracking-[0.5px]">Designation:</span>
+                <span className="font-bold text-slate-700 uppercase truncate text-[3.8cqw]">{position}</span>
 
-                {/* DEPARTMENT */}
-                <span className="font-extrabold text-[#0B6CB8] tracking-[1.5px] uppercase">DEPARTMENT:</span>
-                <span className="font-extrabold text-slate-700 uppercase truncate text-[3.8cqw]">{department}</span>
+                {/* Department */}
+                <span className="font-bold text-[#6B7280] tracking-[0.5px]">Department:</span>
+                <span className="font-bold text-slate-700 uppercase truncate text-[3.8cqw]">{department}</span>
 
-                {/* GENDER */}
-                <span className="font-extrabold text-[#0B6CB8] tracking-[1.5px] uppercase">GENDER:</span>
-                <span className="font-extrabold text-slate-700 uppercase truncate text-[3.8cqw]">{staff.gender || 'Female'}</span>
+                {/* Gender */}
+                <span className="font-bold text-[#6B7280] tracking-[0.5px]">Gender:</span>
+                <span className="font-bold text-slate-700 uppercase truncate text-[3.8cqw]">{staff.gender || 'Female'}</span>
               </div>
             </div>
 
-            {/* Column 3: Seamless QR Verification */}
-            <div className="shrink-0 w-[34cqw] h-[48cqw] flex flex-col items-center justify-end pb-[2cqw] gap-[2cqw] z-10">
-              <img src={qrCodeUrl} alt="Verification QR" className="w-[26cqw] h-[26cqw] object-contain" />
-              <span className="text-[2.2cqw] font-black text-[#0B6CB8] tracking-[1px] text-center uppercase leading-none">
-                Scan to Verify
-              </span>
+            {/* Column 3: Verification QR Code Section */}
+            <div className="shrink-0 w-[34cqw] h-[48cqw] flex flex-col items-center justify-end pb-[2cqw] z-10">
+              <div className="bg-[#EAF4FF] border border-[#2F80ED]/30 rounded-2xl p-[2cqw] flex flex-col items-center justify-center gap-[1.5cqw] shadow-xs">
+                <img src={qrCodeUrl} alt="Verification QR" className="w-[22cqw] h-[22cqw] object-contain rounded-md" />
+                <span className="text-[1.8cqw] font-bold text-[#0B4A8B] tracking-[0.5px] text-center uppercase leading-none">
+                  Scan to Verify
+                </span>
+              </div>
             </div>
 
           </div>
         </div>
 
         {/* Bottom Section (4 equally sized columns with vertical separation lines) */}
-        <div className="relative z-20 grid grid-cols-4 items-end justify-between pt-[1cqw] border-t border-slate-200 mt-[1.2cqw] shrink-0 h-[7.5cqw] w-full text-center bg-white">
+        <div className="relative z-20 grid grid-cols-4 items-end justify-between pt-[1cqw] border-t border-slate-100 mt-[1.2cqw] shrink-0 h-[7.5cqw] w-full text-center bg-white">
           
           {/* Column 1: Issue Date */}
           <div className="flex flex-col items-center justify-end h-full">
-            <span className="text-[2.6cqw] text-[#0B6CB8] font-bold uppercase tracking-wider leading-none">
+            <span className="text-[2.4cqw] text-[#6B7280] font-bold tracking-wide leading-none">
               Issue Date
             </span>
-            <span className="text-slate-800 font-bold text-[3.4cqw] mt-[0.3cqw] leading-none">
+            <span className="text-slate-800 font-extrabold text-[3.2cqw] mt-[0.3cqw] leading-none">
               {issueDateStr}
             </span>
           </div>
 
           {/* Vertical divider */}
-          <div className="absolute left-[25%] bottom-[0.5cqw] w-[1px] h-[5cqw] bg-slate-200" />
+          <div className="absolute left-[25%] bottom-[0.5cqw] w-[1px] h-[5cqw] bg-slate-100" />
 
           {/* Column 2: Holder's Signature */}
           <div className="flex flex-col items-center justify-end h-full relative">
-            <span className="text-[2.6cqw] text-[#0B6CB8] font-bold uppercase tracking-wider leading-none mb-[0.2cqw]">
+            <span className="text-[2.4cqw] text-[#6B7280] font-bold tracking-wide leading-none mb-[0.2cqw]">
               Holder's Signature
             </span>
-            <div className="h-[3.6cqw] border-b border-slate-200 w-[16cqw] flex items-end justify-center pb-[0.2cqw]">
+            <div className="h-[3.6cqw] border-b border-slate-100 w-[16cqw] flex items-end justify-center pb-[0.2cqw]">
               {staff.signature ? (
                 <img 
                   src={staff.signature} 
@@ -247,14 +228,14 @@ export default function StaffCard({ staff, logoBase64, showWatermark = true }: S
           </div>
 
           {/* Vertical divider */}
-          <div className="absolute left-[50%] bottom-[0.5cqw] w-[1px] h-[5cqw] bg-slate-200" />
+          <div className="absolute left-[50%] bottom-[0.5cqw] w-[1px] h-[5cqw] bg-slate-100" />
 
           {/* Column 3: Authorised Signature */}
           <div className="flex flex-col items-center justify-end h-full relative">
-            <span className="text-[2.6cqw] text-[#0B6CB8] font-bold uppercase tracking-wider leading-none mb-[0.2cqw]">
+            <span className="text-[2.4cqw] text-[#6B7280] font-bold tracking-wide leading-none mb-[0.2cqw]">
               Authorised Signature
             </span>
-            <div className="h-[3.6cqw] border-b border-slate-200 w-[16cqw] flex items-end justify-center pb-[0.2cqw]">
+            <div className="h-[3.6cqw] border-b border-slate-100 w-[16cqw] flex items-end justify-center pb-[0.2cqw]">
               {staff.signature ? (
                 <img 
                   src={staff.signature} 
@@ -270,14 +251,14 @@ export default function StaffCard({ staff, logoBase64, showWatermark = true }: S
           </div>
 
           {/* Vertical divider */}
-          <div className="absolute left-[75%] bottom-[0.5cqw] w-[1px] h-[5cqw] bg-slate-200" />
+          <div className="absolute left-[75%] bottom-[0.5cqw] w-[1px] h-[5cqw] bg-slate-100" />
 
           {/* Column 4: Expiry Date */}
           <div className="flex flex-col items-center justify-end h-full">
-            <span className="text-[2.6cqw] text-[#0B6CB8] font-bold uppercase tracking-wider leading-none">
+            <span className="text-[2.4cqw] text-[#6B7280] font-bold tracking-wide leading-none">
               Expiry Date
             </span>
-            <span className="text-red-600 font-bold text-[3.4cqw] mt-[0.3cqw] leading-none">
+            <span className="text-[#2F80ED] font-extrabold text-[3.2cqw] mt-[0.3cqw] leading-none">
               {expiryDateStr}
             </span>
           </div>

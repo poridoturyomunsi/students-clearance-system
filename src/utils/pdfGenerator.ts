@@ -1459,66 +1459,6 @@ export async function generateStaffIdCardsPdf({
       }
     };
 
-    // Vector icon drawing helpers inside PDF
-    const drawPdfUserIcon = (ix: number, iy: number, isize: number) => {
-      doc.saveGraphicsState();
-      doc.setDrawColor(11, 108, 184); // #0B6CB8
-      doc.setLineWidth(0.2);
-      doc.circle(ix + isize / 2, iy + isize / 3, isize / 5, 'S');
-      doc.ellipse(ix + isize / 2, iy + isize * 0.85, isize / 2.2, isize / 4, 'S');
-      doc.restoreGraphicsState();
-    };
-
-    const drawPdfIdCardIcon = (ix: number, iy: number, isize: number) => {
-      doc.saveGraphicsState();
-      doc.setDrawColor(11, 108, 184);
-      doc.setLineWidth(0.2);
-      doc.roundedRect(ix, iy + isize * 0.1, isize, isize * 0.75, 0.4, 0.4, 'D');
-      doc.rect(ix + 0.4, iy + isize * 0.25, isize * 0.35, isize * 0.4, 'D');
-      doc.line(ix + isize * 0.5, iy + isize * 0.38, ix + isize * 0.85, iy + isize * 0.38);
-      doc.line(ix + isize * 0.5, iy + isize * 0.55, ix + isize * 0.85, iy + isize * 0.55);
-      doc.restoreGraphicsState();
-    };
-
-    const drawPdfBriefcaseIcon = (ix: number, iy: number, isize: number) => {
-      doc.saveGraphicsState();
-      doc.setDrawColor(11, 108, 184);
-      doc.setLineWidth(0.2);
-      doc.roundedRect(ix, iy + isize * 0.2, isize, isize * 0.6, 0.4, 0.4, 'D');
-      doc.rect(ix + isize * 0.3, iy + isize * 0.02, isize * 0.4, isize * 0.18, 'D');
-      doc.restoreGraphicsState();
-    };
-
-    const drawPdfBuildingIcon = (ix: number, iy: number, isize: number) => {
-      doc.saveGraphicsState();
-      doc.setDrawColor(11, 108, 184);
-      doc.setLineWidth(0.2);
-      doc.rect(ix + isize * 0.15, iy, isize * 0.7, isize, 'D');
-      doc.rect(ix + isize * 0.28, iy + isize * 0.2, isize * 0.15, isize * 0.15, 'D');
-      doc.rect(ix + isize * 0.57, iy + isize * 0.2, isize * 0.15, isize * 0.15, 'D');
-      doc.rect(ix + isize * 0.28, iy + isize * 0.5, isize * 0.15, isize * 0.15, 'D');
-      doc.rect(ix + isize * 0.57, iy + isize * 0.5, isize * 0.15, isize * 0.15, 'D');
-      doc.restoreGraphicsState();
-    };
-
-    const drawPdfGenderIcon = (ix: number, iy: number, isize: number) => {
-      doc.saveGraphicsState();
-      doc.setDrawColor(11, 108, 184);
-      doc.setLineWidth(0.2);
-      const isFemale = (member.gender || 'Female').toLowerCase() === 'female';
-      if (isFemale) {
-        doc.circle(ix + isize / 2, iy + isize / 3, isize / 4.5, 'S');
-        doc.line(ix + isize / 2, iy + isize * 0.55, ix + isize / 2, iy + isize * 0.95);
-        doc.line(ix + isize * 0.3, iy + isize * 0.75, ix + isize * 0.7, iy + isize * 0.75);
-      } else {
-        doc.circle(ix + isize * 0.4, iy + isize * 0.6, isize / 4.5, 'S');
-        doc.line(ix + isize * 0.55, iy + isize * 0.45, ix + isize * 0.85, iy + isize * 0.15);
-        doc.line(ix + isize * 0.6, iy + isize * 0.15, ix + isize * 0.85, iy + isize * 0.15);
-        doc.line(ix + isize * 0.85, iy + isize * 0.15, ix + isize * 0.85, iy + isize * 0.4);
-      }
-      doc.restoreGraphicsState();
-    };
-
     // 1. Soft Shadow
     doc.setFillColor(235, 240, 247);
     doc.roundedRect(x + 0.5, y + 0.5, cardW, cardH, 3.18, 3.18, 'F');
@@ -1527,27 +1467,13 @@ export async function generateStaffIdCardsPdf({
     doc.setFillColor(255, 255, 255);
     doc.roundedRect(x, y, cardW, cardH, 3.18, 3.18, 'F');
 
-    // 3. Background Fine Grid Pattern (opacity ~4%)
-    doc.saveGraphicsState();
-    doc.setDrawColor(235, 243, 255);
-    doc.setLineWidth(0.08);
-    for (let gx = x + 2; gx <= x + cardW - 2; gx += 2) {
-      doc.line(gx, y + 1.5, gx, y + cardH - 1.5);
-    }
-    for (let gy = y + 2; gy <= y + cardH - 2; gy += 2) {
-      doc.line(x + 1.5, gy, x + cardW - 1.5, gy);
-    }
-    
-    // Curved graphic elements in background
-    doc.setDrawColor(220, 233, 255);
-    doc.setLineWidth(0.12);
-    doc.circle(x + cardW, y + cardH / 2, 20, 'D');
-    doc.circle(x + cardW, y + cardH / 2, 12, 'D');
-    doc.restoreGraphicsState();
+    // 3. Subtle Light-Blue Gradient / Background tint (clean white corporate styling)
+    doc.setFillColor(250, 253, 255);
+    doc.roundedRect(x + 0.8, y + 0.8, cardW - 1.6, cardH - 1.6, 2.5, 2.5, 'F');
 
-    // Subtle Guilloche lines around borders inside card limits
+    // Subtle security lines around borders inside card limits
     doc.saveGraphicsState();
-    doc.setDrawColor(220, 233, 255);
+    doc.setDrawColor(47, 128, 237); // Accent Blue #2F80ED
     doc.setLineWidth(0.08);
     doc.line(x + 3, y + 2.5, x + cardW - 3, y + 2.5);
     doc.line(x + 3, y + 3.0, x + cardW - 3, y + 3.0);
@@ -1555,41 +1481,49 @@ export async function generateStaffIdCardsPdf({
     doc.line(x + 3, y + cardH - 3.0, x + cardW - 3, y + cardH - 3.0);
     doc.restoreGraphicsState();
 
+    // Security microtext at top edge
+    doc.saveGraphicsState();
+    doc.setTextColor(47, 128, 237); // Accent Blue
+    doc.setFont("helvetica", "normal");
+    doc.setFontSize(2.2);
+    doc.text("ST. PAUL SECONDARY SCHOOL OFFICIAL SECURITY CREDENTIAL • VERIFY ONLINE", x + 10.0, y + 1.8);
+    doc.restoreGraphicsState();
+
     // Vertical Security Margin Text (faint opacity)
     doc.saveGraphicsState();
     try {
       const gStateClass = (doc as any).GState || (doc.constructor as any).GState;
       if (gStateClass) {
-        doc.setGState(new gStateClass({ opacity: 0.18 }));
+        doc.setGState(new gStateClass({ opacity: 0.05 }));
       }
     } catch (e) {}
-    doc.setTextColor(0, 62, 126);
+    doc.setTextColor(11, 74, 139); // Primary Blue
     doc.setFont("helvetica", "bold");
     doc.setFontSize(3.2);
     doc.text("ST. PAUL SEC. SCH SECURITY DOCUMENT", x + 2.2, y + 38.0, { angle: 90 });
     doc.restoreGraphicsState();
 
     // 4. Double Rounded Borders
-    doc.setDrawColor(0, 62, 126);
+    doc.setDrawColor(11, 74, 139); // Primary Blue
     doc.setLineWidth(0.8);
     doc.roundedRect(x, y, cardW, cardH, 3.18, 3.18, 'D');
 
-    doc.setDrawColor(234, 245, 255);
+    doc.setDrawColor(234, 244, 255);
     doc.setLineWidth(0.35);
     doc.roundedRect(x + 0.8, y + 0.8, cardW - 1.6, cardH - 1.6, 2.5, 2.5, 'D');
 
-    // 5. Watermark Crest
+    // 5. Faint Watermark Crest in background
     if (activeLogoPng) {
       drawSafeWatermark(doc, activeLogoPng, x + cardW / 2 - 13, y + cardH / 2 - 13, 26, 26, 0.04);
     }
 
-    // 6. Header block (Larger logo and layout)
+    // 6. Header block (School logo and info)
     const crestBoxX = x + 3.5;
     const crestBoxY = y + 2.8;
     const crestBoxW = 9.8;
     const crestBoxH = 9.8;
     doc.setFillColor(255, 255, 255);
-    doc.setDrawColor(234, 245, 255);
+    doc.setDrawColor(234, 244, 255);
     doc.setLineWidth(0.18);
     doc.roundedRect(crestBoxX, crestBoxY, crestBoxW, crestBoxH, 0.8, 0.8, 'FD');
 
@@ -1601,29 +1535,30 @@ export async function generateStaffIdCardsPdf({
       }
     }
 
-    doc.setTextColor(0, 62, 126); // #003E7E
+    doc.setTextColor(11, 74, 139); // Primary Blue
     doc.setFont("helvetica", "bold");
-    doc.setFontSize(7.5); // size ~30px equivalent
+    doc.setFontSize(7.5);
     doc.text("ST. PAUL SECONDARY SCHOOL, NASUTI", x + 14.5, y + 6.2);
 
-    doc.setTextColor(100, 116, 139);
+    doc.setTextColor(107, 114, 128); // Neutral Gray
     doc.setFont("helvetica", "bold");
     doc.setFontSize(5.2);
     doc.text("P.O. BOX 678, NASUTI, IGANGA", x + 14.5, y + 9.6);
 
+    // Pill corner badge "STAFF"
     const badgeW = 10.0;
     const badgeH = 3.5;
     const badgeX = x + cardW - badgeW - 3.5;
     const badgeY = y + 8.5;
-    doc.setFillColor(11, 108, 184); // #0B6CB8
-    doc.roundedRect(badgeX, badgeY, badgeW, badgeH, 0.6, 0.6, 'F');
+    doc.setFillColor(11, 74, 139); // Primary Blue
+    doc.roundedRect(badgeX, badgeY, badgeW, badgeH, 1.75, 1.75, 'F');
     doc.setTextColor(255, 255, 255);
     doc.setFont("helvetica", "bold");
     doc.setFontSize(4.0);
     doc.text("STAFF", badgeX + badgeW / 2, badgeY + 2.4, { align: 'center' });
 
     // 7. Divider Line
-    doc.setDrawColor(11, 108, 184);
+    doc.setDrawColor(47, 128, 237); // Accent Blue
     doc.setLineWidth(0.25);
     doc.line(x + 3.5, y + 14.2, x + cardW - 3.5, y + 14.2);
 
@@ -1633,7 +1568,7 @@ export async function generateStaffIdCardsPdf({
     const pillX = x + 29.5;
     const pillY = y + 15.0;
 
-    doc.setFillColor(11, 108, 184); // #0B6CB8
+    doc.setFillColor(11, 74, 139); // Primary Blue
     doc.roundedRect(pillX, pillY, pillW, pillH, 1.8, 1.8, 'F');
 
     doc.setTextColor(255, 255, 255);
@@ -1641,47 +1576,58 @@ export async function generateStaffIdCardsPdf({
     doc.setFontSize(4.0);
     doc.text("STAFF IDENTITY CARD", pillX + pillW / 2, pillY + 2.5, { align: 'center' });
 
-    // 9. Photo Section (Col 1 - Increased size by ~25% proportional: 25.0x30.4mm)
+    // 9. Photo Section
     const photoX = x + 3.5;
     const photoY = y + 14.8;
     const photoW = 25.0;
     const photoH = 29.5;
 
     // Photo Drop Shadow (soft gray rect behind it)
-    doc.setFillColor(225, 230, 240);
+    doc.setFillColor(235, 240, 247);
     doc.roundedRect(photoX + 0.3, photoY + 0.3, photoW, photoH, 1.2, 1.2, 'F');
 
     // Photo Frame Box
     doc.setFillColor(255, 255, 255);
-    doc.roundedRect(photoX, photoY, photoW, photoH, 1.2, 1.2, 'F');
+    doc.setDrawColor(47, 128, 237); // Accent Blue
+    doc.setLineWidth(0.25);
+    doc.roundedRect(photoX, photoY, photoW, photoH, 1.2, 1.2, 'FD');
 
     if (member.photo) {
       try {
-        const fmtMatch = member.photo.match(/^data:image\/([a-zA-Z]+);base64,/);
-        const format = fmtMatch ? fmtMatch[1].toUpperCase() : 'JPEG';
-        doc.addImage(member.photo, format, photoX, photoY, photoW, photoH);
+        const photoFormat = member.photo.includes('png') || member.photo.startsWith('data:image/png') ? 'PNG' : 'JPEG';
+        doc.addImage(member.photo, photoFormat, photoX + 0.4, photoY + 0.4, photoW - 0.8, photoH - 0.8);
       } catch (e) {
-        console.warn("Failed drawing staff photo in PDF", e);
-        doc.setFillColor(241, 245, 249);
-        doc.roundedRect(photoX, photoY, photoW, photoH, 1.2, 1.2, 'F');
-        doc.setDrawColor(200, 200, 200);
-        doc.circle(photoX + photoW / 2, photoY + 10, 4, 'D');
-        doc.ellipse(photoX + photoW / 2, photoY + 20, 7, 5, 'D');
+        console.warn("Failed rendering photo in PDF:", e);
       }
     } else {
-      doc.setFillColor(241, 245, 249);
-      doc.roundedRect(photoX, photoY, photoW, photoH, 1.2, 1.2, 'F');
-      doc.setDrawColor(200, 200, 200);
-      doc.circle(photoX + photoW / 2, photoY + 10, 4, 'D');
-      doc.ellipse(photoX + photoW / 2, photoY + 20, 7, 5, 'D');
+      doc.setFillColor(248, 250, 252);
+      doc.rect(photoX + 0.4, photoY + 0.4, photoW - 0.8, photoH - 0.8, 'F');
+      doc.setTextColor(148, 163, 184);
+      doc.setFont("helvetica", "bold");
+      doc.setFontSize(4.0);
+      doc.text("NO PHOTO", photoX + photoW / 2, photoY + photoH / 2 + 1, { align: 'center' });
     }
 
-    // Photo outer blue border
-    doc.setDrawColor(11, 108, 184);
-    doc.setLineWidth(0.25);
-    doc.roundedRect(photoX, photoY, photoW, photoH, 1.2, 1.2, 'D');
+    // Hologram security sticker (top right of photo)
+    const holoX = photoX + photoW - 3.5;
+    const holoY = photoY + 3.5;
+    const holoR = 1.8;
+    doc.saveGraphicsState();
+    try {
+      const gStateClass = (doc as any).GState || (doc.constructor as any).GState;
+      if (gStateClass) {
+        doc.setGState(new gStateClass({ opacity: 0.85 }));
+      }
+    } catch (e) {}
+    doc.setFillColor(255, 230, 150); // Yellow base
+    doc.circle(holoX, holoY, holoR, 'F');
+    doc.setFillColor(150, 220, 255); // Cyan overlay
+    doc.circle(holoX - 0.4, holoY + 0.4, holoR * 0.8, 'F');
+    doc.setFillColor(255, 180, 220); // Pink overlay
+    doc.circle(holoX + 0.4, holoY - 0.4, holoR * 0.6, 'F');
+    doc.restoreGraphicsState();
 
-    // Glowing cyan/sky bubble overlay
+    // Glowing cyan/sky bubble overlay on photo right edge
     try {
       const gStateClass = (doc as any).GState || (doc.constructor as any).GState;
       if (gStateClass) {
@@ -1704,20 +1650,25 @@ export async function generateStaffIdCardsPdf({
       rowY: number, 
       isName: boolean = false
     ) => {
-      // Label Text
-      doc.setTextColor(11, 108, 184); // #0B6CB8
+      // Label Text (sentence case, neutral gray)
+      doc.setTextColor(107, 114, 128); // #6B7280
       doc.setFont("helvetica", "bold");
       doc.setFontSize(4.0);
       doc.text(lbl, labelX, rowY);
 
       // Value Text
-      doc.setTextColor(isName ? 0 : 30, isName ? 0 : 41, isName ? 0 : 59); // Black for name, Slate-700 for values
-      doc.setFont("helvetica", "bold");
-      doc.setFontSize(isName ? 6.5 : 5.0);
+      if (isName) {
+        doc.setTextColor(11, 74, 139); // Primary Blue #0B4A8B
+        doc.setFont("helvetica", "bold");
+        doc.setFontSize(6.2);
+      } else {
+        doc.setTextColor(30, 41, 59); // Slate-700
+        doc.setFont("helvetica", "bold");
+        doc.setFontSize(5.0);
+      }
       
       let valStr = val || 'Not Available';
       const maxValW = 14.5;
-      // Truncate if it overlaps QR Box (which starts at 60.1mm)
       if (doc.getTextWidth(valStr) > maxValW) {
         while (doc.getTextWidth(valStr + '...') > maxValW && valStr.length > 0) {
           valStr = valStr.substring(0, valStr.length - 1);
@@ -1727,18 +1678,27 @@ export async function generateStaffIdCardsPdf({
       doc.text(valStr, valueX, rowY);
     };
 
-    drawDetailRow("NAME:", fullName, y + 21.0, true);
-    drawDetailRow("STAFF NO:", member.employeeNumber || member.id || 'Not Available', y + 26.5);
-    drawDetailRow("DESIGNATION:", (member.position || 'Not Available').toUpperCase(), y + 32.0);
-    drawDetailRow("DEPARTMENT:", (member.department || 'Not Available').toUpperCase(), y + 37.5);
-    drawDetailRow("GENDER:", (member.gender || 'Female').toUpperCase(), y + 43.0);
+    drawDetailRow("Name:", fullName, y + 21.0, true);
+    drawDetailRow("Staff No:", member.employeeNumber || member.id || 'Not Available', y + 26.5);
+    drawDetailRow("Designation:", (member.position || 'Not Available').toUpperCase(), y + 32.0);
+    drawDetailRow("Department:", (member.department || 'Not Available').toUpperCase(), y + 37.5);
+    drawDetailRow("Gender:", (member.gender || 'Female').toUpperCase(), y + 43.0);
 
-    // 11. Seamless QR Verification (QR Code same size and position, no borders or containers)
+    // 11. Verification Box containing QR Code & Label
+    const qrBoxW = 19.5;
+    const qrBoxH = 22.8;
+    const qrBoxX = x + cardW - qrBoxW - 3.5;
+    const qrBoxY = y + 20.2;
+
+    doc.setFillColor(234, 244, 255); // Light Blue #EAF4FF
+    doc.setDrawColor(47, 128, 237); // Accent Blue #2F80ED
+    doc.setLineWidth(0.18);
+    doc.roundedRect(qrBoxX, qrBoxY, qrBoxW, qrBoxH, 1.5, 1.5, 'FD');
+
     const qrSize = 16.5;
-    const qrX = x + cardW - 22.75;
-    const qrY = y + 21.5;
+    const qrX = qrBoxX + (qrBoxW - qrSize) / 2;
+    const qrY = qrBoxY + 1.2;
 
-    // Scanned URL Points to /staff/verify/{staffNo}
     const verificationUrl = `${window.location.origin}/staff/verify/${member.employeeNumber || member.id}`;
     try {
       const qrDataUrl = await QRCode.toDataURL(verificationUrl, { margin: 1, errorCorrectionLevel: 'M' });
@@ -1749,10 +1709,10 @@ export async function generateStaffIdCardsPdf({
       doc.rect(qrX, qrY, qrSize, qrSize, 'D');
     }
 
-    doc.setTextColor(11, 108, 184); // #0B6CB8
+    doc.setTextColor(11, 74, 139); // Primary Blue
     doc.setFont("helvetica", "bold");
-    doc.setFontSize(3.8);
-    doc.text("Scan to Verify", x + cardW - 14.5, y + 42.0, { align: 'center' });
+    doc.setFontSize(3.4);
+    doc.text("Scan to Verify", qrBoxX + qrBoxW / 2, qrBoxY + 20.2, { align: 'center' });
 
     // 12. Bottom Row (4 equally spaced columns separated by vertical line vectors)
     const bottomY = y + 45.0;
@@ -1761,13 +1721,13 @@ export async function generateStaffIdCardsPdf({
     doc.setFillColor(255, 255, 255);
     doc.rect(x + 0.8, bottomY, cardW - 1.6, cardH - 0.8 - 45.0, 'F');
 
-    // Horizontal Divider
-    doc.setDrawColor(220, 225, 235);
+    // Horizontal Divider (Thin accent grey line)
+    doc.setDrawColor(234, 240, 246);
     doc.setLineWidth(0.18);
     doc.line(x + 3.5, bottomY, x + cardW - 3.5, bottomY);
 
     // Vertical Divider 1
-    doc.setDrawColor(200, 205, 215);
+    doc.setDrawColor(240, 243, 246);
     doc.setLineWidth(0.2);
     doc.line(x + 21.4, bottomY + 1.0, x + 21.4, bottomY + 8.0);
 
@@ -1785,23 +1745,23 @@ export async function generateStaffIdCardsPdf({
       issueDateStr = formatDate(member.createdAt || new Date());
     }
 
-    doc.setTextColor(11, 108, 184); // #0B6CB8
+    doc.setTextColor(107, 114, 128); // Neutral Gray
     doc.setFont("helvetica", "bold");
-    doc.setFontSize(3.6);
-    doc.text("ISSUE DATE", x + 10.7, bottomY + 2.8, { align: 'center' });
+    doc.setFontSize(3.4);
+    doc.text("Issue Date", x + 10.7, bottomY + 2.8, { align: 'center' });
     
     doc.setTextColor(30, 41, 59);
     doc.setFont("helvetica", "bold");
-    doc.setFontSize(4.8);
+    doc.setFontSize(4.4);
     doc.text(issueDateStr, x + 10.7, bottomY + 6.8, { align: 'center' });
 
     // Col 2: Holder's Signature
-    doc.setTextColor(11, 108, 184);
+    doc.setTextColor(107, 114, 128); // Neutral Gray
     doc.setFont("helvetica", "bold");
-    doc.setFontSize(3.6);
-    doc.text("HOLDER'S SIGNATURE", x + 32.1, bottomY + 2.8, { align: 'center' });
+    doc.setFontSize(3.4);
+    doc.text("Holder's Signature", x + 32.1, bottomY + 2.8, { align: 'center' });
 
-    doc.setDrawColor(220, 225, 235);
+    doc.setDrawColor(234, 240, 246);
     doc.setLineWidth(0.15);
     doc.line(x + 24.0, bottomY + 7.0, x + 40.0, bottomY + 7.0);
 
@@ -1821,12 +1781,12 @@ export async function generateStaffIdCardsPdf({
     }
 
     // Col 3: Authorised Signature
-    doc.setTextColor(11, 108, 184);
+    doc.setTextColor(107, 114, 128); // Neutral Gray
     doc.setFont("helvetica", "bold");
-    doc.setFontSize(3.6);
-    doc.text("AUTHORISED SIGNATURE", x + 53.5, bottomY + 2.8, { align: 'center' });
+    doc.setFontSize(3.4);
+    doc.text("Authorised Signature", x + 53.5, bottomY + 2.8, { align: 'center' });
 
-    doc.setDrawColor(220, 225, 235);
+    doc.setDrawColor(234, 240, 246);
     doc.setLineWidth(0.15);
     doc.line(x + 45.5, bottomY + 7.0, x + 61.5, bottomY + 7.0);
 
@@ -1857,18 +1817,18 @@ export async function generateStaffIdCardsPdf({
       expDateStr = formatDate(expDate);
     }
 
-    doc.setTextColor(11, 108, 184);
+    doc.setTextColor(107, 114, 128); // Neutral Gray
     doc.setFont("helvetica", "bold");
-    doc.setFontSize(3.6);
-    doc.text("EXPIRY DATE", x + 74.9, bottomY + 2.8, { align: 'center' });
+    doc.setFontSize(3.4);
+    doc.text("Expiry Date", x + 74.9, bottomY + 2.8, { align: 'center' });
 
-    doc.setTextColor(220, 38, 38); // Red
+    doc.setTextColor(47, 128, 237); // Accent Blue
     doc.setFont("helvetica", "bold");
-    doc.setFontSize(4.8);
+    doc.setFontSize(4.4);
     doc.text(expDateStr, x + 74.9, bottomY + 6.8, { align: 'center' });
 
     // Redraw inner border to cleanly frame the footer area
-    doc.setDrawColor(234, 245, 255);
+    doc.setDrawColor(234, 244, 255);
     doc.setLineWidth(0.35);
     doc.roundedRect(x + 0.8, y + 0.8, cardW - 1.6, cardH - 1.6, 2.5, 2.5, 'D');
   };
