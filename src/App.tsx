@@ -3474,7 +3474,7 @@ function AppContent() {
     );
   }
 
-  if (!authSession) {
+  if (!authSession || !authSession.user) {
     return (
       <LoginGateway
         onLogin={(session) => {
