@@ -3443,38 +3443,9 @@ app.post('/api/branding', async (req, res) => {
         console.log('[Branding] Cloudinary configured. Uploading logo to Cloudinary...');
         logoValue = await uploadToCloudinaryIfNeeded(logo, 'school_logo_branding');
       } else {
-        const fs = require('fs');
-        const path = require('path');
-        
-        const exportDir = getExportsDir();
-        if (!fs.existsSync(exportDir)) {
-          fs.mkdirSync(exportDir, { recursive: true });
-        }
-        
-        // Delete old logo files matching school_logo_* to prevent disk bloat
-        try {
-          const files = fs.readdirSync(exportDir);
-          for (const file of files) {
-            if (file.startsWith('school_logo_')) {
-              fs.unlinkSync(path.join(exportDir, file));
-            }
-          }
-        } catch (delErr) {
-          console.warn('Failed to clean up old logos:', delErr);
-        }
-        
-        // Extract data format and write to file
-        const matches = logo.match(/^data:image\/([a-zA-Z0-9+]+);base64,(.+)$/);
-        if (matches && matches.length === 3) {
-          const ext = matches[1] === 'svg+xml' ? 'svg' : matches[1];
-          const dataBuffer = Buffer.from(matches[2], 'base64');
-          const filename = `school_logo_${Date.now()}.${ext}`;
-          const filePath = path.join(exportDir, filename);
-          
-          fs.writeFileSync(filePath, dataBuffer);
-          logoValue = `/api/pdf/download/${filename}`;
-          console.log(`Saved new school logo to disk: ${filePath}`);
-        }
+        // Ephemeral disk fallback: Save the raw base64 string directly in the database
+        // to ensure it survives server restarts/redeployments on Railway/Render.
+        logoValue = logo;
       }
     }
     
