@@ -240,11 +240,11 @@ export async function generateStaffIdCardPng(
   ctx.textAlign = 'center';
   ctx.fillText('STAFF IDENTITY CARD', pillX + pillW / 2, pillY + 27);
 
-  // --- 9. Left Column: Passport Photo Frame (Shifted down slightly) ---
+  // --- 9. Left Column: Passport Photo Frame (Shifted down slightly, reduced by 10%) ---
   const photoX = 40;
-  const photoY = 210;
-  const photoW = 300;
-  const photoH = 300;
+  const photoW = 270;
+  const photoH = 270;
+  const photoY = 225; // center vertically inside middle body Y range (210 to 510)
 
   // Shadow for passport frame
   ctx.save();
@@ -432,14 +432,10 @@ export async function generateStaffIdCardPng(
   }
 
   // Subtexts inside QR container box
-  ctx.fillStyle = '#6B7280'; // Neutral Gray
-  ctx.font = '500 11px "Poppins", "Montserrat", sans-serif';
-  ctx.textAlign = 'center';
-  ctx.fillText('Digital Verification', qrBoxX + qrBoxW / 2, qrBoxY + 218);
-
   ctx.fillStyle = '#0B4A8B'; // Primary Blue
-  ctx.font = 'bold 13px "Poppins", "Montserrat", sans-serif';
-  ctx.fillText('Scan QR Code', qrBoxX + qrBoxW / 2, qrBoxY + 242);
+  ctx.font = 'bold 14px "Poppins", "Montserrat", sans-serif';
+  ctx.textAlign = 'center';
+  ctx.fillText('Scan QR Code', qrBoxX + qrBoxW / 2, qrBoxY + 230);
 
   // --- 12. Bottom Row: 4 equal columns separated by vertical divider lines ---
   const bottomY = 515;

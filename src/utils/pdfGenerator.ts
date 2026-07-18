@@ -1576,11 +1576,11 @@ export async function generateStaffIdCardsPdf({
     doc.setFontSize(4.0);
     doc.text("STAFF IDENTITY CARD", pillX + pillW / 2, pillY + 2.5, { align: 'center' });
 
-    // 9. Photo Section
+    // 9. Photo Section (reduced size by 10%)
     const photoX = x + 3.5;
-    const photoY = y + 14.8;
-    const photoW = 25.0;
-    const photoH = 29.5;
+    const photoW = 22.5;
+    const photoH = 26.55; // 29.5 * 0.9 = 26.55
+    const photoY = y + 14.8 + 1.4; // vertically center slightly
 
     // Photo Drop Shadow (soft gray rect behind it)
     doc.setFillColor(235, 240, 247);
@@ -1722,15 +1722,10 @@ export async function generateStaffIdCardsPdf({
       doc.rect(qrX, qrY, qrSize, qrSize, 'D');
     }
 
-    doc.setTextColor(107, 114, 128); // Neutral Gray
-    doc.setFont("helvetica", "bold");
-    doc.setFontSize(2.0);
-    doc.text("Digital Verification", qrBoxX + qrBoxW / 2, qrBoxY + 18.2, { align: 'center' });
-
     doc.setTextColor(11, 74, 139); // Primary Blue
     doc.setFont("helvetica", "bold");
-    doc.setFontSize(2.6);
-    doc.text("Scan QR Code", qrBoxX + qrBoxW / 2, qrBoxY + 21.2, { align: 'center' });
+    doc.setFontSize(3.2);
+    doc.text("Scan QR Code", qrBoxX + qrBoxW / 2, qrBoxY + 19.8, { align: 'center' });
 
     // 12. Bottom Row (4 equally spaced columns separated by vertical line vectors)
     const bottomY = y + 43.5;

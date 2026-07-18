@@ -128,9 +128,9 @@ export default function StaffCard({ staff, logoBase64, showWatermark = true }: S
           {/* Three-Column Body Layout */}
           <div className="flex-1 flex items-center justify-between gap-[2cqw] min-h-0">
             
-            {/* Column 1: Passport Photo */}
+            {/* Column 1: Passport Photo (reduced size by 10%) */}
             <div className="shrink-0 relative">
-              <div className="w-[41cqw] h-[50cqw] bg-white border-[0.18cqw] border-[#2F80ED]/15 rounded-[12px] p-[0.2cqw] shadow-md flex items-center justify-center overflow-hidden">
+              <div className="w-[37cqw] h-[45cqw] bg-white border-[0.18cqw] border-[#2F80ED]/15 rounded-[12px] p-[0.2cqw] shadow-md flex items-center justify-center overflow-hidden">
                 {staff.photo ? (
                   <img 
                     src={staff.photo} 
@@ -184,10 +184,7 @@ export default function StaffCard({ staff, logoBase64, showWatermark = true }: S
               <div className="bg-[#EAF4FF] border border-[#2F80ED]/20 rounded-xl p-[1.5cqw] flex flex-col items-center justify-center gap-[1cqw] shadow-xs w-full">
                 <img src={qrCodeUrl} alt="Verification QR" className="w-[17cqw] h-[17cqw] object-contain rounded-md" />
                 <div className="flex flex-col items-center leading-none text-center">
-                  <span className="text-[1.3cqw] font-medium text-[#6B7280] tracking-[0.2px] uppercase">
-                    Digital Verification
-                  </span>
-                  <span className="text-[1.5cqw] font-bold text-[#0B4A8B] tracking-[0.5px] mt-[0.5cqw] uppercase">
+                  <span className="text-[1.6cqw] font-bold text-[#0B4A8B] tracking-[0.5px] uppercase">
                     Scan QR Code
                   </span>
                 </div>
