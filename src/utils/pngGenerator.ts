@@ -284,18 +284,18 @@ export async function generateStaffIdCardPng(
   ctx.font = 'bold 18px "Poppins", "Montserrat", sans-serif';
   ctx.fillText('P.O. BOX 678, NASUTI, IGANGA', 152, 102);
 
-  const badgeW = 145;
-  const badgeH = 36;
+  const badgeW = 90;
+  const badgeH = 34;
   const badgeX = canvas.width - badgeW - 40;
   const badgeY = 96;
   ctx.fillStyle = '#0B6CB8';
-  drawRoundedRect(ctx, badgeX, badgeY, badgeW, badgeH, 18);
+  drawRoundedRect(ctx, badgeX, badgeY, badgeW, badgeH, 6);
   ctx.fill();
 
   ctx.fillStyle = '#FFFFFF';
   ctx.font = 'bold 18px "Poppins", "Montserrat", sans-serif';
   ctx.textAlign = 'center';
-  ctx.fillText('STAFF ID', badgeX + badgeW / 2, badgeY + 24);
+  ctx.fillText('STAFF', badgeX + badgeW / 2, badgeY + 23);
 
   // Horizontal Header Divider
   ctx.strokeStyle = '#0B6CB8';
@@ -305,11 +305,29 @@ export async function generateStaffIdCardPng(
   ctx.lineTo(canvas.width - 40, 142);
   ctx.stroke();
 
-  // --- 9. Left Column: Passport Photo Frame (Increased size by ~25%) ---
+  // --- Centered Pill: STAFF IDENTITY CARD ---
+  const pillW = 440;
+  const pillH = 42;
+  const pillX = (canvas.width - pillW) / 2;
+  const pillY = 158;
+  
+  const pillGrad = ctx.createLinearGradient(pillX, 0, pillX + pillW, 0);
+  pillGrad.addColorStop(0, '#0B6CB8');
+  pillGrad.addColorStop(1, '#003E7E');
+  ctx.fillStyle = pillGrad;
+  drawRoundedRect(ctx, pillX, pillY, pillW, pillH, 21);
+  ctx.fill();
+
+  ctx.fillStyle = '#FFFFFF';
+  ctx.font = 'bold 18px "Poppins", "Montserrat", sans-serif';
+  ctx.textAlign = 'center';
+  ctx.fillText('STAFF IDENTITY CARD', pillX + pillW / 2, pillY + 27);
+
+  // --- 9. Left Column: Passport Photo Frame (Shifted down slightly) ---
   const photoX = 40;
-  const photoY = 152;
+  const photoY = 210;
   const photoW = 300;
-  const photoH = 365;
+  const photoH = 300;
 
   // Shadow for passport frame
   ctx.save();
@@ -375,13 +393,12 @@ export async function generateStaffIdCardPng(
   ctx.fill();
   ctx.restore();
 
-  // --- 10. Middle Column: Staff Details List with Vector Icons (Aligned and spaced) ---
-  const iconX = 370;
-  const labelX = 410;
-  const valueX = 540; // Perfectly aligned values column
+  // --- 10. Middle Column: Staff Details List (Aligned and spaced) ---
+  const labelX = 360;
+  const valueX = 500;
   
-  const startRowY = 190;
-  const rowSpacing = 72;
+  const startRowY = 230;
+  const rowSpacing = 68;
 
   const labels = ['NAME:', 'STAFF NO:', 'DESIGNATION:', 'DEPARTMENT:', 'GENDER:'];
   const fullName = `${member.firstName || ''} ${member.middleName ? member.middleName + ' ' : ''}${member.lastName || ''}`.toUpperCase().trim() || member.name || 'Not Available';
@@ -390,33 +407,15 @@ export async function generateStaffIdCardPng(
   const department = (member.department || 'Not Available').toUpperCase();
   const gender = (member.gender || 'Female').toUpperCase();
   const values = [fullName, staffNo, position, department, gender];
-  const drawIcons = [
-    drawCanvasUserIcon,
-    drawCanvasIdCardIcon,
-    drawCanvasBriefcaseIcon,
-    drawCanvasBuildingIcon,
-    drawCanvasGenderIcon
-  ];
 
   ctx.textAlign = 'left';
   for (let i = 0; i < labels.length; i++) {
     const rowY = startRowY + i * rowSpacing;
 
-    // Draw Vector Icon
-    drawIcons[i](iconX, rowY - 22, 30);
-
     // Label styling
     ctx.fillStyle = '#0B6CB8';
     ctx.font = 'bold 15px "Poppins", "Montserrat", sans-serif';
-    ctx.save();
-    let currentX = labelX;
-    const letterSpacing = 1.5;
-    for (let charIdx = 0; charIdx < labels[i].length; charIdx++) {
-      const char = labels[i][charIdx];
-      ctx.fillText(char, currentX, rowY);
-      currentX += ctx.measureText(char).width + letterSpacing;
-    }
-    ctx.restore();
+    ctx.fillText(labels[i], labelX, rowY);
 
     // Value styling
     if (i === 0) {
@@ -428,8 +427,8 @@ export async function generateStaffIdCardPng(
     }
 
     let valStr = values[i];
-    // Truncate if too long to prevent overlapping right column (QR Box starts at 722)
-    const maxWidth = 172;
+    // Truncate if too long (QR Box starts at 749, valueX is 500, so maxWidth is 210)
+    const maxWidth = 210;
     if (ctx.measureText(valStr).width > maxWidth) {
       while (ctx.measureText(valStr + '...').width > maxWidth && valStr.length > 0) {
         valStr = valStr.substring(0, valStr.length - 1);
@@ -536,6 +535,8 @@ export async function generateStaffIdCardPng(
   ctx.stroke();
 
   // Draw signatures if signature exists
+  const isHeadTeacher = (member.position || '').replace(/\s+/g, '').toUpperCase() === 'HEADTEACHER';
+
   if (member.signature) {
     try {
       const sigImg = await loadImage(member.signature);
@@ -546,10 +547,11 @@ export async function generateStaffIdCardPng(
     }
   } else {
     const sigText = member.lastName || 'Staff';
+    const authText = isHeadTeacher ? (member.lastName || 'Head Teacher') : 'Authorized';
     ctx.fillStyle = '#475569';
     ctx.font = 'italic 16px "Courier New", Courier, monospace';
     ctx.fillText(sigText, 379.5, footerValY - 5);
-    ctx.fillText('Authorized', 632.5, footerValY - 5);
+    ctx.fillText(authText, 632.5, footerValY - 5);
   }
 
   // Expiry Date (Col 4)

@@ -15,6 +15,7 @@ export default function StaffCard({ staff, logoBase64, showWatermark = true }: S
   const staffNo = staff.employeeNumber || staff.id || 'Not Available';
   const position = staff.position || 'Not Available';
   const department = staff.department || 'Not Available';
+  const isHeadTeacher = (staff.position || '').replace(/\s+/g, '').toUpperCase() === 'HEADTEACHER';
   
   // Format Date to '24 Jun 2026'
   const formatDate = (dateInput: any) => {
@@ -132,19 +133,26 @@ export default function StaffCard({ staff, logoBase64, showWatermark = true }: S
             </div>
           </div>
           
-          {/* STAFF ID badge with absolute positioning to prevent collision */}
-          <div className="absolute top-[5.8cqw] right-0 bg-gradient-to-r from-[#0B6CB8] to-[#003E7E] text-white text-[1.8cqw] font-black tracking-widest px-[2.4cqw] py-[0.6cqw] rounded-full uppercase shadow-md z-20">
-            STAFF ID
+          {/* STAFF badge with absolute positioning */}
+          <div className="absolute top-[5.8cqw] right-0 bg-[#0B6CB8] text-white text-[1.8cqw] font-black tracking-widest px-[2cqw] py-[0.5cqw] rounded-[4px] uppercase z-20">
+            STAFF
+          </div>
+        </div>
+
+        {/* Centered Pill: STAFF IDENTITY CARD */}
+        <div className="flex justify-center mt-[1.2cqw] mb-[0.2cqw] w-full z-10 shrink-0">
+          <div className="bg-gradient-to-r from-[#0B6CB8] to-[#003E7E] text-white text-[2cqw] font-black tracking-widest px-[4cqw] py-[0.6cqw] rounded-full uppercase shadow-xs">
+            STAFF IDENTITY CARD
           </div>
         </div>
 
         {/* Middle Section (Body Area) */}
-        <div className="relative z-10 flex-1 flex flex-col mt-[1cqw] min-h-0">
+        <div className="relative z-10 flex-1 flex flex-col mt-[0.5cqw] min-h-0">
           
           {/* Three-Column Body Layout */}
           <div className="flex-1 flex items-center justify-between gap-[2cqw] min-h-0">
             
-            {/* Column 1: Passport Photo (Increased by ~25%) */}
+            {/* Column 1: Passport Photo */}
             <div className="shrink-0 relative">
               <div className="w-[39cqw] h-[48cqw] bg-white border-[0.25cqw] border-[#0B6CB8] rounded-[1.2cqw] p-[0.25cqw] shadow-lg flex items-center justify-center overflow-hidden">
                 {staff.photo ? (
@@ -165,43 +173,28 @@ export default function StaffCard({ staff, logoBase64, showWatermark = true }: S
               <div className="absolute -right-[1cqw] top-1/2 -translate-y-1/2 w-[2.4cqw] h-[2.4cqw] bg-gradient-to-r from-sky-300 to-cyan-300 rounded-full opacity-80 blur-[0.5px] shadow-xs pointer-events-none z-20" />
             </div>
 
-            {/* Column 2: Staff Details Table (aligned with photo, styled beautifully) */}
+            {/* Column 2: Staff Details List */}
             <div className="flex-1 flex flex-col justify-center text-left min-w-0 h-[48cqw] pl-[1cqw]">
-              <div className="grid grid-cols-[18cqw_1fr] gap-x-[1cqw] gap-y-[2.2cqw] text-[3.6cqw] items-center text-slate-800 leading-none">
+              <div className="grid grid-cols-[26cqw_1fr] gap-x-[1cqw] gap-y-[2cqw] text-[3.4cqw] items-center text-slate-800 leading-none">
                 
                 {/* NAME */}
-                <div className="flex items-center gap-[1cqw] text-[#0B6CB8]">
-                  <User className="w-[3.2cqw] h-[3.2cqw]" />
-                  <span className="font-extrabold uppercase text-[3cqw]" style={{ letterSpacing: '1.5px' }}>NAME:</span>
-                </div>
+                <span className="font-extrabold text-[#0B6CB8] tracking-[1.5px] uppercase">NAME:</span>
                 <span className="font-black text-black uppercase truncate text-[4.6cqw]">{fullName}</span>
 
                 {/* STAFF NO */}
-                <div className="flex items-center gap-[1cqw] text-[#0B6CB8]">
-                  <IdCard className="w-[3.2cqw] h-[3.2cqw]" />
-                  <span className="font-extrabold uppercase text-[3cqw]" style={{ letterSpacing: '1.5px' }}>STAFF NO:</span>
-                </div>
+                <span className="font-extrabold text-[#0B6CB8] tracking-[1.5px] uppercase">STAFF NO:</span>
                 <span className="font-extrabold text-slate-700 uppercase font-mono truncate text-[3.8cqw]">{staffNo}</span>
 
                 {/* DESIGNATION */}
-                <div className="flex items-center gap-[1cqw] text-[#0B6CB8]">
-                  <Briefcase className="w-[3.2cqw] h-[3.2cqw]" />
-                  <span className="font-extrabold uppercase text-[3cqw]" style={{ letterSpacing: '1.5px' }}>DESIGNATION:</span>
-                </div>
+                <span className="font-extrabold text-[#0B6CB8] tracking-[1.5px] uppercase">DESIGNATION:</span>
                 <span className="font-extrabold text-slate-700 uppercase truncate text-[3.8cqw]">{position}</span>
 
                 {/* DEPARTMENT */}
-                <div className="flex items-center gap-[1cqw] text-[#0B6CB8]">
-                  <Building2 className="w-[3.2cqw] h-[3.2cqw]" />
-                  <span className="font-extrabold uppercase text-[3cqw]" style={{ letterSpacing: '1.5px' }}>DEPARTMENT:</span>
-                </div>
+                <span className="font-extrabold text-[#0B6CB8] tracking-[1.5px] uppercase">DEPARTMENT:</span>
                 <span className="font-extrabold text-slate-700 uppercase truncate text-[3.8cqw]">{department}</span>
 
                 {/* GENDER */}
-                <div className="flex items-center gap-[1cqw] text-[#0B6CB8]">
-                  <Users className="w-[3.2cqw] h-[3.2cqw]" />
-                  <span className="font-extrabold uppercase text-[3cqw]" style={{ letterSpacing: '1.5px' }}>GENDER:</span>
-                </div>
+                <span className="font-extrabold text-[#0B6CB8] tracking-[1.5px] uppercase">GENDER:</span>
                 <span className="font-extrabold text-slate-700 uppercase truncate text-[3.8cqw]">{staff.gender || 'Female'}</span>
               </div>
             </div>
@@ -270,7 +263,7 @@ export default function StaffCard({ staff, logoBase64, showWatermark = true }: S
                 />
               ) : (
                 <span className="text-[2cqw] font-mono italic text-slate-400 capitalize">
-                  {staff.lastName || 'Authorized'}
+                  {isHeadTeacher ? (staff.lastName || 'Head Teacher') : 'Authorized'}
                 </span>
               )}
             </div>

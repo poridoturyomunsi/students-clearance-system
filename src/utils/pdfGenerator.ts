@@ -1611,21 +1611,35 @@ export async function generateStaffIdCardsPdf({
     doc.setFontSize(5.2);
     doc.text("P.O. BOX 678, NASUTI, IGANGA", x + 14.5, y + 9.6);
 
-    const badgeW = 16.0;
+    const badgeW = 10.0;
     const badgeH = 3.5;
     const badgeX = x + cardW - badgeW - 3.5;
     const badgeY = y + 8.5;
     doc.setFillColor(11, 108, 184); // #0B6CB8
-    doc.roundedRect(badgeX, badgeY, badgeW, badgeH, 1.75, 1.75, 'F');
+    doc.roundedRect(badgeX, badgeY, badgeW, badgeH, 0.6, 0.6, 'F');
     doc.setTextColor(255, 255, 255);
     doc.setFont("helvetica", "bold");
     doc.setFontSize(4.0);
-    doc.text("STAFF ID", badgeX + badgeW / 2, badgeY + 2.4, { align: 'center' });
+    doc.text("STAFF", badgeX + badgeW / 2, badgeY + 2.4, { align: 'center' });
 
     // 7. Divider Line
     doc.setDrawColor(11, 108, 184);
     doc.setLineWidth(0.25);
     doc.line(x + 3.5, y + 14.2, x + cardW - 3.5, y + 14.2);
+
+    // Centered Pill Container: STAFF IDENTITY CARD
+    const pillW = 38.0;
+    const pillH = 3.6;
+    const pillX = x + (cardW - pillW) / 2;
+    const pillY = y + 15.0;
+
+    doc.setFillColor(11, 108, 184); // #0B6CB8
+    doc.roundedRect(pillX, pillY, pillW, pillH, 1.8, 1.8, 'F');
+
+    doc.setTextColor(255, 255, 255);
+    doc.setFont("helvetica", "bold");
+    doc.setFontSize(4.0);
+    doc.text("STAFF IDENTITY CARD", pillX + pillW / 2, pillY + 2.5, { align: 'center' });
 
     // 9. Photo Section (Col 1 - Increased size by ~25% proportional: 25.0x30.4mm)
     const photoX = x + 3.5;
@@ -1680,8 +1694,7 @@ export async function generateStaffIdCardsPdf({
     } catch (e) {}
 
     // 10. Staff Details (Middle Column)
-    const detailsX = x + 29.5;
-    const labelX = x + 33.0;
+    const labelX = x + 31.0;
     const valueX = x + 46.0;
     const fullName = `${member.firstName || ''} ${member.middleName ? member.middleName + ' ' : ''}${member.lastName || ''}`.toUpperCase().trim() || member.name || 'Not Available';
     
@@ -1689,12 +1702,8 @@ export async function generateStaffIdCardsPdf({
       lbl: string, 
       val: string, 
       rowY: number, 
-      drawIcon: (ix: number, iy: number, isize: number) => void,
       isName: boolean = false
     ) => {
-      // Draw Vector Icon
-      drawIcon(detailsX, rowY - 2.4, 3.0);
-
       // Label Text
       doc.setTextColor(11, 108, 184); // #0B6CB8
       doc.setFont("helvetica", "bold");
@@ -1707,7 +1716,7 @@ export async function generateStaffIdCardsPdf({
       doc.setFontSize(isName ? 6.5 : 5.0);
       
       let valStr = val || 'Not Available';
-      const maxValW = 13.5;
+      const maxValW = 14.5;
       // Truncate if it overlaps QR Box (which starts at 60.1mm)
       if (doc.getTextWidth(valStr) > maxValW) {
         while (doc.getTextWidth(valStr + '...') > maxValW && valStr.length > 0) {
@@ -1718,11 +1727,11 @@ export async function generateStaffIdCardsPdf({
       doc.text(valStr, valueX, rowY);
     };
 
-    drawDetailRow("NAME:", fullName, y + 18.0, drawPdfUserIcon, true);
-    drawDetailRow("STAFF NO:", member.employeeNumber || member.id || 'Not Available', y + 24.0, drawPdfIdCardIcon);
-    drawDetailRow("DESIGNATION:", (member.position || 'Not Available').toUpperCase(), y + 30.0, drawPdfBriefcaseIcon);
-    drawDetailRow("DEPARTMENT:", (member.department || 'Not Available').toUpperCase(), y + 36.0, drawPdfBuildingIcon);
-    drawDetailRow("GENDER:", (member.gender || 'Female').toUpperCase(), y + 42.0, drawPdfGenderIcon);
+    drawDetailRow("NAME:", fullName, y + 21.0, true);
+    drawDetailRow("STAFF NO:", member.employeeNumber || member.id || 'Not Available', y + 26.5);
+    drawDetailRow("DESIGNATION:", (member.position || 'Not Available').toUpperCase(), y + 32.0);
+    drawDetailRow("DEPARTMENT:", (member.department || 'Not Available').toUpperCase(), y + 37.5);
+    drawDetailRow("GENDER:", (member.gender || 'Female').toUpperCase(), y + 43.0);
 
     // 11. Seamless QR Verification (QR Code same size and position, no borders or containers)
     const qrSize = 16.5;
@@ -1821,6 +1830,8 @@ export async function generateStaffIdCardsPdf({
     doc.setLineWidth(0.15);
     doc.line(x + 45.5, bottomY + 7.0, x + 61.5, bottomY + 7.0);
 
+    const isHeadTeacher = (member.position || '').replace(/\s+/g, '').toUpperCase() === 'HEADTEACHER';
+
     if (member.signature) {
       try {
         doc.addImage(member.signature, 'PNG', x + 46.0, bottomY + 3.2, 15, 3.8);
@@ -1832,7 +1843,7 @@ export async function generateStaffIdCardsPdf({
       doc.setTextColor(100, 116, 139);
       doc.setFont("courier", "oblique");
       doc.setFontSize(4.5);
-      doc.text('Authorized', x + 53.5, bottomY + 6.0, { align: 'center' });
+      doc.text(isHeadTeacher ? (member.lastName || 'Head Teacher') : 'Authorized', x + 53.5, bottomY + 6.0, { align: 'center' });
       doc.restoreGraphicsState();
     }
 
