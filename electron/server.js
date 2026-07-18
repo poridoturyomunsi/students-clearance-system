@@ -8073,8 +8073,19 @@ app.get('/api/reports/staff', async (req, res) => {
 app.get('/api/verify/:token', async (req, res) => {
   try {
     const { token } = req.params;
-    const [vRows] = await pool.query('SELECT * FROM verifications WHERE token = ?', [token]);
+    let [vRows] = await pool.query('SELECT * FROM verifications WHERE token = ?', [token]);
     
+    // Fallback: If not found by verification token, check if the token is a staff employee number or ID
+    if (vRows.length === 0) {
+      const [sRows] = await pool.query('SELECT * FROM staff WHERE employee_number = ? OR id = ?', [token, token]);
+      if (sRows.length > 0) {
+        const staff = sRows[0];
+        if (staff.verification_token) {
+          [vRows] = await pool.query('SELECT * FROM verifications WHERE token = ?', [staff.verification_token]);
+        }
+      }
+    }
+
     if (vRows.length === 0) {
       return res.json({ success: false, status: 'Invalid ID', error: 'Document not found or invalid verification token.' });
     }
@@ -8114,6 +8125,7 @@ app.get('/api/verify/:token', async (req, res) => {
         return res.json({
           success: false,
           status: status === 'Expired' ? 'Expired Staff ID' : `${status} Staff ID`,
+          documentType: 'Staff ID',
           metadata
         });
       }
@@ -8121,6 +8133,7 @@ app.get('/api/verify/:token', async (req, res) => {
       return res.json({
         success: true,
         status: 'Verified',
+        documentType: 'Staff ID',
         metadata
       });
     }
