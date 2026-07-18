@@ -1884,142 +1884,131 @@ export async function generateStaffIdCardsPdf({
     doc.setLineWidth(0.35);
     doc.roundedRect(x + 0.8, y + 0.8, cardW - 1.6, cardH - 1.6, 2.5, 2.5, 'D');
 
-    // 5. Header Banner (Navy blue background with school name in white)
-    doc.setFillColor(0, 62, 126); // #003E7E
-    doc.roundedRect(x + 1.2, y + 1.2, cardW - 2.4, 8.5, 2.5, 2.5, 'F');
-    doc.rect(x + 1.2, y + 5.5, cardW - 2.4, 4.2, 'F');
+    // 5. Matching Header (Logo, School Details, Badge)
+    const crestBoxX = x + 3.5;
+    const crestBoxY = y + 2.8;
+    const crestBoxW = 9.8;
+    const crestBoxH = 9.8;
+    doc.setFillColor(255, 255, 255);
+    doc.setDrawColor(234, 245, 255);
+    doc.setLineWidth(0.18);
+    doc.roundedRect(crestBoxX, crestBoxY, crestBoxW, crestBoxH, 0.8, 0.8, 'FD');
 
+    if (activeLogoPng) {
+      try {
+        doc.addImage(activeLogoPng, 'PNG', crestBoxX + 0.6, crestBoxY + 0.6, crestBoxW - 1.2, crestBoxH - 1.2);
+      } catch (e) {
+        console.warn("Crest logo draw failed on back", e);
+      }
+    }
+
+    doc.setTextColor(0, 62, 126); // #003E7E
+    doc.setFont("helvetica", "bold");
+    doc.setFontSize(7.5);
+    doc.text("ST. PAUL SECONDARY SCHOOL, NASUTI", x + 14.5, y + 6.2);
+
+    doc.setTextColor(100, 116, 139);
+    doc.setFont("helvetica", "bold");
+    doc.setFontSize(5.2);
+    doc.text("P.O. BOX 678, NASUTI, IGANGA", x + 14.5, y + 9.6);
+
+    const badgeW = 16.0;
+    const badgeH = 3.5;
+    const badgeX = x + cardW - badgeW - 3.5;
+    const badgeY = y + 8.5;
+    doc.setFillColor(11, 108, 184); // #0B6CB8
+    doc.roundedRect(badgeX, badgeY, badgeW, badgeH, 1.75, 1.75, 'F');
     doc.setTextColor(255, 255, 255);
     doc.setFont("helvetica", "bold");
-    doc.setFontSize(6.8);
-    doc.text("ST. PAUL SECONDARY SCHOOL, NASUTI", x + cardW / 2, y + 6.8, { align: 'center' });
+    doc.setFontSize(4.0);
+    doc.text("STAFF ID", badgeX + badgeW / 2, badgeY + 2.4, { align: 'center' });
 
-    // 6. Card Number Block
-    doc.setTextColor(0, 62, 126);
-    doc.setFont("helvetica", "bold");
-    doc.setFontSize(5.8);
-    doc.text(`CARD NO: SPSS-ST-${member.id}`, x + 5, y + 14.5);
+    // Divider Line
+    doc.setDrawColor(11, 108, 184);
+    doc.setLineWidth(0.25);
+    doc.line(x + 3.5, y + 14.2, x + cardW - 3.5, y + 14.2);
 
-    // 7. Ownership Rules
+    // 6. Card Use Policy & Terms
     doc.setTextColor(0, 62, 126);
     doc.setFont("helvetica", "bold");
     doc.setFontSize(5.0);
-    doc.text("CARD USE POLICY & TERMS", x + 5, y + 19.5);
+    doc.text("CARD USE POLICY & TERMS", x + 5, y + 18.0);
 
     doc.setTextColor(71, 85, 105);
     doc.setFont("helvetica", "normal");
-    doc.setFontSize(4.4);
+    doc.setFontSize(4.2);
     const terms = [
       "1. This card is the property of St. Paul Secondary School.",
-      "2. It must be worn prominently at all times while on school premises.",
-      "3. The holder is responsible for the security and custody of this card.",
-      "4. If found, please return to the school administration office."
+      "2. It must be worn prominently at all times on school premises.",
+      "3. If found, please return to the school administration office immediately."
     ];
-    let ty = y + 23.0;
+    let ty = y + 21.5;
     terms.forEach(term => {
       doc.text(term, x + 5, ty);
       ty += 2.8;
     });
 
-    // 8. Contact Information
-    doc.setTextColor(100, 116, 139);
+    // 7. Emergency Contact & Validity
+    doc.setTextColor(0, 62, 126);
     doc.setFont("helvetica", "bold");
-    doc.setFontSize(4.0);
-    doc.text("Email: admin@stpaul.edu | Web: www.stpaul.edu | Tel: +256 701 234 567", x + 5, y + 36.0);
+    doc.setFontSize(4.5);
+    doc.text("EMERGENCY CONTACT:", x + 5, y + 31.5);
+    
+    doc.setTextColor(71, 85, 105);
+    doc.setFont("helvetica", "normal");
+    doc.setFontSize(4.2);
+    doc.text("Admin Office: +256 701 234 567", x + 5, y + 34.5);
 
-    // 9. Divider line
+    doc.setTextColor(0, 62, 126);
+    doc.setFont("helvetica", "bold");
+    doc.setFontSize(4.5);
+    doc.text("CARD VALIDITY:", x + 48, y + 31.5);
+    
+    doc.setTextColor(71, 85, 105);
+    doc.setFont("helvetica", "normal");
+    doc.setFontSize(4.2);
+    doc.text("Valid for 5 years from issue date", x + 48, y + 34.5);
+
+    // 8. Divider line above barcode/serial
     doc.setDrawColor(226, 232, 240);
     doc.setLineWidth(0.2);
-    doc.line(x + 5, y + 38.5, x + cardW - 5, y + 38.5);
+    doc.line(x + 5, y + 38.0, x + cardW - 5, y + 38.0);
 
-    // 10. Barcode generated from staff number (employeeNumber || id)
+    // 9. Barcode generated from staff number (employeeNumber || id)
     const barcodeVal = member.employeeNumber || member.id;
-    drawPdfBarcode(doc, x + 5, y + 41.5, barcodeVal, 5.5, 0.55);
+    doc.saveGraphicsState();
+    drawPdfBarcode(doc, x + 5, y + 40.5, barcodeVal, 5.5, 0.55);
+    doc.restoreGraphicsState();
 
     // Text representation of barcode below it
     doc.setTextColor(71, 85, 105);
     doc.setFont("Courier", "bold");
     doc.setFontSize(5.5);
-    doc.text(barcodeVal, x + 16, y + 49.5);
+    doc.text(barcodeVal, x + 16, y + 48.5);
 
-    // 11. Unique Serial Number (bottom right)
+    // 10. Unique Serial Number (bottom right)
     const serialNo = `SPSSN-2026-${(member.employeeNumber || member.id || "0000").replace(/[^0-9]/g, "").slice(0, 5).padStart(5, "0")}`;
     doc.setTextColor(100, 116, 139);
     doc.setFont("helvetica", "bold");
     doc.setFontSize(4.5);
-    doc.text(`S/N: ${serialNo}`, x + cardW - 5, y + 48.0, { align: 'right' });
+    doc.text(`S/N: ${serialNo}`, x + cardW - 5, y + 47.0, { align: 'right' });
   };
 
-  if (printSide === 'front') {
-    let counter = 0;
-    for (let i = 0; i < staffList.length; i++) {
-      const member = staffList[i];
-      if (onProgress) onProgress(i + 1, staffList.length);
+  let counter = 0;
+  for (let i = 0; i < staffList.length; i++) {
+    const member = staffList[i];
+    if (onProgress) onProgress(i + 1, staffList.length);
 
-      const rowIdx = counter % 4;
-      const py = marginY + rowIdx * (cardH + spacingY);
+    const rowIdx = counter % 4;
+    const py = marginY + rowIdx * (cardH + spacingY);
 
-      await drawStaffFront(doc, marginX, py, member);
-      await drawStaffFront(doc, marginX + cardW + spacingX, py, member);
+    // Front of Staff ID on the left, Back on the right
+    await drawStaffFront(doc, marginX, py, member);
+    await drawStaffBack(doc, marginX + cardW + spacingX, py, member);
 
-      counter++;
-      if (counter % 4 === 0 && i < staffList.length - 1) {
-        doc.addPage();
-      }
-    }
-  } else if (printSide === 'back') {
-    let counter = 0;
-    for (let i = 0; i < staffList.length; i++) {
-      const member = staffList[i];
-      if (onProgress) onProgress(i + 1, staffList.length);
-
-      const rowIdx = counter % 4;
-      const py = marginY + rowIdx * (cardH + spacingY);
-
-      await drawStaffBack(doc, marginX, py, member);
-      await drawStaffBack(doc, marginX + cardW + spacingX, py, member);
-
-      counter++;
-      if (counter % 4 === 0 && i < staffList.length - 1) {
-        doc.addPage();
-      }
-    }
-  } else {
-    // Generate Front page, then Back page of paired sheet for each batch of 4 staff
-    const perPage = 4;
-    const totalPages = Math.ceil(staffList.length / perPage);
-
-    for (let pageIdx = 0; pageIdx < totalPages; pageIdx++) {
-      if (pageIdx > 0) doc.addPage();
-
-      // Front Page
-      const startIdx = pageIdx * perPage;
-      const endIdx = Math.min(startIdx + perPage, staffList.length);
-
-      for (let i = startIdx; i < endIdx; i++) {
-        const member = staffList[i];
-        const rowIdx = (i - startIdx) % perPage;
-        const py = marginY + rowIdx * (cardH + spacingY);
-
-        await drawStaffFront(doc, marginX, py, member);
-        await drawStaffFront(doc, marginX + cardW + spacingX, py, member);
-      }
-
-      // Back Page
+    counter++;
+    if (counter % 4 === 0 && i < staffList.length - 1) {
       doc.addPage();
-      for (let i = startIdx; i < endIdx; i++) {
-        const member = staffList[i];
-        const rowIdx = (i - startIdx) % perPage;
-        const py = marginY + rowIdx * (cardH + spacingY);
-
-        await drawStaffBack(doc, marginX, py, member);
-        await drawStaffBack(doc, marginX + cardW + spacingX, py, member);
-      }
-
-      if (onProgress) {
-        onProgress(Math.min((pageIdx + 1) * perPage, staffList.length), staffList.length);
-      }
-      await new Promise(resolve => setTimeout(resolve, 0));
     }
   }
 
