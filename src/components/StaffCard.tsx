@@ -206,15 +206,10 @@ export default function StaffCard({ staff, logoBase64, showWatermark = true }: S
               </div>
             </div>
 
-            {/* Column 3: Redesigned White QR Verification Box */}
-            <div className="shrink-0 bg-white border-[1.5px] border-[#0B6CB8] rounded-[12px] shadow-[0_4px_12px_rgba(11,108,184,0.06)] w-[34cqw] h-[48cqw] flex flex-col items-center justify-between p-[1.8cqw] z-10">
-              <span className="text-[1.8cqw] font-bold text-[#0B6CB8] tracking-[0.5px] text-center uppercase leading-none mt-[0.2cqw]">
-                Official Verification
-              </span>
-              <div className="w-[26cqw] h-[26cqw] flex items-center justify-center bg-white overflow-hidden p-[1cqw]">
-                <img src={qrCodeUrl} alt="Verification QR" className="w-full h-full object-contain" />
-              </div>
-              <span className="text-[2.2cqw] font-black text-[#0B6CB8] tracking-[1px] text-center uppercase leading-none mb-[0.2cqw]">
+            {/* Column 3: Seamless QR Verification */}
+            <div className="shrink-0 w-[34cqw] h-[48cqw] flex flex-col items-center justify-center gap-[2cqw] z-10">
+              <img src={qrCodeUrl} alt="Verification QR" className="w-[26cqw] h-[26cqw] object-contain" />
+              <span className="text-[2.2cqw] font-black text-[#0B6CB8] tracking-[1px] text-center uppercase leading-none">
                 Scan to Verify
               </span>
             </div>

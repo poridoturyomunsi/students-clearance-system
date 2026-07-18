@@ -1724,34 +1724,10 @@ export async function generateStaffIdCardsPdf({
     drawDetailRow("DEPARTMENT:", (member.department || 'Not Available').toUpperCase(), y + 36.0, drawPdfBuildingIcon);
     drawDetailRow("GENDER:", (member.gender || 'Female').toUpperCase(), y + 42.0, drawPdfGenderIcon);
 
-    // 11. Redesigned QR Verification Box (Increased size to 22.0 x 29.5mm)
-    const qrBoxW = 22.0;
-    const qrBoxH = 29.5;
-    const qrBoxX = x + cardW - qrBoxW - 3.5;
-    const qrBoxY = y + 14.8;
-
-    // Outer shadow (soft gray offset rectangle)
-    doc.saveGraphicsState();
-    doc.setFillColor(242, 245, 250);
-    doc.roundedRect(qrBoxX + 0.3, qrBoxY + 0.3, qrBoxW, qrBoxH, 1.2, 1.2, 'F');
-
-    // Main Box (White bg, blue border)
-    doc.setFillColor(255, 255, 255);
-    doc.setDrawColor(11, 108, 184); // #0B6CB8
-    doc.setLineWidth(0.25); // thin blue border
-    doc.roundedRect(qrBoxX, qrBoxY, qrBoxW, qrBoxH, 1.2, 1.2, 'FD');
-    doc.restoreGraphicsState();
-
-    // Heading inside QR box
-    doc.setTextColor(11, 108, 184);
-    doc.setFont("helvetica", "bold");
-    doc.setFontSize(3.2);
-    doc.text("Official Verification", qrBoxX + qrBoxW / 2, qrBoxY + 3.0, { align: 'center' });
-
-    // QR Code Container
+    // 11. Seamless QR Verification (QR Code same size and position, no borders or containers)
     const qrSize = 16.5;
-    const qrX = qrBoxX + (qrBoxW - qrSize) / 2;
-    const qrY = qrBoxY + 4.5;
+    const qrX = x + cardW - 22.75;
+    const qrY = y + 19.3;
 
     // Scanned URL Points to /staff/verify/{staffNo}
     const verificationUrl = `${window.location.origin}/staff/verify/${member.employeeNumber || member.id}`;
@@ -1767,7 +1743,7 @@ export async function generateStaffIdCardsPdf({
     doc.setTextColor(11, 108, 184); // #0B6CB8
     doc.setFont("helvetica", "bold");
     doc.setFontSize(3.8);
-    doc.text("Scan to Verify", qrBoxX + qrBoxW / 2, qrBoxY + 25.5, { align: 'center' });
+    doc.text("Scan to Verify", x + cardW - 14.5, y + 40.3, { align: 'center' });
 
     // 12. Bottom Row (4 equally spaced columns separated by vertical line vectors)
     const bottomY = y + 45.0;

@@ -439,39 +439,10 @@ export async function generateStaffIdCardPng(
     ctx.fillText(valStr, valueX, rowY);
   }
 
-  // --- 11. Redesigned QR Verification Box (Increased size and structured headers)
-  const qrBoxW = 250;
-  const qrBoxH = 365;
-  const qrBoxX = canvas.width - qrBoxW - 40;
-  const qrBoxY = 152;
-
-  // Outer shadow (soft gray offset)
-  ctx.save();
-  ctx.fillStyle = '#F2F5FA';
-  drawRoundedRect(ctx, qrBoxX + 4, qrBoxY + 4, qrBoxW, qrBoxH, 15);
-  ctx.fill();
-  ctx.restore();
-
-  // Main Box (White bg, blue border)
-  ctx.save();
-  ctx.fillStyle = '#FFFFFF';
-  ctx.strokeStyle = '#0B6CB8';
-  ctx.lineWidth = 2.5; // thin blue border
-  drawRoundedRect(ctx, qrBoxX, qrBoxY, qrBoxW, qrBoxH, 15);
-  ctx.fill();
-  ctx.stroke();
-  ctx.restore();
-
-  // Heading above QR code
-  ctx.fillStyle = '#0B6CB8';
-  ctx.font = 'bold 13px "Poppins", "Montserrat", sans-serif';
-  ctx.textAlign = 'center';
-  ctx.fillText('Official Verification', qrBoxX + qrBoxW / 2, qrBoxY + 32);
-
-  // QR Code Container (increased size)
+  // --- 11. Seamless QR Verification (QR Code same size and position, no borders or containers)
   const qrSize = 196;
-  const qrX = qrBoxX + (qrBoxW - qrSize) / 2;
-  const qrY = qrBoxY + 54;
+  const qrX = canvas.width - 263;
+  const qrY = 206;
 
   // Scanned QR code URL: points to /staff/verify/{staffNumber}
   try {
@@ -487,7 +458,7 @@ export async function generateStaffIdCardPng(
   ctx.fillStyle = '#0B6CB8';
   ctx.font = 'bold 16px "Poppins", "Montserrat", sans-serif';
   ctx.textAlign = 'center';
-  ctx.fillText('Scan to Verify', qrBoxX + qrBoxW / 2, qrBoxY + 312);
+  ctx.fillText('Scan to Verify', canvas.width - 165, 464);
 
   // --- 12. Bottom Row: 4 equal columns separated by vertical divider lines ---
   const bottomY = 530;
