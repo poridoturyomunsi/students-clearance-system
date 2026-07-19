@@ -53,6 +53,23 @@ export default function StaffCard({ staff, logoBase64, showWatermark = true }: S
     window.location.origin + '/staff/verify/' + (staff.employeeNumber || staff.id)
   )}`;
 
+  // Spirograph generator for government-grade security print rosettes
+  const getSpirographPath = (cx: number, cy: number, R: number, r: number, p: number, rotations: number = 8) => {
+    let path = '';
+    const steps = 360;
+    for (let i = 0; i <= steps; i++) {
+      const theta = (i * Math.PI * 2 * rotations) / steps;
+      const x = cx + (R - r) * Math.cos(theta) + p * Math.cos(((R - r) * theta) / r);
+      const y = cy + (R - r) * Math.sin(theta) - p * Math.sin(((R - r) * theta) / r);
+      if (i === 0) {
+        path += `M ${x.toFixed(2)} ${y.toFixed(2)}`;
+      } else {
+        path += ` L ${x.toFixed(2)} ${y.toFixed(2)}`;
+      }
+    }
+    return path;
+  };
+
   return (
     <div 
       className="relative w-full max-w-[420px] aspect-[1.585] bg-[#0B4A8B] rounded-[16px] p-[0.6cqw] shadow-2xl overflow-hidden flex flex-col justify-between select-none font-sans"
@@ -68,7 +85,7 @@ export default function StaffCard({ staff, logoBase64, showWatermark = true }: S
         <div 
           className="absolute inset-0 pointer-events-none select-none z-0 overflow-hidden"
           style={{
-            background: 'radial-gradient(circle at 18% 18%, #EAF4FF 0%, transparent 65%), radial-gradient(circle at 82% 18%, #EDF7ED 0%, transparent 65%), radial-gradient(circle at 82% 82%, #FAF5EC 0%, transparent 65%), radial-gradient(circle at 18% 82%, #F5EFFF 0%, transparent 65%), #FFFFFF'
+            background: 'radial-gradient(circle at 10% 10%, #EAF4FF 0%, transparent 60%), radial-gradient(circle at 90% 10%, #EDF7ED 0%, transparent 60%), radial-gradient(circle at 90% 90%, #FAF5EC 0%, transparent 60%), radial-gradient(circle at 10% 90%, #F5EFFF 0%, transparent 60%), radial-gradient(circle at 50% 50%, #FFF5FA 0%, #FFFFFF 100%)'
           }}
         >
           <svg className="absolute inset-0 w-full h-full pointer-events-none" viewBox="0 0 420 265" fill="none">
@@ -84,16 +101,23 @@ export default function StaffCard({ staff, logoBase64, showWatermark = true }: S
                 <path d="M 0 8 Q 4 0 8 8 T 16 8" fill="none" stroke="#27AE60" strokeWidth="0.08" strokeOpacity="0.03" />
                 <path d="M 0 8 Q 4 16 8 8 T 16 8" fill="none" stroke="#9B51E0" strokeWidth="0.08" strokeOpacity="0.03" />
               </pattern>
+
+              {/* Diagonal Crosshatch Anti-Copy Mesh */}
+              <pattern id="anti-copy-mesh" width="12" height="12" patternUnits="userSpaceOnUse" patternTransform="rotate(45)">
+                <path d="M 12 0 L 0 0 0 12" fill="none" stroke="#2F80ED" strokeWidth="0.06" strokeOpacity="0.04" />
+                <path d="M 6 0 L 6 12 M 0 6 L 12 6" fill="none" stroke="#9B51E0" strokeWidth="0.06" strokeOpacity="0.03" />
+              </pattern>
             </defs>
 
-            {/* Background grid fills */}
+            {/* Background grid and anti-copy fills */}
             <rect width="420" height="265" fill="url(#sec-grid)" />
             <rect width="420" height="265" fill="url(#guilloche-pattern)" />
+            <rect width="420" height="265" fill="url(#anti-copy-mesh)" />
             
-            {/* Outer security border frame - multiple nested fine lines */}
+            {/* Outer security border frame - multiple nested fine lines (passport-inspired) */}
             <rect x="4" y="4" width="412" height="257" rx="10" fill="none" stroke="#0B4A8B" strokeWidth="0.35" strokeOpacity="0.12" />
             <rect x="6" y="6" width="408" height="253" rx="8" fill="none" stroke="#2F80ED" strokeWidth="0.2" strokeOpacity="0.1" />
-            <rect x="8" y="8" width="404" height="249" rx="7" fill="none" stroke="#27AE60" strokeWidth="0.12" strokeOpacity="0.08" strokeDasharray="2,2" />
+            <rect x="8" y="8" width="404" height="249" rx="7" fill="none" stroke="#27AE60" strokeWidth="0.12" strokeOpacity="0.08" strokeDasharray="3,1" />
             <rect x="10" y="10" width="400" height="245" rx="6" fill="none" stroke="#9B51E0" strokeWidth="0.15" strokeOpacity="0.08" />
 
             {/* Corner Security Accents - Geometric Line Art */}
@@ -112,49 +136,83 @@ export default function StaffCard({ staff, logoBase64, showWatermark = true }: S
             <circle cx="210" cy="132.5" r="85" fill="none" stroke="#9B51E0" strokeWidth="0.12" strokeOpacity="0.03" />
             <circle cx="210" cy="132.5" r="70" fill="none" stroke="#27AE60" strokeWidth="0.12" strokeOpacity="0.04" strokeDasharray="1,3" />
 
-            {/* Horizontal wave lines (Guilloche) */}
-            {Array.from({ length: 9 }).map((_, i) => {
-              const yOffset = i * 24 + 30;
-              const amplitude = 5;
-              const frequency = 0.04;
-              let path = `M 4 ${yOffset}`;
-              for (let x = 4; x <= 416; x += 8) {
-                const y = yOffset + Math.sin(x * frequency + i * 0.7) * amplitude;
-                path += ` L ${x} ${y}`;
+            {/* Faint Map-Style Wavy Contour Textures */}
+            {Array.from({ length: 6 }).map((_, i) => {
+              const radius = 60 + i * 16;
+              let path = '';
+              const steps = 120;
+              for (let j = 0; j <= steps; j++) {
+                const angle = (j * Math.PI * 2) / steps;
+                const wave = Math.sin(angle * 16) * 1.5 + Math.cos(angle * 8) * 0.8;
+                const r = radius + wave;
+                const x = 210 + r * Math.cos(angle);
+                const y = 132.5 + r * Math.sin(angle);
+                if (j === 0) {
+                  path += `M ${x.toFixed(2)} ${y.toFixed(2)}`;
+                } else {
+                  path += ` L ${x.toFixed(2)} ${y.toFixed(2)}`;
+                }
               }
               return (
                 <path
-                  key={`h-wave-${i}`}
+                  key={`contour-${i}`}
                   d={path}
                   fill="none"
-                  stroke={i % 3 === 0 ? "#2F80ED" : i % 3 === 1 ? "#9B51E0" : "#27AE60"}
-                  strokeWidth="0.15"
-                  strokeOpacity="0.06"
+                  stroke="#0B4A8B"
+                  strokeWidth="0.12"
+                  strokeOpacity="0.035"
                 />
               );
             })}
 
-            {/* Vertical wave lines (Guilloche) */}
-            {Array.from({ length: 13 }).map((_, i) => {
-              const xOffset = i * 30 + 30;
-              const amplitude = 6;
-              const frequency = 0.035;
-              let path = `M ${xOffset} 4`;
-              for (let y = 4; y <= 261; y += 8) {
-                const x = xOffset + Math.sin(y * frequency + i * 0.9) * amplitude;
+            {/* Holographic Wave Effect - Family A (Cyan-Blue) */}
+            {Array.from({ length: 8 }).map((_, i) => {
+              const yOffset = i * 26 + 35;
+              const amplitude = 4;
+              const frequency = 0.045;
+              let path = `M 4 ${yOffset}`;
+              for (let x = 4; x <= 416; x += 6) {
+                const y = yOffset + Math.sin(x * frequency + i * 0.6) * amplitude;
                 path += ` L ${x} ${y}`;
               }
               return (
                 <path
-                  key={`v-wave-${i}`}
+                  key={`wave-a-${i}`}
                   d={path}
                   fill="none"
-                  stroke={i % 3 === 0 ? "#27AE60" : i % 3 === 1 ? "#2F80ED" : "#9B51E0"}
-                  strokeWidth="0.12"
+                  stroke="#2F80ED"
+                  strokeWidth="0.14"
                   strokeOpacity="0.05"
                 />
               );
             })}
+
+            {/* Holographic Wave Effect - Family B (Violet-Purple Shifted) */}
+            {Array.from({ length: 8 }).map((_, i) => {
+              const yOffset = i * 26 + 37;
+              const amplitude = 4;
+              const frequency = 0.045;
+              let path = `M 4 ${yOffset}`;
+              for (let x = 4; x <= 416; x += 6) {
+                const y = yOffset + Math.sin(x * frequency + i * 0.6 + 0.8) * amplitude;
+                path += ` L ${x} ${y}`;
+              }
+              return (
+                <path
+                  key={`wave-b-${i}`}
+                  d={path}
+                  fill="none"
+                  stroke="#9B51E0"
+                  strokeWidth="0.12"
+                  strokeOpacity="0.04"
+                />
+              );
+            })}
+
+            {/* UV-style fluorescent elements */}
+            <path d="M 20,40 Q 110,120 200,40 T 380,40" fill="none" stroke="#39FF14" strokeWidth="0.3" strokeOpacity="0.015" />
+            <path d="M 40,220 Q 150,140 260,220 T 400,220" fill="none" stroke="#FF007F" strokeWidth="0.3" strokeOpacity="0.015" />
+            <circle cx="210" cy="132.5" r="55" fill="none" stroke="#00FFFF" strokeWidth="0.25" strokeOpacity="0.02" strokeDasharray="3,6" />
 
             {/* Concentric Ellipse Rosette - Center */}
             {Array.from({ length: 24 }).map((_, i) => {
@@ -193,7 +251,42 @@ export default function StaffCard({ staff, logoBase64, showWatermark = true }: S
               );
             })}
 
-            {/* Rosette - Left (Behind Photo) */}
+            {/* Banknote-grade Spirograph Rosettes (Hypotrochoids) */}
+            {/* Central Rosette Spirograph */}
+            <path
+              d={getSpirographPath(210, 132.5, 48, 18, 22, 9)}
+              fill="none"
+              stroke="#9B51E0"
+              strokeWidth="0.2"
+              strokeOpacity="0.08"
+            />
+            <path
+              d={getSpirographPath(210, 132.5, 48.2, 18, 22, 9)}
+              fill="none"
+              stroke="#2F80ED"
+              strokeWidth="0.2"
+              strokeOpacity="0.08"
+            />
+
+            {/* Photo Rosette Spirograph (Behind Photo) */}
+            <path
+              d={getSpirographPath(65, 125, 32, 12, 14, 8)}
+              fill="none"
+              stroke="#2F80ED"
+              strokeWidth="0.16"
+              strokeOpacity="0.06"
+            />
+
+            {/* QR Rosette Spirograph (Behind QR) */}
+            <path
+              d={getSpirographPath(360, 150, 28, 10, 12, 8)}
+              fill="none"
+              stroke="#27AE60"
+              strokeWidth="0.16"
+              strokeOpacity="0.06"
+            />
+
+            {/* Rosette - Left (Behind Photo Ellipses) */}
             {Array.from({ length: 16 }).map((_, i) => {
               const angle = (i * 360) / 16;
               return (
@@ -212,7 +305,7 @@ export default function StaffCard({ staff, logoBase64, showWatermark = true }: S
               );
             })}
 
-            {/* Rosette - Right (Behind QR Code) */}
+            {/* Rosette - Right (Behind QR Code Ellipses) */}
             {Array.from({ length: 16 }).map((_, i) => {
               const angle = (i * 360) / 16;
               return (
@@ -249,9 +342,9 @@ export default function StaffCard({ staff, logoBase64, showWatermark = true }: S
           ST. PAUL SEC. SCH SECURITY DOCUMENT
         </div>
 
-        {/* Faint School Crest Watermark in Center (softer 4.5% opacity for semi-transparency) */}
+        {/* Faint School Crest Watermark in Center (softer 5% opacity for semi-transparency) */}
         {showWatermark && (
-          <div className="absolute inset-0 flex items-center justify-center opacity-[0.045] scale-[1.25] rotate-6 z-0 pointer-events-none select-none">
+          <div className="absolute inset-0 flex items-center justify-center opacity-[0.05] scale-[1.4] rotate-6 z-0 pointer-events-none select-none">
             <SchoolLogo className="w-[48%] h-[48%]" logoBase64={logoBase64} />
           </div>
         )}
