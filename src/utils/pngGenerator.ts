@@ -61,44 +61,7 @@ export async function generateStaffIdCardPng(
     ctx.fillStyle = '#FFFFFF';
     ctx.fillRect(0, 0, canvas.width, canvas.height);
 
-    // 2. Subtle light-blue security pattern (increased visibility)
-    ctx.save();
-    ctx.strokeStyle = 'rgba(47, 128, 237, 0.09)';
-    ctx.lineWidth = 1.8;
-    // Draw horizontal grid lines every 24px
-    for (let gy = 0; gy < canvas.height; gy += 24) {
-      ctx.beginPath();
-      ctx.moveTo(0, gy);
-      ctx.lineTo(canvas.width, gy);
-      ctx.stroke();
-    }
-    // Draw vertical grid lines every 24px
-    for (let gx = 0; gx < canvas.width; gx += 24) {
-      ctx.beginPath();
-      ctx.moveTo(gx, 0);
-      ctx.lineTo(gx, canvas.height);
-      ctx.stroke();
-    }
-    // Draw waves
-    ctx.strokeStyle = 'rgba(47, 128, 237, 0.12)';
-    ctx.lineWidth = 2.2;
-    ctx.beginPath();
-    ctx.moveTo(-50, 100);
-    ctx.bezierCurveTo(200, 20, 500, 250, 700, 100);
-    ctx.bezierCurveTo(900, -20, 1000, 200, canvas.width + 50, 100);
-    ctx.stroke();
 
-    ctx.beginPath();
-    ctx.moveTo(-50, 120);
-    ctx.bezierCurveTo(200, 40, 500, 270, 700, 120);
-    ctx.bezierCurveTo(900, 0, 1000, 220, canvas.width + 50, 120);
-    ctx.stroke();
-
-    ctx.beginPath();
-    ctx.moveTo(-50, 450);
-    ctx.bezierCurveTo(300, 520, 600, 380, canvas.width + 50, 480);
-    ctx.stroke();
-    ctx.restore();
 
     // 3. Faint School Crest Watermark in Center (10% opacity)
     if (schoolLogoBase64) {
@@ -281,42 +244,7 @@ export async function generateStaffIdCardPng(
   ctx.fillRect(0, 0, canvas.width, canvas.height);
 
 
-  // --- 3. Abstract Background Circles & Curves ---
-  ctx.save();
-  ctx.strokeStyle = 'rgba(47, 128, 237, 0.04)';
-  ctx.lineWidth = 1.5;
-  ctx.beginPath();
-  ctx.arc(canvas.width, canvas.height / 2, 220, 0, 2 * Math.PI);
-  ctx.stroke();
-  ctx.beginPath();
-  ctx.arc(canvas.width, canvas.height / 2, 140, 0, 2 * Math.PI);
-  ctx.stroke();
 
-  ctx.beginPath();
-  ctx.arc(0, canvas.height, 200, 0, 2 * Math.PI);
-  ctx.stroke();
-  ctx.restore();
-
-  // --- 3b. Subtle Security Guilloche Lines along borders (4% opacity) ---
-  ctx.save();
-  ctx.strokeStyle = 'rgba(47, 128, 237, 0.04)';
-  ctx.lineWidth = 2.5;
-  ctx.beginPath();
-  ctx.moveTo(30, 30);
-  ctx.bezierCurveTo(canvas.width / 2, 10, canvas.width / 2, 10, canvas.width - 30, 30);
-  ctx.bezierCurveTo(canvas.width - 10, canvas.height / 2, canvas.width - 10, canvas.height / 2, canvas.width - 30, canvas.height - 30);
-  ctx.bezierCurveTo(canvas.width / 2, canvas.height - 10, canvas.width / 2, canvas.height - 10, 30, canvas.height - 30);
-  ctx.bezierCurveTo(10, canvas.height / 2, 10, canvas.height / 2, 30, 30);
-  ctx.stroke();
-
-  ctx.beginPath();
-  ctx.moveTo(40, 40);
-  ctx.bezierCurveTo(canvas.width / 2, 20, canvas.width / 2, 20, canvas.width - 40, 40);
-  ctx.bezierCurveTo(canvas.width - 20, canvas.height / 2, canvas.width - 20, canvas.height / 2, canvas.width - 40, canvas.height - 40);
-  ctx.bezierCurveTo(canvas.width / 2, canvas.height - 20, canvas.width / 2, canvas.height - 20, 40, canvas.height - 40);
-  ctx.bezierCurveTo(20, canvas.height / 2, 20, canvas.height / 2, 40, 40);
-  ctx.stroke();
-  ctx.restore();
 
   // --- 4. Security Watermark (Middle, 4% Opacity) ---
   if (schoolLogoBase64) {
@@ -759,117 +687,7 @@ export async function generateStaffIdCardPng(
   ctx.fillText(expDateStr, 780, bottomY + 76);
   ctx.restore();
 
-  // --- 13. Transparent holographic security laminate simulation (Fine geometric curves & repeating watermarks) ---
-  ctx.save();
-  // Linear gradient for rainbow reflections at 45 degrees
-  const holoGrad = ctx.createLinearGradient(0, 0, canvas.width, canvas.height);
-  holoGrad.addColorStop(0, 'rgba(255, 0, 128, 0.12)');
-  holoGrad.addColorStop(0.25, 'rgba(0, 243, 255, 0.14)');
-  holoGrad.addColorStop(0.5, 'rgba(255, 230, 0, 0.12)');
-  holoGrad.addColorStop(0.75, 'rgba(0, 255, 102, 0.14)');
-  holoGrad.addColorStop(1, 'rgba(255, 0, 128, 0.12)');
 
-  ctx.strokeStyle = holoGrad;
-  ctx.lineWidth = 0.8;
-  
-  // Concentric rings across the card
-  for (let r = 80; r < canvas.width; r += 120) {
-    ctx.beginPath();
-    ctx.arc(canvas.width / 2, canvas.height / 2, r, 0, Math.PI * 2);
-    ctx.stroke();
-  }
-  
-  // Diagonal intersecting guilloche waves
-  ctx.beginPath();
-  for (let offset = -canvas.height; offset < canvas.width; offset += 90) {
-    ctx.moveTo(offset, 0);
-    ctx.bezierCurveTo(offset + 100, canvas.height / 3, offset - 100, (canvas.height * 2) / 3, offset + canvas.height, canvas.height);
-  }
-  ctx.stroke();
-
-  // Repeating logo watermarks
-  ctx.save();
-  ctx.strokeStyle = holoGrad;
-  ctx.lineWidth = 0.5;
-  for (let rx = 70; rx < canvas.width; rx += 180) {
-    for (let ry = 80; ry < canvas.height; ry += 150) {
-      // Draw a small outline crest shape
-      ctx.beginPath();
-      ctx.ellipse(rx, ry, 20, 7, 0, 0, Math.PI * 2);
-      ctx.ellipse(rx, ry, 7, 20, 0, 0, Math.PI * 2);
-      ctx.stroke();
-      
-      // Draw tiny text
-      ctx.fillStyle = holoGrad;
-      ctx.font = 'bold 8px "Courier New"';
-      ctx.textAlign = 'center';
-      ctx.fillText('ST. PAUL', rx, ry + 32);
-    }
-  }
-  ctx.restore();
-  ctx.restore();
-
-  // --- 14. Tamper-Resistant Holographic Foil Seal on Photo corner ---
-  const sealX = 300;
-  const sealY = 485;
-  const sealR = 35; // 70px diameter
-  
-  ctx.save();
-  // Radial gradient for rainbow reflections that shifts slightly
-  const sealGrad = ctx.createRadialGradient(sealX - 8, sealY - 8, 2, sealX, sealY, sealR);
-  sealGrad.addColorStop(0, '#FFE57F');
-  sealGrad.addColorStop(0.25, '#FF80AB');
-  sealGrad.addColorStop(0.5, '#80D8FF');
-  sealGrad.addColorStop(0.75, '#B9F6CA');
-  sealGrad.addColorStop(1, '#FFE57F');
-  
-  ctx.fillStyle = sealGrad;
-  ctx.beginPath();
-  ctx.arc(sealX, sealY, sealR, 0, Math.PI * 2);
-  ctx.fill();
-
-  // Thin outer border
-  ctx.strokeStyle = 'rgba(255, 255, 255, 0.8)';
-  ctx.lineWidth = 1.5;
-  ctx.beginPath();
-  ctx.arc(sealX, sealY, sealR, 0, Math.PI * 2);
-  ctx.stroke();
-  
-  // Golden ring
-  ctx.strokeStyle = 'rgba(212, 175, 55, 0.6)';
-  ctx.lineWidth = 1.0;
-  ctx.beginPath();
-  ctx.arc(sealX, sealY, sealR - 2.5, 0, Math.PI * 2);
-  ctx.stroke();
-
-  // Embossed logo inside
-  if (schoolLogoBase64) {
-    try {
-      ctx.save();
-      ctx.globalAlpha = 0.85;
-      // White/holographic silhouette filter
-      ctx.filter = 'brightness(2) contrast(1)';
-      const sealLogoImg = await loadImage(schoolLogoBase64);
-      ctx.drawImage(sealLogoImg, sealX - 22, sealY - 22, 44, 44);
-      ctx.restore();
-    } catch (e) {
-      console.warn("Failed drawing watermark image in Canvas foil seal", e);
-    }
-  }
-
-  // Spinning microtext border
-  ctx.save();
-  ctx.translate(sealX, sealY);
-  ctx.fillStyle = 'rgba(255, 255, 255, 0.85)';
-  ctx.font = 'bold 8px monospace';
-  ctx.textAlign = 'center';
-  const sealText = "ST. PAUL SEC. SCH * OFFICIAL SEAL * ";
-  for (let i = 0; i < sealText.length; i++) {
-    ctx.rotate((Math.PI * 2) / sealText.length);
-    ctx.fillText(sealText[i], 0, -29);
-  }
-  ctx.restore();
-  ctx.restore();
 
   // Redraw inner border to cleanly frame the footer area
   ctx.strokeStyle = '#EAF4FF';

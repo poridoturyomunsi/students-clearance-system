@@ -96,33 +96,7 @@ export default function StaffCard({ staff, logoBase64, authorizedSignatureBase64
         {/* Inner Card Container with Light Blue Inner Border */}
         <div className="relative w-full h-full rounded-[12px] border-[1.5px] border-[#EAF5FF] overflow-hidden bg-white flex flex-col justify-between p-[3cqw] z-10">
           
-          {/* Security Background Layer */}
-          <div className="absolute inset-0 pointer-events-none select-none z-0 overflow-hidden bg-white">
-            <svg className="absolute inset-0 w-full h-full pointer-events-none" viewBox="0 0 420 265" fill="none">
-              <defs>
-                {/* Security Micro Grid Pattern */}
-                <pattern id="sec-grid-back" width="8" height="8" patternUnits="userSpaceOnUse">
-                  <path d="M 8 0 L 0 0 0 8" fill="none" stroke="#2F80ED" strokeWidth="0.16" strokeOpacity="0.10" />
-                </pattern>
-                
-                {/* Guilloche Pattern 1 (intersecting lines) */}
-                <pattern id="guilloche-back-1" width="30" height="30" patternUnits="userSpaceOnUse">
-                  <path d="M 0 15 Q 7.5 0, 15 15 T 30 15" fill="none" stroke="#2F80ED" strokeWidth="0.15" strokeOpacity="0.08" />
-                  <path d="M 0 15 Q 7.5 30, 15 15 T 30 15" fill="none" stroke="#D4AF37" strokeWidth="0.12" strokeOpacity="0.07" />
-                </pattern>
-              </defs>
 
-              {/* Grid Background */}
-              <rect width="420" height="265" fill="url(#sec-grid-back)" />
-              <rect width="420" height="265" fill="url(#guilloche-back-1)" />
-
-              {/* Wave Artworks */}
-              <path d="M-20,40 Q80,10 180,60 T380,20 T500,40" fill="none" stroke="#2F80ED" strokeWidth="0.35" strokeOpacity="0.11" />
-              <path d="M-20,45 Q80,15 180,65 T380,25 T500,45" fill="none" stroke="#D4AF37" strokeWidth="0.28" strokeOpacity="0.08" />
-              <path d="M-20,180 Q100,210 220,170 T460,190" fill="none" stroke="#2F80ED" strokeWidth="0.32" strokeOpacity="0.10" />
-              <path d="M-20,185 Q100,215 220,175 T460,195" fill="none" stroke="#2F80ED" strokeWidth="0.32" strokeOpacity="0.10" />
-            </svg>
-          </div>
 
           {/* Faint School Crest Watermark in Center (10% opacity) */}
           {showWatermark && (
@@ -238,6 +212,59 @@ export default function StaffCard({ staff, logoBase64, authorizedSignatureBase64
             </div>
           </div>
 
+          {/* Transparent Holographic Laminate Overlay (screen-only reflection, invisible by default) */}
+          <div 
+            className="absolute inset-0 pointer-events-none z-40 overflow-hidden mix-blend-color-dodge transition-opacity duration-500 opacity-[0.02] group-hover:opacity-[0.15]"
+            style={{
+              background: `linear-gradient(${135 + tilt.x * 2}deg, rgba(255,255,255,0) 0%, rgba(255,0,128,0.1) 20%, rgba(0,255,255,0.12) 40%, rgba(255,255,0,0.1) 60%, rgba(0,255,128,0.1) 80%, rgba(255,255,255,0) 100%)`,
+              backgroundSize: '300% 300%',
+              backgroundPosition: `${50 + tilt.x * 3}% ${50 + tilt.y * 3}%`,
+            }}
+          >
+            <svg className="absolute inset-0 w-full h-full" viewBox="0 0 420 265" fill="none">
+              <defs>
+                <linearGradient id="holo-laminate-rainbow-back" x1="0%" y1="0%" x2="100%" y2="100%">
+                  <stop offset="0%" stopColor="#ff007f" stopOpacity="0.4" />
+                  <stop offset="25%" stopColor="#00f3ff" stopOpacity="0.4" />
+                  <stop offset="50%" stopColor="#ffe600" stopOpacity="0.4" />
+                  <stop offset="75%" stopColor="#00ff66" stopOpacity="0.4" />
+                  <stop offset="100%" stopColor="#ff007f" stopOpacity="0.4" />
+                </linearGradient>
+                
+                {/* Repeating holographic logo pattern (smaller, cleaner) */}
+                <pattern id="holo-logo-pattern-back" width="50" height="50" patternUnits="userSpaceOnUse" patternTransform="rotate(20)">
+                  <ellipse cx="25" cy="25" rx="10" ry="3" fill="none" stroke="url(#holo-laminate-rainbow-back)" strokeWidth="0.08" strokeOpacity="0.1" />
+                  <ellipse cx="25" cy="25" rx="3" ry="10" fill="none" stroke="url(#holo-laminate-rainbow-back)" strokeWidth="0.08" strokeOpacity="0.1" />
+                  <path d="M25,18 L31,25 L25,32 L19,25 Z" fill="none" stroke="url(#holo-laminate-rainbow-back)" strokeWidth="0.1" strokeOpacity="0.1" />
+                  <text x="25" y="40" textAnchor="middle" fill="url(#holo-laminate-rainbow-back)" fontSize="2.8" fontWeight="bold" opacity="0.12">ST. PAUL</text>
+                </pattern>
+              </defs>
+
+              {/* Repeating logo pattern fill */}
+              <rect width="420" height="265" fill="url(#holo-logo-pattern-back)" />
+
+              {/* Fine holographic security waves embedded within the transparent overlay */}
+              <path d="M-20,50 Q100,20 210,60 T440,40" fill="none" stroke="url(#holo-laminate-rainbow-back)" strokeWidth="0.08" strokeOpacity="0.12" />
+              <path d="M-20,130 Q100,100 210,140 T440,120" fill="none" stroke="url(#holo-laminate-rainbow-back)" strokeWidth="0.08" strokeOpacity="0.12" />
+              <path d="M-20,210 Q100,180 210,220 T440,200" fill="none" stroke="url(#holo-laminate-rainbow-back)" strokeWidth="0.08" strokeOpacity="0.12" />
+
+              {/* Fine holographic microtext paths */}
+              <path id="holo-wave-text-1-back" d="M-20,90 C100,70 200,110 440,90" fill="none" />
+              <text className="font-bold text-[2.5px] tracking-[0.15em]" fill="url(#holo-laminate-rainbow-back)" opacity="0.12">
+                <textPath href="#holo-wave-text-1-back" startOffset="0%">
+                  ST. PAUL SECONDARY SCHOOL NASUTI * SECURE ID CARD LAMINATE * ST. PAUL SECONDARY SCHOOL NASUTI * SECURE ID CARD LAMINATE *
+                </textPath>
+              </text>
+
+              <path id="holo-wave-text-2-back" d="M-20,170 C100,150 200,190 440,170" fill="none" />
+              <text className="font-bold text-[2.5px] tracking-[0.15em]" fill="url(#holo-laminate-rainbow-back)" opacity="0.12">
+                <textPath href="#holo-wave-text-2-back" startOffset="0%">
+                  ST. PAUL SECONDARY SCHOOL NASUTI * SECURE ID CARD LAMINATE * ST. PAUL SECONDARY SCHOOL NASUTI * SECURE ID CARD LAMINATE *
+                </textPath>
+              </text>
+            </svg>
+          </div>
+
         </div>
       </div>
     );
@@ -280,245 +307,7 @@ export default function StaffCard({ staff, logoBase64, authorizedSignatureBase64
           style={{
             background: 'radial-gradient(circle at 10% 10%, #EAF4FF 0%, transparent 60%), radial-gradient(circle at 90% 10%, #EDF7ED 0%, transparent 60%), radial-gradient(circle at 90% 90%, #FAF5EC 0%, transparent 60%), radial-gradient(circle at 10% 90%, #F5EFFF 0%, transparent 60%), radial-gradient(circle at 50% 50%, #FFF5FA 0%, #FFFFFF 100%)'
           }}
-        >
-          <svg className="absolute inset-0 w-full h-full pointer-events-none" viewBox="0 0 420 265" fill="none">
-            <defs>
-              {/* Security Micro Grid Pattern */}
-              <pattern id="sec-grid" width="8" height="8" patternUnits="userSpaceOnUse">
-                <path d="M 8 0 L 0 0 0 8" fill="none" stroke="#2F80ED" strokeWidth="0.08" strokeOpacity="0.04" />
-                <circle cx="4" cy="4" r="0.25" fill="#D4AF37" fillOpacity="0.05" />
-              </pattern>
-              
-              {/* Guilloche Pattern 1 (intersecting lines) */}
-              <pattern id="guilloche-pattern" width="16" height="16" patternUnits="userSpaceOnUse" patternTransform="rotate(25)">
-                <path d="M 0 8 Q 4 0 8 8 T 16 8" fill="none" stroke="#0B4A8B" strokeWidth="0.08" strokeOpacity="0.03" />
-                <path d="M 0 8 Q 4 16 8 8 T 16 8" fill="none" stroke="#D4AF37" strokeWidth="0.08" strokeOpacity="0.03" />
-              </pattern>
-
-              {/* Diagonal Crosshatch Anti-Copy Mesh */}
-              <pattern id="anti-copy-mesh" width="12" height="12" patternUnits="userSpaceOnUse" patternTransform="rotate(45)">
-                <path d="M 12 0 L 0 0 0 12" fill="none" stroke="#2F80ED" strokeWidth="0.06" strokeOpacity="0.04" />
-                <path d="M 6 0 L 6 12 M 0 6 L 12 6" fill="none" stroke="#0B4A8B" strokeWidth="0.06" strokeOpacity="0.03" />
-              </pattern>
-            </defs>
-
-            {/* Background grid and anti-copy fills */}
-            <rect width="420" height="265" fill="url(#sec-grid)" />
-            <rect width="420" height="265" fill="url(#guilloche-pattern)" />
-            <rect width="420" height="265" fill="url(#anti-copy-mesh)" />
-            
-            {/* Double blue border with a thin decorative gold line in between */}
-            <rect x="4" y="4" width="412" height="257" rx="10" fill="none" stroke="#0B4A8B" strokeWidth="0.8" strokeOpacity="0.25" />
-            <rect x="6.5" y="6.5" width="407" height="252" rx="8.5" fill="none" stroke="#D4AF37" strokeWidth="0.25" strokeOpacity="0.3" strokeDasharray="2,2" />
-            <rect x="9" y="9" width="402" height="247" rx="7" fill="none" stroke="#2F80ED" strokeWidth="0.5" strokeOpacity="0.2" />
-
-            {/* Corner Security Accents - Geometric Line Art */}
-            {/* Top Left */}
-            <path d="M 4,16 C 12,16 16,12 16,4 M 4,20 C 16,20 20,16 20,4 M 4,24 C 20,24 24,20 24,4" fill="none" stroke="#2F80ED" strokeWidth="0.18" strokeOpacity="0.08" />
-            {/* Top Right */}
-            <path d="M 416,16 C 408,16 404,12 404,4 M 416,20 C 404,20 400,16 400,4 M 416,24 C 400,24 396,20 396,4" fill="none" stroke="#2F80ED" strokeWidth="0.18" strokeOpacity="0.08" />
-            {/* Bottom Left */}
-            <path d="M 4,249 C 12,249 16,253 16,261 M 4,245 C 16,245 20,249 20,261 M 4,241 C 20,241 24,245 24,261" fill="none" stroke="#D4AF37" strokeWidth="0.18" strokeOpacity="0.08" />
-            {/* Bottom Right */}
-            <path d="M 416,249 C 408,249 404,253 404,261 M 416,245 C 404,245 400,249 400,261 M 416,241 C 400,241 396,245 396,261" fill="none" stroke="#D4AF37" strokeWidth="0.18" strokeOpacity="0.08" />
-
-            {/* Concentric Security Circles in background */}
-            <circle cx="210" cy="132.5" r="115" fill="none" stroke="#0B4A8B" strokeWidth="0.12" strokeOpacity="0.03" />
-            <circle cx="210" cy="132.5" r="100" fill="none" stroke="#2F80ED" strokeWidth="0.12" strokeOpacity="0.04" strokeDasharray="5,2" />
-            <circle cx="210" cy="132.5" r="85" fill="none" stroke="#D4AF37" strokeWidth="0.12" strokeOpacity="0.03" />
-            <circle cx="210" cy="132.5" r="70" fill="none" stroke="#2F80ED" strokeWidth="0.12" strokeOpacity="0.04" strokeDasharray="1,3" />
-
-            {/* Faint Map-Style Wavy Contour Textures */}
-            {Array.from({ length: 6 }).map((_, i) => {
-              const radius = 60 + i * 16;
-              let path = '';
-              const steps = 120;
-              for (let j = 0; j <= steps; j++) {
-                const angle = (j * Math.PI * 2) / steps;
-                const wave = Math.sin(angle * 16) * 1.5 + Math.cos(angle * 8) * 0.8;
-                const r = radius + wave;
-                const x = 210 + r * Math.cos(angle);
-                const y = 132.5 + r * Math.sin(angle);
-                if (j === 0) {
-                  path += `M ${x.toFixed(2)} ${y.toFixed(2)}`;
-                } else {
-                  path += ` L ${x.toFixed(2)} ${y.toFixed(2)}`;
-                }
-              }
-              return (
-                <path
-                  key={`contour-${i}`}
-                  d={path}
-                  fill="none"
-                  stroke="#0B4A8B"
-                  strokeWidth="0.12"
-                  strokeOpacity="0.035"
-                />
-              );
-            })}
-
-            {/* Holographic Wave Effect - Family A (Cyan-Blue) */}
-            {Array.from({ length: 8 }).map((_, i) => {
-              const yOffset = i * 26 + 35;
-              const amplitude = 4;
-              const frequency = 0.045;
-              let path = `M 4 ${yOffset}`;
-              for (let x = 4; x <= 416; x += 6) {
-                const y = yOffset + Math.sin(x * frequency + i * 0.6) * amplitude;
-                path += ` L ${x} ${y}`;
-              }
-              return (
-                <path
-                  key={`wave-a-${i}`}
-                  d={path}
-                  fill="none"
-                  stroke="#2F80ED"
-                  strokeWidth="0.14"
-                  strokeOpacity="0.05"
-                />
-              );
-            })}
-
-            {/* Holographic Wave Effect - Family B (Gold Shifted) */}
-            {Array.from({ length: 8 }).map((_, i) => {
-              const yOffset = i * 26 + 37;
-              const amplitude = 4;
-              const frequency = 0.045;
-              let path = `M 4 ${yOffset}`;
-              for (let x = 4; x <= 416; x += 6) {
-                const y = yOffset + Math.sin(x * frequency + i * 0.6 + 0.8) * amplitude;
-                path += ` L ${x} ${y}`;
-              }
-              return (
-                <path
-                  key={`wave-b-${i}`}
-                  d={path}
-                  fill="none"
-                  stroke="#D4AF37"
-                  strokeWidth="0.12"
-                  strokeOpacity="0.04"
-                />
-              );
-            })}
-
-            {/* Faint security elements */}
-            <path d="M 20,40 Q 110,120 200,40 T 380,40" fill="none" stroke="#2F80ED" strokeWidth="0.3" strokeOpacity="0.015" />
-            <path d="M 40,220 Q 150,140 260,220 T 400,220" fill="none" stroke="#0B4A8B" strokeWidth="0.3" strokeOpacity="0.015" />
-            <circle cx="210" cy="132.5" r="55" fill="none" stroke="#D4AF37" strokeWidth="0.25" strokeOpacity="0.02" strokeDasharray="3,6" />
-
-            {/* Concentric Ellipse Rosette - Center */}
-            {Array.from({ length: 24 }).map((_, i) => {
-              const angle = (i * 360) / 24;
-              return (
-                <ellipse
-                  key={`ros-center-${i}`}
-                  cx="210"
-                  cy="132.5"
-                  rx="60"
-                  ry="12"
-                  fill="none"
-                  stroke="#D4AF37"
-                  strokeWidth="0.18"
-                  strokeOpacity="0.07"
-                  transform={`rotate(${angle} 210 132.5)`}
-                />
-              );
-            })}
-            {/* Inner Ring Rosette - Center */}
-            {Array.from({ length: 18 }).map((_, i) => {
-              const angle = (i * 360) / 18;
-              return (
-                <ellipse
-                  key={`ros-center-inner-${i}`}
-                  cx="210"
-                  cy="132.5"
-                  rx="30"
-                  ry="6"
-                  fill="none"
-                  stroke="#2F80ED"
-                  strokeWidth="0.22"
-                  strokeOpacity="0.09"
-                  transform={`rotate(${angle} 210 132.5)`}
-                />
-              );
-            })}
-
-            {/* Banknote-grade Spirograph Rosettes (Hypotrochoids) */}
-            {/* Central Rosette Spirograph */}
-            <path
-              d={getSpirographPath(210, 132.5, 48, 18, 22, 9)}
-              fill="none"
-              stroke="#D4AF37"
-              strokeWidth="0.2"
-              strokeOpacity="0.08"
-            />
-            <path
-              d={getSpirographPath(210, 132.5, 48.2, 18, 22, 9)}
-              fill="none"
-              stroke="#2F80ED"
-              strokeWidth="0.2"
-              strokeOpacity="0.08"
-            />
-
-            {/* Photo Rosette Spirograph (Behind Photo) */}
-            <path
-              d={getSpirographPath(65, 125, 32, 12, 14, 8)}
-              fill="none"
-              stroke="#2F80ED"
-              strokeWidth="0.16"
-              strokeOpacity="0.06"
-            />
-
-            {/* QR Rosette Spirograph (Behind QR) */}
-            <path
-              d={getSpirographPath(360, 150, 28, 10, 12, 8)}
-              fill="none"
-              stroke="#D4AF37"
-              strokeWidth="0.16"
-              strokeOpacity="0.06"
-            />
-
-            {/* Rosette - Left (Behind Photo Ellipses) */}
-            {Array.from({ length: 16 }).map((_, i) => {
-              const angle = (i * 360) / 16;
-              return (
-                <ellipse
-                  key={`ros-photo-${i}`}
-                  cx="65"
-                  cy="125"
-                  rx="35"
-                  ry="8"
-                  fill="none"
-                  stroke="#2F80ED"
-                  strokeWidth="0.15"
-                  strokeOpacity="0.05"
-                  transform={`rotate(${angle} 65 125)`}
-                />
-              );
-            })}
-
-            {/* Rosette - Right (Behind QR Code Ellipses) */}
-            {Array.from({ length: 16 }).map((_, i) => {
-              const angle = (i * 360) / 16;
-              return (
-                <ellipse
-                  key={`ros-qr-${i}`}
-                  cx="360"
-                  cy="150"
-                  rx="30"
-                  ry="7"
-                  fill="none"
-                  stroke="#D4AF37"
-                  strokeWidth="0.15"
-                  strokeOpacity="0.05"
-                  transform={`rotate(${angle} 360 150)`}
-                />
-              );
-            })}
-
-
-          </svg>
-        </div>
+        />
 
         {/* Security Text Running Vertically on Left Margin (5% opacity) */}
         <div 
@@ -586,31 +375,7 @@ export default function StaffCard({ staff, logoBase64, authorizedSignatureBase64
                 )}
               </div>
 
-              {/* Tamper-Resistant Holographic Foil Seal overlapping photo corner */}
-              <div 
-                className="absolute z-30 rounded-full border border-white/60 shadow-md flex items-center justify-center overflow-hidden"
-                style={{
-                  width: '9.5cqw',
-                  height: '9.5cqw',
-                  right: '-3.8cqw',
-                  bottom: '-2.5cqw',
-                  background: `radial-gradient(circle at ${50 + tilt.x * 2.5}% ${50 + tilt.y * 2.5}%, #ffb3ff 0%, #80e5ff 35%, #ffd180 70%, #ff80ab 100%)`,
-                  boxShadow: 'inset 0 0 5px rgba(255,255,255,0.9), 0 3px 8px rgba(0,0,0,0.25)',
-                }}
-              >
-                <div className="absolute inset-0 bg-white/20 mix-blend-overlay" />
-                <SchoolLogo className="w-[68%] h-[68%] text-white/95 drop-shadow-[0_1.5px_3px_rgba(0,0,0,0.65)] fill-current" logoBase64={logoBase64} />
-                
-                {/* Slow spinning microtext inside seal */}
-                <svg className="absolute inset-0 w-full h-full animate-[spin_16s_linear_infinite]" viewBox="0 0 100 100">
-                  <path id="seal-text-path-front" d="M 50 12 A 38 38 0 1 1 49.9 12" fill="none" />
-                  <text className="fill-white/90 font-black text-[5.5px] uppercase tracking-[0.22em]">
-                    <textPath href="#seal-text-path-front" startOffset="0%">
-                      ST. PAUL SEC. SCH * OFFICIAL SEAL *
-                    </textPath>
-                  </text>
-                </svg>
-              </div>
+
             </div>
 
             {/* Column 2: Staff Details List (expanded width) */}
@@ -765,11 +530,11 @@ export default function StaffCard({ staff, logoBase64, authorizedSignatureBase64
 
         </div>
 
-        {/* Transparent Holographic Laminate Overlay */}
+        {/* Transparent Holographic Laminate Overlay (screen-only reflection, invisible by default) */}
         <div 
-          className="absolute inset-0 pointer-events-none z-40 overflow-hidden mix-blend-color-dodge transition-opacity duration-300 opacity-20 group-hover:opacity-35"
+          className="absolute inset-0 pointer-events-none z-40 overflow-hidden mix-blend-color-dodge transition-opacity duration-500 opacity-[0.02] group-hover:opacity-[0.15]"
           style={{
-            background: `linear-gradient(${135 + tilt.x * 2}deg, rgba(255,255,255,0) 0%, rgba(255,0,128,0.15) 20%, rgba(0,255,255,0.2) 40%, rgba(255,255,0,0.15) 60%, rgba(0,255,128,0.15) 80%, rgba(255,255,255,0) 100%)`,
+            background: `linear-gradient(${135 + tilt.x * 2}deg, rgba(255,255,255,0) 0%, rgba(255,0,128,0.1) 20%, rgba(0,255,255,0.12) 40%, rgba(255,255,0,0.1) 60%, rgba(0,255,128,0.1) 80%, rgba(255,255,255,0) 100%)`,
             backgroundSize: '300% 300%',
             backgroundPosition: `${50 + tilt.x * 3}% ${50 + tilt.y * 3}%`,
           }}
@@ -784,31 +549,35 @@ export default function StaffCard({ staff, logoBase64, authorizedSignatureBase64
                 <stop offset="100%" stopColor="#ff007f" stopOpacity="0.4" />
               </linearGradient>
               
-              {/* Repeating holographic logo pattern */}
-              <pattern id="holo-logo-pattern" width="70" height="70" patternUnits="userSpaceOnUse" patternTransform="rotate(20)">
-                <ellipse cx="35" cy="35" rx="14" ry="4" fill="none" stroke="url(#holo-laminate-rainbow)" strokeWidth="0.12" strokeOpacity="0.25" />
-                <ellipse cx="35" cy="35" rx="4" ry="14" fill="none" stroke="url(#holo-laminate-rainbow)" strokeWidth="0.12" strokeOpacity="0.25" />
-                <path d="M35,25 L43,35 L35,45 L27,35 Z" fill="none" stroke="url(#holo-laminate-rainbow)" strokeWidth="0.15" strokeOpacity="0.25" />
-                <text x="35" y="56" textAnchor="middle" fill="url(#holo-laminate-rainbow)" fontSize="3.5" fontWeight="bold" opacity="0.3">ST. PAUL</text>
+              {/* Repeating holographic logo pattern (smaller, cleaner) */}
+              <pattern id="holo-logo-pattern" width="50" height="50" patternUnits="userSpaceOnUse" patternTransform="rotate(20)">
+                <ellipse cx="25" cy="25" rx="10" ry="3" fill="none" stroke="url(#holo-laminate-rainbow)" strokeWidth="0.08" strokeOpacity="0.1" />
+                <ellipse cx="25" cy="25" rx="3" ry="10" fill="none" stroke="url(#holo-laminate-rainbow)" strokeWidth="0.08" strokeOpacity="0.1" />
+                <path d="M25,18 L31,25 L25,32 L19,25 Z" fill="none" stroke="url(#holo-laminate-rainbow)" strokeWidth="0.1" strokeOpacity="0.1" />
+                <text x="25" y="40" textAnchor="middle" fill="url(#holo-laminate-rainbow)" fontSize="2.8" fontWeight="bold" opacity="0.12">ST. PAUL</text>
               </pattern>
             </defs>
 
             {/* Repeating logo pattern fill */}
             <rect width="420" height="265" fill="url(#holo-logo-pattern)" />
 
-            {/* Fine geometric security spirographs & guilloche lines */}
-            <circle cx="210" cy="132.5" r="95" fill="none" stroke="url(#holo-laminate-rainbow)" strokeWidth="0.1" strokeOpacity="0.3" strokeDasharray="3,3" />
-            <circle cx="210" cy="132.5" r="75" fill="none" stroke="url(#holo-laminate-rainbow)" strokeWidth="0.15" strokeOpacity="0.3" />
-            
-            {/* Swirling wave lines spanning the card */}
-            <path d="M-20,60 Q100,-10 210,132.5 T440,205" fill="none" stroke="url(#holo-laminate-rainbow)" strokeWidth="0.18" strokeOpacity="0.35" />
-            <path d="M-20,205 Q100,275 210,132.5 T440,60" fill="none" stroke="url(#holo-laminate-rainbow)" strokeWidth="0.18" strokeOpacity="0.35" />
+            {/* Fine holographic security waves embedded within the transparent overlay */}
+            <path d="M-20,50 Q100,20 210,60 T440,40" fill="none" stroke="url(#holo-laminate-rainbow)" strokeWidth="0.08" strokeOpacity="0.12" />
+            <path d="M-20,130 Q100,100 210,140 T440,120" fill="none" stroke="url(#holo-laminate-rainbow)" strokeWidth="0.08" strokeOpacity="0.12" />
+            <path d="M-20,210 Q100,180 210,220 T440,200" fill="none" stroke="url(#holo-laminate-rainbow)" strokeWidth="0.08" strokeOpacity="0.12" />
 
-            {/* Fine Holographic Microtext running on circular path */}
-            <path id="holo-circle-path" d="M 210, 42.5 A 90,90 0 1,1 209.9,42.5" fill="none" />
-            <text className="font-bold text-[3px] tracking-[0.2em]" fill="url(#holo-laminate-rainbow)" opacity="0.35">
-              <textPath href="#holo-circle-path" startOffset="0%">
-                ST. PAUL SECONDARY SCHOOL NASUTI * SECURE OFFICIAL LAMINATE * ST. PAUL SECONDARY SCHOOL NASUTI * SECURE OFFICIAL LAMINATE *
+            {/* Fine holographic microtext paths */}
+            <path id="holo-wave-text-1" d="M-20,90 C100,70 200,110 440,90" fill="none" />
+            <text className="font-bold text-[2.5px] tracking-[0.15em]" fill="url(#holo-laminate-rainbow)" opacity="0.12">
+              <textPath href="#holo-wave-text-1" startOffset="0%">
+                ST. PAUL SECONDARY SCHOOL NASUTI * SECURE ID CARD LAMINATE * ST. PAUL SECONDARY SCHOOL NASUTI * SECURE ID CARD LAMINATE *
+              </textPath>
+            </text>
+
+            <path id="holo-wave-text-2" d="M-20,170 C100,150 200,190 440,170" fill="none" />
+            <text className="font-bold text-[2.5px] tracking-[0.15em]" fill="url(#holo-laminate-rainbow)" opacity="0.12">
+              <textPath href="#holo-wave-text-2" startOffset="0%">
+                ST. PAUL SECONDARY SCHOOL NASUTI * SECURE ID CARD LAMINATE * ST. PAUL SECONDARY SCHOOL NASUTI * SECURE ID CARD LAMINATE *
               </textPath>
             </text>
           </svg>

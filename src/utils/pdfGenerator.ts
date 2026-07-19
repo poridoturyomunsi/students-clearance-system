@@ -1860,68 +1860,7 @@ export async function generateStaffIdCardsPdf({
     doc.text(expDateStr, x + 66.0, bottomY + 7.5);
     doc.setCharSpace(0);
 
-    // --- 13. Transparent holographic security laminate simulation (Fine geometric curves & repeating watermarks) ---
-    doc.saveGraphicsState();
-    doc.setLineWidth(0.06);
-    
-    // Draw waves & circles in soft rainbow colors
-    const colors = [
-      { r: 255, g: 0, b: 128 },  // Magenta
-      { r: 0, g: 243, b: 255 },  // Cyan
-      { r: 255, g: 230, b: 0 }   // Yellow/Gold
-    ];
-    
-    for (let i = 0; i < 6; i++) {
-      const col = colors[i % 3];
-      doc.setDrawColor(col.r, col.g, col.b);
-      // Fine curved lines across the card
-      const yOffset = 10 + i * 6;
-      doc.line(x + 5, y + yOffset, x + cardW - 5, y + yOffset + 10);
-      // Large thin spirograph concentric rings
-      doc.circle(x + cardW / 2, y + cardH / 2, 12 + i * 4, 'D');
-    }
-    
-    // Repeating school logo outlines (holographic watermarks)
-    for (let rx = 15; rx < cardW; rx += 25) {
-      for (let ry_c = 15; ry_c < cardH; ry_c += 20) {
-        doc.setDrawColor(0, 243, 255); // Cyan logo outline
-        doc.ellipse(x + rx, y + ry_c, 3.0, 1.0);
-        doc.ellipse(x + rx, y + ry_c, 1.0, 3.0);
-        doc.setDrawColor(255, 0, 128); // Pink logo outline
-        doc.triangle(x + rx, y + ry_c - 1.8, x + rx + 1.8, y + ry_c + 0.8, x + rx - 1.8, y + ry_c + 0.8, 'D');
-      }
-    }
-    doc.restoreGraphicsState();
 
-    // --- 14. Tamper-Resistant Holographic Foil Seal on Photo corner ---
-    const sealX = x + 24.5;
-    const sealY = y + 40.5;
-    const sealR = 3.6; // 7.2mm diameter
-    
-    doc.saveGraphicsState();
-    doc.setLineWidth(0.2);
-    // Draw concentric colored rings to simulate hologram reflection
-    doc.setDrawColor(212, 175, 55); // Gold outer ring
-    doc.circle(sealX, sealY, sealR, 'D');
-    doc.setDrawColor(255, 128, 171); // Holographic Pink ring
-    doc.circle(sealX, sealY, sealR - 0.25, 'D');
-    doc.setDrawColor(128, 216, 255); // Holographic Cyan ring
-    doc.circle(sealX, sealY, sealR - 0.5, 'D');
-    
-    // Draw metallic colored background of seal
-    doc.setFillColor(245, 235, 255);
-    doc.circle(sealX, sealY, sealR - 0.6, 'F');
-    
-    // Add miniature logo crest inside the seal
-    if (activeLogoPng) {
-      try {
-        const logoSize = (sealR - 0.8) * 2;
-        doc.addImage(activeLogoPng, 'PNG', sealX - logoSize / 2, sealY - logoSize / 2, logoSize, logoSize);
-      } catch (e) {
-        console.warn("Failed drawing watermark in seal", e);
-      }
-    }
-    doc.restoreGraphicsState();
 
     // Redraw inner border to cleanly frame the footer area
     doc.setDrawColor(234, 244, 255);
@@ -1935,26 +1874,7 @@ export async function generateStaffIdCardsPdf({
     doc.setFillColor(255, 255, 255);
     doc.roundedRect(x, y, cardW, cardH, 3.18, 3.18, 'F');
 
-    // 2. Clear light-blue grid and waves on the back card (anti-counterfeit pattern)
-    doc.saveGraphicsState();
-    doc.setDrawColor(210, 230, 255); // More visible light-blue
-    doc.setLineWidth(0.15);
-    // Draw vertical grid lines every 5mm
-    for (let gx = 5.0; gx < cardW; gx += 5.0) {
-      doc.line(x + gx, y + 0.5, x + gx, y + cardH - 0.5);
-    }
-    // Draw horizontal grid lines every 5mm
-    for (let gy = 5.0; gy < cardH; gy += 5.0) {
-      doc.line(x + 0.5, y + gy, x + cardW - 0.5, y + gy);
-    }
-    // Elegant intersecting vector lines for anti-counterfeit look
-    doc.setDrawColor(180, 215, 255);
-    doc.setLineWidth(0.2);
-    doc.line(x + 5, y + 5, x + cardW - 5, y + cardH - 5);
-    doc.line(x + 5, y + cardH - 5, x + cardW - 5, y + 5);
-    doc.circle(x + cardW / 2, y + cardH / 2, 16, 'D');
-    doc.circle(x + cardW / 2, y + cardH / 2, 22, 'D');
-    doc.restoreGraphicsState();
+
 
     // 3. School logo background watermark (10% opacity)
     if (activeLogoPng) {
