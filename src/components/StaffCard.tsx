@@ -62,10 +62,184 @@ export default function StaffCard({ staff, logoBase64, showWatermark = true }: S
       } as React.CSSProperties}
     >
       {/* Inner Card Container with Light Blue Inner Border */}
-      <div className="relative w-full h-full rounded-[12px] border-[1.5px] border-[#EAF5FF] overflow-hidden bg-gradient-to-br from-white via-[#F4FAFF] to-[#EAF4FF] flex flex-col justify-between p-[3cqw] z-10">
+      <div className="relative w-full h-full rounded-[12px] border-[1.5px] border-[#EAF5FF] overflow-hidden bg-white flex flex-col justify-between p-[3cqw] z-10">
         
-        {/* Background Subtle Gradient */}
-        <div className="absolute inset-0 pointer-events-none select-none z-0 overflow-hidden bg-gradient-to-br from-white via-[#F4FAFF] to-[#EAF4FF]" />
+        {/* Security Background Layer */}
+        <div 
+          className="absolute inset-0 pointer-events-none select-none z-0 overflow-hidden"
+          style={{
+            background: 'radial-gradient(circle at 18% 18%, #EAF4FF 0%, transparent 65%), radial-gradient(circle at 82% 18%, #EDF7ED 0%, transparent 65%), radial-gradient(circle at 82% 82%, #FAF5EC 0%, transparent 65%), radial-gradient(circle at 18% 82%, #F5EFFF 0%, transparent 65%), #FFFFFF'
+          }}
+        >
+          <svg className="absolute inset-0 w-full h-full pointer-events-none" viewBox="0 0 420 265" fill="none">
+            <defs>
+              {/* Security Micro Grid Pattern */}
+              <pattern id="sec-grid" width="8" height="8" patternUnits="userSpaceOnUse">
+                <path d="M 8 0 L 0 0 0 8" fill="none" stroke="#2F80ED" strokeWidth="0.08" strokeOpacity="0.04" />
+                <circle cx="4" cy="4" r="0.25" fill="#9B51E0" fillOpacity="0.05" />
+              </pattern>
+              
+              {/* Guilloche Pattern 1 (intersecting lines) */}
+              <pattern id="guilloche-pattern" width="16" height="16" patternUnits="userSpaceOnUse" patternTransform="rotate(25)">
+                <path d="M 0 8 Q 4 0 8 8 T 16 8" fill="none" stroke="#27AE60" strokeWidth="0.08" strokeOpacity="0.03" />
+                <path d="M 0 8 Q 4 16 8 8 T 16 8" fill="none" stroke="#9B51E0" strokeWidth="0.08" strokeOpacity="0.03" />
+              </pattern>
+            </defs>
+
+            {/* Background grid fills */}
+            <rect width="420" height="265" fill="url(#sec-grid)" />
+            <rect width="420" height="265" fill="url(#guilloche-pattern)" />
+            
+            {/* Outer security border frame - multiple nested fine lines */}
+            <rect x="4" y="4" width="412" height="257" rx="10" fill="none" stroke="#0B4A8B" strokeWidth="0.35" strokeOpacity="0.12" />
+            <rect x="6" y="6" width="408" height="253" rx="8" fill="none" stroke="#2F80ED" strokeWidth="0.2" strokeOpacity="0.1" />
+            <rect x="8" y="8" width="404" height="249" rx="7" fill="none" stroke="#27AE60" strokeWidth="0.12" strokeOpacity="0.08" strokeDasharray="2,2" />
+            <rect x="10" y="10" width="400" height="245" rx="6" fill="none" stroke="#9B51E0" strokeWidth="0.15" strokeOpacity="0.08" />
+
+            {/* Corner Security Accents - Geometric Line Art */}
+            {/* Top Left */}
+            <path d="M 4,16 C 12,16 16,12 16,4 M 4,20 C 16,20 20,16 20,4 M 4,24 C 20,24 24,20 24,4" fill="none" stroke="#2F80ED" strokeWidth="0.18" strokeOpacity="0.08" />
+            {/* Top Right */}
+            <path d="M 416,16 C 408,16 404,12 404,4 M 416,20 C 404,20 400,16 400,4 M 416,24 C 400,24 396,20 396,4" fill="none" stroke="#2F80ED" strokeWidth="0.18" strokeOpacity="0.08" />
+            {/* Bottom Left */}
+            <path d="M 4,249 C 12,249 16,253 16,261 M 4,245 C 16,245 20,249 20,261 M 4,241 C 20,241 24,245 24,261" fill="none" stroke="#9B51E0" strokeWidth="0.18" strokeOpacity="0.08" />
+            {/* Bottom Right */}
+            <path d="M 416,249 C 408,249 404,253 404,261 M 416,245 C 404,245 400,249 400,261 M 416,241 C 400,241 396,245 396,261" fill="none" stroke="#9B51E0" strokeWidth="0.18" strokeOpacity="0.08" />
+
+            {/* Concentric Security Circles in background */}
+            <circle cx="210" cy="132.5" r="115" fill="none" stroke="#0B4A8B" strokeWidth="0.12" strokeOpacity="0.03" />
+            <circle cx="210" cy="132.5" r="100" fill="none" stroke="#2F80ED" strokeWidth="0.12" strokeOpacity="0.04" strokeDasharray="5,2" />
+            <circle cx="210" cy="132.5" r="85" fill="none" stroke="#9B51E0" strokeWidth="0.12" strokeOpacity="0.03" />
+            <circle cx="210" cy="132.5" r="70" fill="none" stroke="#27AE60" strokeWidth="0.12" strokeOpacity="0.04" strokeDasharray="1,3" />
+
+            {/* Horizontal wave lines (Guilloche) */}
+            {Array.from({ length: 9 }).map((_, i) => {
+              const yOffset = i * 24 + 30;
+              const amplitude = 5;
+              const frequency = 0.04;
+              let path = `M 4 ${yOffset}`;
+              for (let x = 4; x <= 416; x += 8) {
+                const y = yOffset + Math.sin(x * frequency + i * 0.7) * amplitude;
+                path += ` L ${x} ${y}`;
+              }
+              return (
+                <path
+                  key={`h-wave-${i}`}
+                  d={path}
+                  fill="none"
+                  stroke={i % 3 === 0 ? "#2F80ED" : i % 3 === 1 ? "#9B51E0" : "#27AE60"}
+                  strokeWidth="0.15"
+                  strokeOpacity="0.06"
+                />
+              );
+            })}
+
+            {/* Vertical wave lines (Guilloche) */}
+            {Array.from({ length: 13 }).map((_, i) => {
+              const xOffset = i * 30 + 30;
+              const amplitude = 6;
+              const frequency = 0.035;
+              let path = `M ${xOffset} 4`;
+              for (let y = 4; y <= 261; y += 8) {
+                const x = xOffset + Math.sin(y * frequency + i * 0.9) * amplitude;
+                path += ` L ${x} ${y}`;
+              }
+              return (
+                <path
+                  key={`v-wave-${i}`}
+                  d={path}
+                  fill="none"
+                  stroke={i % 3 === 0 ? "#27AE60" : i % 3 === 1 ? "#2F80ED" : "#9B51E0"}
+                  strokeWidth="0.12"
+                  strokeOpacity="0.05"
+                />
+              );
+            })}
+
+            {/* Concentric Ellipse Rosette - Center */}
+            {Array.from({ length: 24 }).map((_, i) => {
+              const angle = (i * 360) / 24;
+              return (
+                <ellipse
+                  key={`ros-center-${i}`}
+                  cx="210"
+                  cy="132.5"
+                  rx="60"
+                  ry="12"
+                  fill="none"
+                  stroke="#9B51E0"
+                  strokeWidth="0.18"
+                  strokeOpacity="0.07"
+                  transform={`rotate(${angle} 210 132.5)`}
+                />
+              );
+            })}
+            {/* Inner Ring Rosette - Center */}
+            {Array.from({ length: 18 }).map((_, i) => {
+              const angle = (i * 360) / 18;
+              return (
+                <ellipse
+                  key={`ros-center-inner-${i}`}
+                  cx="210"
+                  cy="132.5"
+                  rx="30"
+                  ry="6"
+                  fill="none"
+                  stroke="#2F80ED"
+                  strokeWidth="0.22"
+                  strokeOpacity="0.09"
+                  transform={`rotate(${angle} 210 132.5)`}
+                />
+              );
+            })}
+
+            {/* Rosette - Left (Behind Photo) */}
+            {Array.from({ length: 16 }).map((_, i) => {
+              const angle = (i * 360) / 16;
+              return (
+                <ellipse
+                  key={`ros-photo-${i}`}
+                  cx="65"
+                  cy="125"
+                  rx="35"
+                  ry="8"
+                  fill="none"
+                  stroke="#2F80ED"
+                  strokeWidth="0.15"
+                  strokeOpacity="0.05"
+                  transform={`rotate(${angle} 65 125)`}
+                />
+              );
+            })}
+
+            {/* Rosette - Right (Behind QR Code) */}
+            {Array.from({ length: 16 }).map((_, i) => {
+              const angle = (i * 360) / 16;
+              return (
+                <ellipse
+                  key={`ros-qr-${i}`}
+                  cx="360"
+                  cy="150"
+                  rx="30"
+                  ry="7"
+                  fill="none"
+                  stroke="#27AE60"
+                  strokeWidth="0.15"
+                  strokeOpacity="0.05"
+                  transform={`rotate(${angle} 360 150)`}
+                />
+              );
+            })}
+
+            {/* Fine Microtext Borders at Top and Bottom */}
+            <text x="12" y="13" fontSize="2.2" fontFamily="monospace" fill="#0B4A8B" fillOpacity="0.12" letterSpacing="0.8">
+              ST. PAUL SECONDARY SCHOOL OFFICIAL SECURITY CREDENTIAL • VERIFY ONLINE
+            </text>
+            <text x="12" y="253" fontSize="2.2" fontFamily="monospace" fill="#0B4A8B" fillOpacity="0.12" letterSpacing="0.8">
+              ST. PAUL SECONDARY SCHOOL OFFICIAL SECURITY CREDENTIAL • VERIFY ONLINE
+            </text>
+          </svg>
+        </div>
 
         {/* Security Text Running Vertically on Left Margin (5% opacity) */}
         <div 
@@ -75,20 +249,9 @@ export default function StaffCard({ staff, logoBase64, showWatermark = true }: S
           ST. PAUL SEC. SCH SECURITY DOCUMENT
         </div>
 
-        {/* Security Microtext Border at the top edge */}
-        <div className="absolute left-[3cqw] top-[0.6cqw] text-[0.8cqw] font-mono tracking-widest text-[#2F80ED]/30 uppercase select-none pointer-events-none">
-          ST. PAUL SECONDARY SCHOOL OFFICIAL SECURITY CREDENTIAL • VERIFY ONLINE
-        </div>
-
-        {/* Subtle Security Guilloche Lines around the border (4% opacity) */}
-        <svg className="absolute inset-0 w-full h-full pointer-events-none opacity-[0.04] text-[#2F80ED]" viewBox="0 0 100 100" preserveAspectRatio="none">
-          <path d="M 3,3 C 25,1 75,1 97,3 C 99,25 99,75 97,97 C 75,99 25,99 3,97 C 1,75 1,25 3,3 Z" fill="none" stroke="currentColor" strokeWidth="0.25" />
-          <path d="M 4,4 C 25,2 75,2 96,4 C 98,25 98,75 96,96 C 75,98 25,98 4,96 C 2,75 2,25 4,4 Z" fill="none" stroke="currentColor" strokeWidth="0.15" />
-        </svg>
-
-        {/* Faint School Crest Watermark in Center (softer 2% opacity) */}
+        {/* Faint School Crest Watermark in Center (softer 4.5% opacity for semi-transparency) */}
         {showWatermark && (
-          <div className="absolute inset-0 flex items-center justify-center opacity-[0.02] scale-[1.25] rotate-6">
+          <div className="absolute inset-0 flex items-center justify-center opacity-[0.045] scale-[1.25] rotate-6 z-0 pointer-events-none select-none">
             <SchoolLogo className="w-[48%] h-[48%]" logoBase64={logoBase64} />
           </div>
         )}
