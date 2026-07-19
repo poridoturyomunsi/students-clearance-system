@@ -94,19 +94,19 @@ export default function StaffCard({ staff, logoBase64, authorizedSignatureBase64
               {/* Security Micro Grid Pattern */}
               <pattern id="sec-grid" width="8" height="8" patternUnits="userSpaceOnUse">
                 <path d="M 8 0 L 0 0 0 8" fill="none" stroke="#2F80ED" strokeWidth="0.08" strokeOpacity="0.04" />
-                <circle cx="4" cy="4" r="0.25" fill="#9B51E0" fillOpacity="0.05" />
+                <circle cx="4" cy="4" r="0.25" fill="#D4AF37" fillOpacity="0.05" />
               </pattern>
               
               {/* Guilloche Pattern 1 (intersecting lines) */}
               <pattern id="guilloche-pattern" width="16" height="16" patternUnits="userSpaceOnUse" patternTransform="rotate(25)">
-                <path d="M 0 8 Q 4 0 8 8 T 16 8" fill="none" stroke="#27AE60" strokeWidth="0.08" strokeOpacity="0.03" />
-                <path d="M 0 8 Q 4 16 8 8 T 16 8" fill="none" stroke="#9B51E0" strokeWidth="0.08" strokeOpacity="0.03" />
+                <path d="M 0 8 Q 4 0 8 8 T 16 8" fill="none" stroke="#0B4A8B" strokeWidth="0.08" strokeOpacity="0.03" />
+                <path d="M 0 8 Q 4 16 8 8 T 16 8" fill="none" stroke="#D4AF37" strokeWidth="0.08" strokeOpacity="0.03" />
               </pattern>
 
               {/* Diagonal Crosshatch Anti-Copy Mesh */}
               <pattern id="anti-copy-mesh" width="12" height="12" patternUnits="userSpaceOnUse" patternTransform="rotate(45)">
                 <path d="M 12 0 L 0 0 0 12" fill="none" stroke="#2F80ED" strokeWidth="0.06" strokeOpacity="0.04" />
-                <path d="M 6 0 L 6 12 M 0 6 L 12 6" fill="none" stroke="#9B51E0" strokeWidth="0.06" strokeOpacity="0.03" />
+                <path d="M 6 0 L 6 12 M 0 6 L 12 6" fill="none" stroke="#0B4A8B" strokeWidth="0.06" strokeOpacity="0.03" />
               </pattern>
             </defs>
 
@@ -115,11 +115,10 @@ export default function StaffCard({ staff, logoBase64, authorizedSignatureBase64
             <rect width="420" height="265" fill="url(#guilloche-pattern)" />
             <rect width="420" height="265" fill="url(#anti-copy-mesh)" />
             
-            {/* Outer security border frame - multiple nested fine lines (passport-inspired) */}
-            <rect x="4" y="4" width="412" height="257" rx="10" fill="none" stroke="#0B4A8B" strokeWidth="0.35" strokeOpacity="0.12" />
-            <rect x="6" y="6" width="408" height="253" rx="8" fill="none" stroke="#2F80ED" strokeWidth="0.2" strokeOpacity="0.1" />
-            <rect x="8" y="8" width="404" height="249" rx="7" fill="none" stroke="#27AE60" strokeWidth="0.12" strokeOpacity="0.08" strokeDasharray="3,1" />
-            <rect x="10" y="10" width="400" height="245" rx="6" fill="none" stroke="#9B51E0" strokeWidth="0.15" strokeOpacity="0.08" />
+            {/* Double blue border with a thin decorative gold line in between */}
+            <rect x="4" y="4" width="412" height="257" rx="10" fill="none" stroke="#0B4A8B" strokeWidth="0.8" strokeOpacity="0.25" />
+            <rect x="6.5" y="6.5" width="407" height="252" rx="8.5" fill="none" stroke="#D4AF37" strokeWidth="0.25" strokeOpacity="0.3" strokeDasharray="2,2" />
+            <rect x="9" y="9" width="402" height="247" rx="7" fill="none" stroke="#2F80ED" strokeWidth="0.5" strokeOpacity="0.2" />
 
             {/* Corner Security Accents - Geometric Line Art */}
             {/* Top Left */}
@@ -127,15 +126,15 @@ export default function StaffCard({ staff, logoBase64, authorizedSignatureBase64
             {/* Top Right */}
             <path d="M 416,16 C 408,16 404,12 404,4 M 416,20 C 404,20 400,16 400,4 M 416,24 C 400,24 396,20 396,4" fill="none" stroke="#2F80ED" strokeWidth="0.18" strokeOpacity="0.08" />
             {/* Bottom Left */}
-            <path d="M 4,249 C 12,249 16,253 16,261 M 4,245 C 16,245 20,249 20,261 M 4,241 C 20,241 24,245 24,261" fill="none" stroke="#9B51E0" strokeWidth="0.18" strokeOpacity="0.08" />
+            <path d="M 4,249 C 12,249 16,253 16,261 M 4,245 C 16,245 20,249 20,261 M 4,241 C 20,241 24,245 24,261" fill="none" stroke="#D4AF37" strokeWidth="0.18" strokeOpacity="0.08" />
             {/* Bottom Right */}
-            <path d="M 416,249 C 408,249 404,253 404,261 M 416,245 C 404,245 400,249 400,261 M 416,241 C 400,241 396,245 396,261" fill="none" stroke="#9B51E0" strokeWidth="0.18" strokeOpacity="0.08" />
+            <path d="M 416,249 C 408,249 404,253 404,261 M 416,245 C 404,245 400,249 400,261 M 416,241 C 400,241 396,245 396,261" fill="none" stroke="#D4AF37" strokeWidth="0.18" strokeOpacity="0.08" />
 
             {/* Concentric Security Circles in background */}
             <circle cx="210" cy="132.5" r="115" fill="none" stroke="#0B4A8B" strokeWidth="0.12" strokeOpacity="0.03" />
             <circle cx="210" cy="132.5" r="100" fill="none" stroke="#2F80ED" strokeWidth="0.12" strokeOpacity="0.04" strokeDasharray="5,2" />
-            <circle cx="210" cy="132.5" r="85" fill="none" stroke="#9B51E0" strokeWidth="0.12" strokeOpacity="0.03" />
-            <circle cx="210" cy="132.5" r="70" fill="none" stroke="#27AE60" strokeWidth="0.12" strokeOpacity="0.04" strokeDasharray="1,3" />
+            <circle cx="210" cy="132.5" r="85" fill="none" stroke="#D4AF37" strokeWidth="0.12" strokeOpacity="0.03" />
+            <circle cx="210" cy="132.5" r="70" fill="none" stroke="#2F80ED" strokeWidth="0.12" strokeOpacity="0.04" strokeDasharray="1,3" />
 
             {/* Faint Map-Style Wavy Contour Textures */}
             {Array.from({ length: 6 }).map((_, i) => {
@@ -188,7 +187,7 @@ export default function StaffCard({ staff, logoBase64, authorizedSignatureBase64
               );
             })}
 
-            {/* Holographic Wave Effect - Family B (Violet-Purple Shifted) */}
+            {/* Holographic Wave Effect - Family B (Gold Shifted) */}
             {Array.from({ length: 8 }).map((_, i) => {
               const yOffset = i * 26 + 37;
               const amplitude = 4;
@@ -203,17 +202,17 @@ export default function StaffCard({ staff, logoBase64, authorizedSignatureBase64
                   key={`wave-b-${i}`}
                   d={path}
                   fill="none"
-                  stroke="#9B51E0"
+                  stroke="#D4AF37"
                   strokeWidth="0.12"
                   strokeOpacity="0.04"
                 />
               );
             })}
 
-            {/* UV-style fluorescent elements */}
-            <path d="M 20,40 Q 110,120 200,40 T 380,40" fill="none" stroke="#39FF14" strokeWidth="0.3" strokeOpacity="0.015" />
-            <path d="M 40,220 Q 150,140 260,220 T 400,220" fill="none" stroke="#FF007F" strokeWidth="0.3" strokeOpacity="0.015" />
-            <circle cx="210" cy="132.5" r="55" fill="none" stroke="#00FFFF" strokeWidth="0.25" strokeOpacity="0.02" strokeDasharray="3,6" />
+            {/* Faint security elements */}
+            <path d="M 20,40 Q 110,120 200,40 T 380,40" fill="none" stroke="#2F80ED" strokeWidth="0.3" strokeOpacity="0.015" />
+            <path d="M 40,220 Q 150,140 260,220 T 400,220" fill="none" stroke="#0B4A8B" strokeWidth="0.3" strokeOpacity="0.015" />
+            <circle cx="210" cy="132.5" r="55" fill="none" stroke="#D4AF37" strokeWidth="0.25" strokeOpacity="0.02" strokeDasharray="3,6" />
 
             {/* Concentric Ellipse Rosette - Center */}
             {Array.from({ length: 24 }).map((_, i) => {
@@ -226,7 +225,7 @@ export default function StaffCard({ staff, logoBase64, authorizedSignatureBase64
                   rx="60"
                   ry="12"
                   fill="none"
-                  stroke="#9B51E0"
+                  stroke="#D4AF37"
                   strokeWidth="0.18"
                   strokeOpacity="0.07"
                   transform={`rotate(${angle} 210 132.5)`}
@@ -257,7 +256,7 @@ export default function StaffCard({ staff, logoBase64, authorizedSignatureBase64
             <path
               d={getSpirographPath(210, 132.5, 48, 18, 22, 9)}
               fill="none"
-              stroke="#9B51E0"
+              stroke="#D4AF37"
               strokeWidth="0.2"
               strokeOpacity="0.08"
             />
@@ -282,7 +281,7 @@ export default function StaffCard({ staff, logoBase64, authorizedSignatureBase64
             <path
               d={getSpirographPath(360, 150, 28, 10, 12, 8)}
               fill="none"
-              stroke="#27AE60"
+              stroke="#D4AF37"
               strokeWidth="0.16"
               strokeOpacity="0.06"
             />
@@ -317,7 +316,7 @@ export default function StaffCard({ staff, logoBase64, authorizedSignatureBase64
                   rx="30"
                   ry="7"
                   fill="none"
-                  stroke="#27AE60"
+                  stroke="#D4AF37"
                   strokeWidth="0.15"
                   strokeOpacity="0.05"
                   transform={`rotate(${angle} 360 150)`}
@@ -325,10 +324,7 @@ export default function StaffCard({ staff, logoBase64, authorizedSignatureBase64
               );
             })}
 
-            {/* Fine Microtext Borders at Top and Bottom */}
-            <text x="12" y="13" fontSize="2.2" fontFamily="monospace" fill="#0B4A8B" fillOpacity="0.12" letterSpacing="0.8">
-              ST. PAUL SECONDARY SCHOOL OFFICIAL SECURITY CREDENTIAL • VERIFY ONLINE
-            </text>
+            {/* Fine Microtext Border at Bottom */}
             <text x="12" y="253" fontSize="2.2" fontFamily="monospace" fill="#0B4A8B" fillOpacity="0.12" letterSpacing="0.8">
               ST. PAUL SECONDARY SCHOOL OFFICIAL SECURITY CREDENTIAL • VERIFY ONLINE
             </text>
@@ -404,34 +400,34 @@ export default function StaffCard({ staff, logoBase64, authorizedSignatureBase64
 
             {/* Column 2: Staff Details List (expanded width) */}
             <div className="flex-1 flex flex-col justify-center text-left min-w-0 h-[50cqw] pl-[1cqw]">
-              <div className="grid grid-cols-[22cqw_1fr] gap-x-[1cqw] gap-y-[2.2cqw] text-[3.2cqw] text-slate-800">
+              <div className="grid grid-cols-[22cqw_1fr] gap-x-[1cqw] gap-y-[2.8cqw] text-[3.2cqw] text-slate-800">
                 
                 {/* Name */}
-                <span className="font-bold text-[#6B7280] tracking-[0.5px] self-start pt-[0.4cqw]">Name:</span>
+                <span className="font-normal text-slate-500 tracking-[0.5px] self-start pt-[0.4cqw]">Name:</span>
                 <span className="font-extrabold text-[#0B4A8B] uppercase text-[4.2cqw] leading-[1.15] break-words pr-[1cqw]">{fullName}</span>
 
                 {/* Staff No */}
-                <span className="font-bold text-[#6B7280] tracking-[0.5px]">Staff No:</span>
-                <span className="font-bold text-[#1E3A5F] uppercase font-mono truncate text-[3.6cqw]">{staffNo}</span>
+                <span className="font-normal text-slate-500 tracking-[0.5px]">Staff No:</span>
+                <span className="font-semibold text-[#1E3A5F] uppercase font-mono truncate text-[3.6cqw]">{staffNo}</span>
 
                 {/* Designation */}
-                <span className="font-bold text-[#6B7280] tracking-[0.5px]">Designation:</span>
-                <span className="font-bold text-[#1E3A5F] uppercase truncate text-[3.6cqw]">{position}</span>
+                <span className="font-normal text-slate-500 tracking-[0.5px]">Designation:</span>
+                <span className="font-semibold text-[#1E3A5F] uppercase truncate text-[3.6cqw]">{position}</span>
 
                 {/* Department */}
-                <span className="font-bold text-[#6B7280] tracking-[0.5px]">Department:</span>
-                <span className="font-bold text-[#1E3A5F] uppercase truncate text-[3.6cqw]">{department}</span>
+                <span className="font-normal text-slate-500 tracking-[0.5px]">Department:</span>
+                <span className="font-semibold text-[#1E3A5F] uppercase truncate text-[3.6cqw]">{department}</span>
 
                 {/* Gender */}
-                <span className="font-bold text-[#6B7280] tracking-[0.5px]">Gender:</span>
-                <span className="font-bold text-[#1E3A5F] uppercase truncate text-[3.6cqw]">{staff.gender || 'Female'}</span>
+                <span className="font-normal text-slate-500 tracking-[0.5px]">Gender:</span>
+                <span className="font-semibold text-[#1E3A5F] uppercase truncate text-[3.6cqw]">{staff.gender || 'Female'}</span>
               </div>
             </div>
 
             {/* Column 3: Verification QR Code Section (narrower, 20% smaller QR) */}
-            <div className="shrink-0 w-[21.5cqw] h-[50cqw] flex flex-col items-center justify-end pb-[0.5cqw] z-10">
-              <div className="bg-white border border-[#2F80ED] rounded-xl p-[0.8cqw] pt-[2.2cqw] pb-[1.2cqw] flex flex-col items-center justify-center gap-[0.5cqw] shadow-xs w-full">
-                <img src={qrCodeUrl} alt="Verification QR" className="w-[17cqw] h-[17cqw] object-contain mt-[0.8cqw]" />
+            <div className="shrink-0 w-[17cqw] h-[50cqw] flex flex-col items-center justify-end pb-[0.5cqw] z-10">
+              <div className="bg-white border border-[#2F80ED] rounded-xl p-[0.6cqw] pt-[1.4cqw] pb-[1.0cqw] flex flex-col items-center justify-center gap-[0.5cqw] shadow-xs w-full">
+                <img src={qrCodeUrl} alt="Verification QR" className="w-[13cqw] h-[13cqw] object-contain mt-[0.2cqw]" />
                 <div className="flex flex-col items-center leading-none text-center">
                   <span className="text-[1.8cqw] font-bold text-[#0B4A8B] tracking-[0.2px]">
                     Scan QR Code
@@ -477,11 +473,7 @@ export default function StaffCard({ staff, logoBase64, authorizedSignatureBase64
                   alt="Staff signature" 
                   className="max-h-full object-contain" 
                 />
-              ) : (
-                <span className="text-[2.2cqw] font-mono italic text-slate-400 capitalize">
-                  {staff.lastName || 'Staff'}
-                </span>
-              )}
+              ) : null}
             </div>
           </div>
 
@@ -510,22 +502,14 @@ export default function StaffCard({ staff, logoBase64, authorizedSignatureBase64
                     alt="Authorized signature" 
                     className="max-h-full object-contain brightness-95" 
                   />
-                ) : (
-                  <span className="text-[2.2cqw] font-mono italic text-slate-400 capitalize">
-                    {staff.lastName || 'Head Teacher'}
-                  </span>
-                )
+                ) : null
               ) : authorizedSignatureBase64 ? (
                 <img 
                   src={authorizedSignatureBase64} 
                   alt="Authorized signature" 
                   className="max-h-full object-contain brightness-95" 
                 />
-              ) : (
-                <span className="text-[2.2cqw] font-mono italic text-slate-400 capitalize">
-                  Authorized
-                </span>
-              )}
+              ) : null}
             </div>
           </div>
 

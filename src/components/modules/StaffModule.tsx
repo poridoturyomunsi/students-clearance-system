@@ -43,7 +43,7 @@ export default function StaffModule() {
     try {
       const doc = await generateStaffIdCardsPdf({
         staffMembers: printingMembers,
-        schoolLogoBase64: settings.schoolLogo,
+        schoolLogoBase64: settings.school_logo,
         authorizedSignatureBase64: settings.head_teacher_signature,
         printSide: printSide
       });
@@ -65,7 +65,7 @@ export default function StaffModule() {
     try {
       if (printingMembers.length === 1) {
         const member = printingMembers[0];
-        const dataUrl = await generateStaffIdCardPng(member, settings.schoolLogo, settings.head_teacher_signature);
+        const dataUrl = await generateStaffIdCardPng(member, settings.school_logo, settings.head_teacher_signature);
         const link = document.createElement('a');
         link.href = dataUrl;
         link.download = `staff_id_${member.employeeNumber || member.id}.png`;
@@ -74,7 +74,7 @@ export default function StaffModule() {
         document.body.removeChild(link);
         setSuccess('PNG Staff ID card downloaded successfully.');
       } else {
-        const zipBlob = await generateStaffIdCardsPngZip(printingMembers, settings.schoolLogo, settings.head_teacher_signature);
+        const zipBlob = await generateStaffIdCardsPngZip(printingMembers, settings.school_logo, settings.head_teacher_signature);
         const link = document.createElement('a');
         link.href = URL.createObjectURL(zipBlob);
         link.download = `staff_id_cards_png.zip`;
@@ -1401,7 +1401,7 @@ export default function StaffModule() {
                     <div className="w-[85%] max-w-[380px] flex items-center justify-center">
                       <StaffCard 
                         staff={cardManagementStaff} 
-                        logoBase64={settings.schoolLogo} 
+                        logoBase64={settings.school_logo} 
                         authorizedSignatureBase64={settings.head_teacher_signature}
                       />
                     </div>
@@ -1480,7 +1480,7 @@ export default function StaffModule() {
                           if (!cardManagementStaff) return;
                           setCardLoading(true);
                           try {
-                            const dataUrl = await generateStaffIdCardPng(cardManagementStaff, settings.schoolLogo);
+                            const dataUrl = await generateStaffIdCardPng(cardManagementStaff, settings.school_logo);
                             const link = document.createElement('a');
                             link.href = dataUrl;
                             link.download = `staff_id_${cardManagementStaff.employeeNumber || cardManagementStaff.id}.png`;

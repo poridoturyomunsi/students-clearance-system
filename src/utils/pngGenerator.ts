@@ -81,13 +81,6 @@ export async function generateStaffIdCardPng(
   ctx.fillStyle = bgGrad;
   ctx.fillRect(0, 0, canvas.width, canvas.height);
 
-  // --- 2. Security Microtext Border at the top edge ---
-  ctx.save();
-  ctx.fillStyle = 'rgba(47, 128, 237, 0.3)'; // Accent Blue #2F80ED
-  ctx.font = 'bold 9px "Courier New", Courier, monospace';
-  ctx.textAlign = 'left';
-  ctx.fillText('ST. PAUL SECONDARY SCHOOL OFFICIAL SECURITY CREDENTIAL • VERIFY ONLINE', 120, 22);
-  ctx.restore();
 
   // --- 3. Abstract Background Circles & Curves ---
   ctx.save();
