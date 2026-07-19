@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { Staff } from '../types.ts';
 import SchoolLogo from './SchoolLogo.tsx';
 import { Calendar, PenTool, CheckCircle2, Clock } from 'lucide-react';
@@ -12,6 +12,23 @@ interface StaffCardProps {
 }
 
 export default function StaffCard({ staff, logoBase64, authorizedSignatureBase64, showWatermark = true, side = 'front' }: StaffCardProps) {
+  // Mouse tilt hover tracking for holographic shimmer
+  const [tilt, setTilt] = useState({ x: 0, y: 0 });
+  const handleMouseMove = (e: React.MouseEvent<HTMLDivElement>) => {
+    const rect = e.currentTarget.getBoundingClientRect();
+    const x = (e.clientX - rect.left) / rect.width;
+    const y = (e.clientY - rect.top) / rect.height;
+    setTilt({ x: (x - 0.5) * 15, y: (y - 0.5) * 15 });
+  };
+  const handleMouseLeave = () => {
+    setTilt({ x: 0, y: 0 });
+  };
+
+  const tiltStyle = {
+    transform: `perspective(1000px) rotateX(${-tilt.y}deg) rotateY(${tilt.x}deg)`,
+    transition: 'transform 0.1s ease-out, box-shadow 0.1s ease-out',
+  };
+
   // Details
   const fullName = `${staff.firstName || ''} ${staff.middleName ? staff.middleName + ' ' : ''}${staff.lastName || ''}`.trim() || staff.name || 'Not Available';
   const staffNo = staff.employeeNumber || staff.id || 'Not Available';
@@ -67,10 +84,13 @@ export default function StaffCard({ staff, logoBase64, authorizedSignatureBase64
 
     return (
       <div 
-        className="relative w-full max-w-[420px] aspect-[1.585] bg-[#0B4A8B] rounded-[16px] p-[0.6cqw] shadow-2xl overflow-hidden flex flex-col justify-between select-none font-sans"
+        className="relative w-full max-w-[420px] aspect-[1.585] bg-[#0B4A8B] rounded-[16px] p-[0.6cqw] shadow-2xl overflow-hidden flex flex-col justify-between select-none font-sans group"
+        onMouseMove={handleMouseMove}
+        onMouseLeave={handleMouseLeave}
         style={{ 
           containerType: 'inline-size',
-          boxShadow: '0 12px 30px -5px rgba(11, 74, 139, 0.3), 0 8px 16px -6px rgba(11, 74, 139, 0.25)'
+          boxShadow: '0 12px 30px -5px rgba(11, 74, 139, 0.3), 0 8px 16px -6px rgba(11, 74, 139, 0.25)',
+          ...tiltStyle
         } as React.CSSProperties}
       >
         {/* Inner Card Container with Light Blue Inner Border */}
@@ -242,10 +262,13 @@ export default function StaffCard({ staff, logoBase64, authorizedSignatureBase64
 
   return (
     <div 
-      className="relative w-full max-w-[420px] aspect-[1.585] bg-[#0B4A8B] rounded-[16px] p-[0.6cqw] shadow-2xl overflow-hidden flex flex-col justify-between select-none font-sans"
+      className="relative w-full max-w-[420px] aspect-[1.585] bg-[#0B4A8B] rounded-[16px] p-[0.6cqw] shadow-2xl overflow-hidden flex flex-col justify-between select-none font-sans group"
+      onMouseMove={handleMouseMove}
+      onMouseLeave={handleMouseLeave}
       style={{ 
         containerType: 'inline-size',
-        boxShadow: '0 12px 30px -5px rgba(11, 74, 139, 0.3), 0 8px 16px -6px rgba(11, 74, 139, 0.25)'
+        boxShadow: '0 12px 30px -5px rgba(11, 74, 139, 0.3), 0 8px 16px -6px rgba(11, 74, 139, 0.25)',
+        ...tiltStyle
       } as React.CSSProperties}
     >
       {/* Inner Card Container with Light Blue Inner Border */}
@@ -562,6 +585,32 @@ export default function StaffCard({ staff, logoBase64, authorizedSignatureBase64
                   </div>
                 )}
               </div>
+
+              {/* Tamper-Resistant Holographic Foil Seal overlapping photo corner */}
+              <div 
+                className="absolute z-30 rounded-full border border-white/60 shadow-md flex items-center justify-center overflow-hidden"
+                style={{
+                  width: '9.5cqw',
+                  height: '9.5cqw',
+                  right: '-3.8cqw',
+                  bottom: '-2.5cqw',
+                  background: `radial-gradient(circle at ${50 + tilt.x * 2.5}% ${50 + tilt.y * 2.5}%, #ffb3ff 0%, #80e5ff 35%, #ffd180 70%, #ff80ab 100%)`,
+                  boxShadow: 'inset 0 0 5px rgba(255,255,255,0.9), 0 3px 8px rgba(0,0,0,0.25)',
+                }}
+              >
+                <div className="absolute inset-0 bg-white/20 mix-blend-overlay" />
+                <SchoolLogo className="w-[68%] h-[68%] text-white/95 drop-shadow-[0_1.5px_3px_rgba(0,0,0,0.65)] fill-current" logoBase64={logoBase64} />
+                
+                {/* Slow spinning microtext inside seal */}
+                <svg className="absolute inset-0 w-full h-full animate-[spin_16s_linear_infinite]" viewBox="0 0 100 100">
+                  <path id="seal-text-path-front" d="M 50 12 A 38 38 0 1 1 49.9 12" fill="none" />
+                  <text className="fill-white/90 font-black text-[5.5px] uppercase tracking-[0.22em]">
+                    <textPath href="#seal-text-path-front" startOffset="0%">
+                      ST. PAUL SEC. SCH * OFFICIAL SEAL *
+                    </textPath>
+                  </text>
+                </svg>
+              </div>
             </div>
 
             {/* Column 2: Staff Details List (expanded width) */}
@@ -714,6 +763,55 @@ export default function StaffCard({ staff, logoBase64, authorizedSignatureBase64
             </span>
           </div>
 
+        </div>
+
+        {/* Transparent Holographic Laminate Overlay */}
+        <div 
+          className="absolute inset-0 pointer-events-none z-40 overflow-hidden mix-blend-color-dodge transition-opacity duration-300 opacity-20 group-hover:opacity-35"
+          style={{
+            background: `linear-gradient(${135 + tilt.x * 2}deg, rgba(255,255,255,0) 0%, rgba(255,0,128,0.15) 20%, rgba(0,255,255,0.2) 40%, rgba(255,255,0,0.15) 60%, rgba(0,255,128,0.15) 80%, rgba(255,255,255,0) 100%)`,
+            backgroundSize: '300% 300%',
+            backgroundPosition: `${50 + tilt.x * 3}% ${50 + tilt.y * 3}%`,
+          }}
+        >
+          <svg className="absolute inset-0 w-full h-full" viewBox="0 0 420 265" fill="none">
+            <defs>
+              <linearGradient id="holo-laminate-rainbow" x1="0%" y1="0%" x2="100%" y2="100%">
+                <stop offset="0%" stopColor="#ff007f" stopOpacity="0.4" />
+                <stop offset="25%" stopColor="#00f3ff" stopOpacity="0.4" />
+                <stop offset="50%" stopColor="#ffe600" stopOpacity="0.4" />
+                <stop offset="75%" stopColor="#00ff66" stopOpacity="0.4" />
+                <stop offset="100%" stopColor="#ff007f" stopOpacity="0.4" />
+              </linearGradient>
+              
+              {/* Repeating holographic logo pattern */}
+              <pattern id="holo-logo-pattern" width="70" height="70" patternUnits="userSpaceOnUse" patternTransform="rotate(20)">
+                <ellipse cx="35" cy="35" rx="14" ry="4" fill="none" stroke="url(#holo-laminate-rainbow)" strokeWidth="0.12" strokeOpacity="0.25" />
+                <ellipse cx="35" cy="35" rx="4" ry="14" fill="none" stroke="url(#holo-laminate-rainbow)" strokeWidth="0.12" strokeOpacity="0.25" />
+                <path d="M35,25 L43,35 L35,45 L27,35 Z" fill="none" stroke="url(#holo-laminate-rainbow)" strokeWidth="0.15" strokeOpacity="0.25" />
+                <text x="35" y="56" textAnchor="middle" fill="url(#holo-laminate-rainbow)" fontSize="3.5" fontWeight="bold" opacity="0.3">ST. PAUL</text>
+              </pattern>
+            </defs>
+
+            {/* Repeating logo pattern fill */}
+            <rect width="420" height="265" fill="url(#holo-logo-pattern)" />
+
+            {/* Fine geometric security spirographs & guilloche lines */}
+            <circle cx="210" cy="132.5" r="95" fill="none" stroke="url(#holo-laminate-rainbow)" strokeWidth="0.1" strokeOpacity="0.3" strokeDasharray="3,3" />
+            <circle cx="210" cy="132.5" r="75" fill="none" stroke="url(#holo-laminate-rainbow)" strokeWidth="0.15" strokeOpacity="0.3" />
+            
+            {/* Swirling wave lines spanning the card */}
+            <path d="M-20,60 Q100,-10 210,132.5 T440,205" fill="none" stroke="url(#holo-laminate-rainbow)" strokeWidth="0.18" strokeOpacity="0.35" />
+            <path d="M-20,205 Q100,275 210,132.5 T440,60" fill="none" stroke="url(#holo-laminate-rainbow)" strokeWidth="0.18" strokeOpacity="0.35" />
+
+            {/* Fine Holographic Microtext running on circular path */}
+            <path id="holo-circle-path" d="M 210, 42.5 A 90,90 0 1,1 209.9,42.5" fill="none" />
+            <text className="font-bold text-[3px] tracking-[0.2em]" fill="url(#holo-laminate-rainbow)" opacity="0.35">
+              <textPath href="#holo-circle-path" startOffset="0%">
+                ST. PAUL SECONDARY SCHOOL NASUTI * SECURE OFFICIAL LAMINATE * ST. PAUL SECONDARY SCHOOL NASUTI * SECURE OFFICIAL LAMINATE *
+              </textPath>
+            </text>
+          </svg>
         </div>
 
       </div>
