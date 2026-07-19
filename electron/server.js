@@ -7234,7 +7234,7 @@ app.delete('/api/teachers/:id', async (req, res) => {
 app.get('/api/staff', async (req, res) => {
   try {
     const { category, department, status, search } = req.query;
-    let query = 'SELECT id, username, name, first_name, middle_name, last_name, employee_number, gender, dob, national_id, phone, email, residential_address, district, nationality, religion, category, department, date_appointed, employment_status, salary_scale, qualification, emergency_contact_name, emergency_contact_phone, force_password_change, verification_token, subjects, classes, position, photo, status, createdAt, (signature IS NOT NULL AND LENGTH(signature) > 0) as hasSignature FROM staff';
+    let query = 'SELECT id, username, name, first_name, middle_name, last_name, employee_number, gender, dob, national_id, phone, email, residential_address, district, nationality, religion, category, department, date_appointed, employment_status, salary_scale, qualification, emergency_contact_name, emergency_contact_phone, force_password_change, verification_token, subjects, classes, position, photo, signature, status, createdAt FROM staff';
     let params = [];
     let conditions = [];
 
