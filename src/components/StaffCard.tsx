@@ -81,14 +81,14 @@ export default function StaffCard({ staff, logoBase64, authorizedSignatureBase64
             <svg className="absolute inset-0 w-full h-full pointer-events-none" viewBox="0 0 420 265" fill="none">
               <defs>
                 {/* Security Micro Grid Pattern */}
-                <pattern id="sec-grid-back" width="6" height="6" patternUnits="userSpaceOnUse">
-                  <path d="M 6 0 L 0 0 0 6" fill="none" stroke="#2F80ED" strokeWidth="0.08" strokeOpacity="0.04" />
+                <pattern id="sec-grid-back" width="8" height="8" patternUnits="userSpaceOnUse">
+                  <path d="M 8 0 L 0 0 0 8" fill="none" stroke="#2F80ED" strokeWidth="0.16" strokeOpacity="0.10" />
                 </pattern>
                 
                 {/* Guilloche Pattern 1 (intersecting lines) */}
-                <pattern id="guilloche-back-1" width="40" height="40" patternUnits="userSpaceOnUse">
-                  <path d="M 0 20 Q 10 5, 20 20 T 40 20" fill="none" stroke="#2F80ED" strokeWidth="0.08" strokeOpacity="0.04" />
-                  <path d="M 0 10 Q 10 25, 20 10 T 40 10" fill="none" stroke="#2F80ED" strokeWidth="0.06" strokeOpacity="0.03" />
+                <pattern id="guilloche-back-1" width="30" height="30" patternUnits="userSpaceOnUse">
+                  <path d="M 0 15 Q 7.5 0, 15 15 T 30 15" fill="none" stroke="#2F80ED" strokeWidth="0.15" strokeOpacity="0.08" />
+                  <path d="M 0 15 Q 7.5 30, 15 15 T 30 15" fill="none" stroke="#D4AF37" strokeWidth="0.12" strokeOpacity="0.07" />
                 </pattern>
               </defs>
 
@@ -97,16 +97,16 @@ export default function StaffCard({ staff, logoBase64, authorizedSignatureBase64
               <rect width="420" height="265" fill="url(#guilloche-back-1)" />
 
               {/* Wave Artworks */}
-              <path d="M-20,40 Q80,10 180,60 T380,20 T500,40" fill="none" stroke="#2F80ED" strokeWidth="0.12" strokeOpacity="0.05" />
-              <path d="M-20,45 Q80,15 180,65 T380,25 T500,45" fill="none" stroke="#2F80ED" strokeWidth="0.12" strokeOpacity="0.05" />
-              <path d="M-20,180 Q100,210 220,170 T460,190" fill="none" stroke="#2F80ED" strokeWidth="0.1" strokeOpacity="0.04" />
-              <path d="M-20,185 Q100,215 220,175 T460,195" fill="none" stroke="#2F80ED" strokeWidth="0.1" strokeOpacity="0.04" />
+              <path d="M-20,40 Q80,10 180,60 T380,20 T500,40" fill="none" stroke="#2F80ED" strokeWidth="0.35" strokeOpacity="0.11" />
+              <path d="M-20,45 Q80,15 180,65 T380,25 T500,45" fill="none" stroke="#D4AF37" strokeWidth="0.28" strokeOpacity="0.08" />
+              <path d="M-20,180 Q100,210 220,170 T460,190" fill="none" stroke="#2F80ED" strokeWidth="0.32" strokeOpacity="0.10" />
+              <path d="M-20,185 Q100,215 220,175 T460,195" fill="none" stroke="#2F80ED" strokeWidth="0.32" strokeOpacity="0.10" />
             </svg>
           </div>
 
-          {/* Faint School Crest Watermark in Center (5% opacity) */}
+          {/* Faint School Crest Watermark in Center (10% opacity) */}
           {showWatermark && (
-            <div className="absolute inset-0 flex items-center justify-center opacity-[0.06] scale-[1.2] pointer-events-none select-none z-0">
+            <div className="absolute inset-0 flex items-center justify-center opacity-[0.10] scale-[1.2] pointer-events-none select-none z-0">
               <SchoolLogo className="w-[45%] h-[45%]" logoBase64={logoBase64} />
             </div>
           )}
@@ -114,69 +114,69 @@ export default function StaffCard({ staff, logoBase64, authorizedSignatureBase64
           {/* Header */}
           <div className="relative z-10 flex items-start justify-between w-full border-b border-slate-100 pb-[1.2cqw]">
             <div className="flex flex-col text-left">
-              <span className="text-[2.6cqw] font-extrabold uppercase text-[#0B4A8B] leading-none tracking-wide" style={{ fontFamily: 'Montserrat, sans-serif' }}>
+              <span className="text-[2.8cqw] font-black uppercase text-[#062C54] leading-none tracking-wide" style={{ fontFamily: 'Montserrat, sans-serif' }}>
                 ST. PAUL SECONDARY SCHOOL, NASUTI
               </span>
-              <span className="text-[1.8cqw] text-slate-500 font-medium uppercase tracking-wider mt-[0.5cqw] leading-none">
+              <span className="text-[1.9cqw] text-slate-500 font-bold uppercase tracking-wider mt-[0.5cqw] leading-none">
                 P.O. Box 678, Nasuti, Iganga
               </span>
             </div>
             <div className="text-right flex flex-col items-end">
-              <span className="text-[1.8cqw] text-slate-400 font-semibold tracking-wide leading-none">
-                ID Card Number: <span className="text-[#0B4A8B] font-bold">{staffNo}</span>
+              <span className="text-[1.9cqw] text-slate-450 font-bold tracking-wide leading-none">
+                ID Card Number: <span className="text-[#062C54] font-black">{staffNo}</span>
               </span>
             </div>
           </div>
 
           {/* Card Ownership Statement & Rules */}
           <div className="relative z-10 flex-1 flex flex-col justify-start text-left mt-[1.8cqw] gap-[1cqw]">
-            <div className="inline-self-start border-b border-[#0B4A8B] pb-[0.2cqw]">
-              <span className="text-[2cqw] font-extrabold uppercase text-[#0B4A8B] tracking-wider leading-none">
+            <div className="inline-self-start border-b-[1.5px] border-[#062C54] pb-[0.2cqw]">
+              <span className="text-[2.2cqw] font-black uppercase text-[#062C54] tracking-wider leading-none">
                 CARD OWNERSHIP STATEMENT & RULES:
               </span>
             </div>
-            <div className="flex flex-col gap-[1.2cqw] text-[1.92cqw] text-slate-700 font-normal leading-[1.3] pl-[0.5cqw]">
+            <div className="flex flex-col gap-[1.2cqw] text-[2.05cqw] text-slate-600 font-semibold leading-[1.3] pl-[0.5cqw]">
               <div className="flex items-start gap-[1.5cqw]">
-                <span className="font-bold text-[#0B4A8B]">1.</span>
+                <span className="font-black text-[#062C54]">1.</span>
                 <span>This card is the property of St. Paul Secondary School, Nasuti.</span>
               </div>
               <div className="flex items-start gap-[1.5cqw]">
-                <span className="font-bold text-[#0B4A8B]">2.</span>
+                <span className="font-black text-[#062C54]">2.</span>
                 <span>If found, please return to the school administration office at the address listed above.</span>
               </div>
               <div className="flex items-start gap-[1.5cqw]">
-                <span className="font-bold text-[#0B4A8B]">3.</span>
+                <span className="font-black text-[#062C54]">3.</span>
                 <span>In the event of loss, this card must be reported immediately to the School Administration Office.</span>
               </div>
             </div>
           </div>
 
           {/* Thin horizontal line separating the rules from footer */}
-          <div className="w-full h-[1px] bg-slate-100 my-[1.2cqw] z-10 relative" />
+          <div className="w-full h-[2px] bg-slate-300 my-[1.2cqw] z-10 relative" />
 
           {/* Footer Area */}
-          <div className="relative z-10 flex items-center justify-between w-full h-[8.5cqw] shrink-0">
+          <div className="relative z-10 flex items-end justify-between w-full h-[10.2cqw] shrink-0 pb-[0.4cqw]">
             {/* Info Block (Bottom Left) */}
-            <div className="flex flex-col text-left gap-[0.5cqw] text-[1.8cqw]">
+            <div className="flex flex-col text-left gap-[0.6cqw] text-[1.85cqw] pb-[0.2cqw]">
               <div className="leading-none">
-                <span className="font-bold text-slate-500 tracking-[0.2px]">TEL:</span>{' '}
-                <span className="font-medium text-slate-800">+256 776246610</span>
+                <span className="font-extrabold text-slate-500 tracking-[0.2px]">TEL:</span>{' '}
+                <span className="font-medium text-slate-700">+256 776246610</span>
               </div>
               <div className="leading-none">
-                <span className="font-bold text-slate-500 tracking-[0.2px]">EMAIL:</span>{' '}
-                <span className="font-medium text-slate-800">stpaulssnasuti2022@gmail.com</span>
+                <span className="font-extrabold text-slate-500 tracking-[0.2px]">EMAIL:</span>{' '}
+                <span className="font-medium text-slate-700">stpaulssnasuti2022@gmail.com</span>
               </div>
               <div className="leading-none">
-                <span className="font-bold text-slate-500 tracking-[0.2px]">SERIAL:</span>{' '}
-                <span className="font-semibold text-[#0B4A8B] font-mono">{serialStr}</span>
+                <span className="font-extrabold text-slate-500 tracking-[0.2px]">SERIAL:</span>{' '}
+                <span className="font-bold text-[#062C54] font-mono">{serialStr}</span>
               </div>
             </div>
 
             {/* Barcode Block (Bottom Right) */}
-            <div className="flex flex-col items-center justify-end h-full gap-[0.4cqw]">
-              <div className="bg-white p-[0.3cqw] px-[1.5cqw] border border-slate-100 rounded-md flex items-center justify-center h-[5.2cqw]">
+            <div className="flex flex-col items-center gap-[0.5cqw]">
+              <div className="bg-white p-[0.4cqw] px-[1.8cqw] border border-slate-200 rounded-md flex items-center justify-center h-[6.5cqw]">
                 {/* SVG Barcode representation */}
-                <svg className="w-[18cqw] h-[4.2cqw]" viewBox="0 0 100 24" preserveAspectRatio="none">
+                <svg className="w-[23cqw] h-[5.5cqw]" viewBox="0 0 100 24" preserveAspectRatio="none">
                   <g fill="#000000">
                     <rect x="0" width="2" height="24" />
                     <rect x="3" width="1" height="24" />
@@ -212,7 +212,7 @@ export default function StaffCard({ staff, logoBase64, authorizedSignatureBase64
                   </g>
                 </svg>
               </div>
-              <span className="text-[1.5cqw] font-bold font-mono text-slate-500 tracking-[0.25em] uppercase leading-none">
+              <span className="text-[1.85cqw] font-black font-mono text-slate-700 tracking-[0.25em] uppercase leading-none text-center">
                 {staffNo.split('').join(' ')}
               </span>
             </div>
@@ -565,29 +565,38 @@ export default function StaffCard({ staff, logoBase64, authorizedSignatureBase64
             </div>
 
             {/* Column 2: Staff Details List (expanded width) */}
-            <div className="flex-1 flex flex-col justify-center text-left min-w-0 h-[50cqw] pl-[1cqw]">
-              <div className="grid grid-cols-[22cqw_1fr] gap-x-[1cqw] gap-y-[2.8cqw] text-[3.2cqw] text-slate-800">
-                
-                {/* Name */}
-                <span className="font-normal text-slate-500 tracking-[0.5px] self-start pt-[0.4cqw]">Name:</span>
-                <span className="font-extrabold text-[#0B4A8B] uppercase text-[4.2cqw] leading-[1.15] break-words pr-[1cqw]">{fullName}</span>
-
-                {/* Staff No */}
-                <span className="font-normal text-slate-500 tracking-[0.5px]">Staff No:</span>
-                <span className="font-semibold text-[#1E3A5F] uppercase font-mono truncate text-[3.6cqw]">{staffNo}</span>
-
-                {/* Designation */}
-                <span className="font-normal text-slate-500 tracking-[0.5px]">Designation:</span>
-                <span className="font-semibold text-[#1E3A5F] uppercase truncate text-[3.6cqw]">{position}</span>
-
-                {/* Department */}
-                <span className="font-normal text-slate-500 tracking-[0.5px]">Department:</span>
-                <span className="font-semibold text-[#1E3A5F] uppercase truncate text-[3.6cqw]">{department}</span>
-
-                {/* Gender */}
-                <span className="font-normal text-slate-500 tracking-[0.5px]">Gender:</span>
-                <span className="font-semibold text-[#1E3A5F] uppercase truncate text-[3.6cqw]">{staff.gender || 'Female'}</span>
+            <div className="flex-1 flex flex-col justify-center text-left min-w-0 h-[50cqw] pl-[1cqw] gap-[1.6cqw]">
+              
+              {/* Name Row */}
+              <div className="flex items-start gap-[1cqw] w-full">
+                <span className="font-normal text-slate-500 tracking-[0.5px] min-w-[20cqw] pt-[0.4cqw] text-[3.2cqw]">Name:</span>
+                <span className="font-extrabold text-[#0B4A8B] uppercase text-[4.2cqw] leading-[1.15] break-words pr-[1cqw] flex-1">{fullName}</span>
               </div>
+
+              {/* Staff ID Row (reduced spacing between Name and Staff ID) */}
+              <div className="flex items-center gap-[1cqw] w-full mt-[-0.6cqw]">
+                <span className="font-normal text-slate-500 tracking-[0.5px] min-w-[20cqw] text-[3.2cqw]">Staff No:</span>
+                <span className="font-semibold text-[#1E3A5F] uppercase font-mono truncate text-[3.6cqw] flex-1">{staffNo}</span>
+              </div>
+
+              {/* Designation Row */}
+              <div className="flex items-center gap-[1cqw] w-full">
+                <span className="font-normal text-slate-500 tracking-[0.5px] min-w-[20cqw] text-[3.2cqw]">Designation:</span>
+                <span className="font-semibold text-[#1E3A5F] uppercase truncate text-[3.6cqw] flex-1">{position}</span>
+              </div>
+
+              {/* Department Row */}
+              <div className="flex items-center gap-[1cqw] w-full">
+                <span className="font-normal text-slate-500 tracking-[0.5px] min-w-[20cqw] text-[3.2cqw]">Department:</span>
+                <span className="font-semibold text-[#1E3A5F] uppercase truncate text-[3.6cqw] flex-1">{department}</span>
+              </div>
+
+              {/* Gender Row */}
+              <div className="flex items-center gap-[1cqw] w-full">
+                <span className="font-normal text-slate-500 tracking-[0.5px] min-w-[20cqw] text-[3.2cqw]">Gender:</span>
+                <span className="font-semibold text-[#1E3A5F] uppercase truncate text-[3.6cqw] flex-1">{staff.gender || 'Female'}</span>
+              </div>
+
             </div>
 
             {/* Column 3: Verification QR Code Section (narrower, 20% smaller QR) */}

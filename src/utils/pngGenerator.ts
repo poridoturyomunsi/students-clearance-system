@@ -61,10 +61,10 @@ export async function generateStaffIdCardPng(
     ctx.fillStyle = '#FFFFFF';
     ctx.fillRect(0, 0, canvas.width, canvas.height);
 
-    // 2. Subtle light-blue security pattern
+    // 2. Subtle light-blue security pattern (increased visibility)
     ctx.save();
-    ctx.strokeStyle = 'rgba(47, 128, 237, 0.04)';
-    ctx.lineWidth = 1.0;
+    ctx.strokeStyle = 'rgba(47, 128, 237, 0.09)';
+    ctx.lineWidth = 1.8;
     // Draw horizontal grid lines every 24px
     for (let gy = 0; gy < canvas.height; gy += 24) {
       ctx.beginPath();
@@ -80,8 +80,8 @@ export async function generateStaffIdCardPng(
       ctx.stroke();
     }
     // Draw waves
-    ctx.strokeStyle = 'rgba(47, 128, 237, 0.05)';
-    ctx.lineWidth = 1.5;
+    ctx.strokeStyle = 'rgba(47, 128, 237, 0.12)';
+    ctx.lineWidth = 2.2;
     ctx.beginPath();
     ctx.moveTo(-50, 100);
     ctx.bezierCurveTo(200, 20, 500, 250, 700, 100);
@@ -100,11 +100,11 @@ export async function generateStaffIdCardPng(
     ctx.stroke();
     ctx.restore();
 
-    // 3. Faint School Crest Watermark in Center (5-10% opacity)
+    // 3. Faint School Crest Watermark in Center (10% opacity)
     if (schoolLogoBase64) {
       try {
         ctx.save();
-        ctx.globalAlpha = 0.06;
+        ctx.globalAlpha = 0.10;
         const logoImg = await loadImage(schoolLogoBase64);
         ctx.drawImage(logoImg, (canvas.width - 260) / 2, (canvas.height - 260) / 2, 260, 260);
         ctx.restore();
@@ -115,23 +115,23 @@ export async function generateStaffIdCardPng(
 
     // 4. Header Section
     // Top Left: School name and address
-    ctx.fillStyle = '#0B4A8B'; // Primary Blue
+    ctx.fillStyle = '#062C54'; // Dark Navy Blue
     ctx.font = 'bold 24px "Montserrat", "Poppins", sans-serif';
     ctx.textAlign = 'left';
     ctx.textBaseline = 'top';
     ctx.fillText('ST. PAUL SECONDARY SCHOOL, NASUTI', 50, 55);
 
-    ctx.fillStyle = '#64748B'; // Slate Gray
+    ctx.fillStyle = '#475569'; // Slate Gray
     ctx.font = '500 17px "Montserrat", "Poppins", sans-serif';
     ctx.fillText('P.O. Box 678, Nasuti, Iganga', 50, 95);
 
     // Top Right: Card ID
     const barcodeVal = member.employeeNumber || member.id || 'Not Available';
     ctx.textAlign = 'right';
-    ctx.fillStyle = '#64748B';
+    ctx.fillStyle = '#475569';
     ctx.font = '500 17px "Montserrat", sans-serif';
     ctx.fillText('ID Card Number: ', canvas.width - 50 - ctx.measureText(barcodeVal).width - 4, 55);
-    ctx.fillStyle = '#0B4A8B';
+    ctx.fillStyle = '#062C54';
     ctx.font = 'bold 17px "Montserrat", sans-serif';
     ctx.fillText(barcodeVal, canvas.width - 50, 55);
 
@@ -144,23 +144,23 @@ export async function generateStaffIdCardPng(
     ctx.stroke();
 
     // 5. Card Ownership Statement & Rules
-    ctx.fillStyle = '#0B4A8B';
+    ctx.fillStyle = '#062C54';
     ctx.font = 'bold 18px "Montserrat", "Poppins", sans-serif';
     ctx.textAlign = 'left';
     ctx.fillText('CARD OWNERSHIP STATEMENT & RULES:', 50, 165);
 
     // Underline
     const titleW = ctx.measureText('CARD OWNERSHIP STATEMENT & RULES:').width;
-    ctx.strokeStyle = '#0B4A8B';
+    ctx.strokeStyle = '#062C54';
     ctx.lineWidth = 1.5;
     ctx.beginPath();
     ctx.moveTo(50, 192);
     ctx.lineTo(50 + titleW, 192);
     ctx.stroke();
 
-    // Rules
-    ctx.fillStyle = '#334155'; // Darker Slate
-    ctx.font = 'normal 17px "Inter", "Poppins", sans-serif';
+    // Rules text (medium gray and easy to read)
+    ctx.fillStyle = '#475569';
+    ctx.font = 'bold 17px "Inter", "Poppins", sans-serif';
     const rules = [
       '1. This card is the property of St. Paul Secondary School, Nasuti.',
       '2. If found, please return to the school administration office at the address listed above.',
@@ -172,9 +172,9 @@ export async function generateStaffIdCardPng(
       ry += 40;
     });
 
-    // 6. Thin light-gray horizontal line separating main from footer
-    ctx.strokeStyle = '#E2E8F0';
-    ctx.lineWidth = 1.5;
+    // 6. Thicker gray horizontal line separating main from footer
+    ctx.strokeStyle = '#CBD5E1'; // Slate 300
+    ctx.lineWidth = 3.5;
     ctx.beginPath();
     ctx.moveTo(50, 460);
     ctx.lineTo(canvas.width - 50, 460);
@@ -192,7 +192,7 @@ export async function generateStaffIdCardPng(
     const hex = Math.abs(hash).toString(16).toUpperCase().slice(0, 8).padStart(8, '0');
     const serialStr = `SN-${hex}`;
 
-    // Bottom Left Info Block
+    // Bottom Left Info Block aligned perfectly along common baseline
     ctx.textAlign = 'left';
     ctx.textBaseline = 'middle';
     
@@ -213,23 +213,23 @@ export async function generateStaffIdCardPng(
     ctx.fillStyle = '#64748B';
     ctx.font = 'bold 16px "Montserrat", sans-serif';
     ctx.fillText('SERIAL:', 50, footerY + 60);
-    ctx.fillStyle = '#0B4A8B';
+    ctx.fillStyle = '#062C54';
     ctx.font = 'bold 16px "Courier New", monospace';
     ctx.fillText(serialStr, 130, footerY + 60);
 
-    // Bottom Right Barcode Block
-    const barcodeX = canvas.width - 240;
-    const barcodeY = footerY - 15;
-    const barcodeW = 190;
-    const barcodeH = 50;
+    // Bottom Right Barcode Block (scaled up by ~25%)
+    const barcodeX = canvas.width - 290;
+    const barcodeY = footerY - 20;
+    const barcodeW = 240;
+    const barcodeH = 65;
 
     // Draw simulated Code 128 barcode lines
     ctx.save();
     ctx.fillStyle = '#000000';
     const pattern = [2, 1, 3, 1, 2, 4, 1, 2, 3, 1, 2, 4, 1, 2, 3, 1, 2, 4, 1, 2, 3, 1, 2, 4, 1, 2, 3, 1, 2, 4, 2];
-    let currX = barcodeX + 25; // center offset
+    let currX = barcodeX + (barcodeW - (63 * 2.8)) / 2; // Center inside barcode container
     for (let i = 0; i < pattern.length; i++) {
-      const w = pattern[i] * 2.2;
+      const w = pattern[i] * 2.8;
       if (i % 2 === 0) {
         ctx.fillRect(currX, barcodeY, w, barcodeH);
       }
@@ -237,12 +237,12 @@ export async function generateStaffIdCardPng(
     }
     ctx.restore();
 
-    // Spaced out barcode value text beneath it
-    ctx.fillStyle = '#64748B';
-    ctx.font = 'bold 14px "Courier New", monospace';
+    // Spaced out card number text printed beneath barcode perfectly aligned along common baseline (footerY + 60)
+    ctx.fillStyle = '#334155';
+    ctx.font = 'bold 18px "Courier New", monospace';
     ctx.textAlign = 'center';
     const spacedBarcode = barcodeVal.split('').join(' ');
-    ctx.fillText(spacedBarcode, barcodeX + barcodeW / 2 + 10, barcodeY + barcodeH + 20);
+    ctx.fillText(spacedBarcode, barcodeX + barcodeW / 2, footerY + 60);
 
     // Redraw inner border to cleanly frame the footer area
     ctx.strokeStyle = '#EAF4FF';
@@ -524,45 +524,52 @@ export async function generateStaffIdCardPng(
     }
   }
 
+  let currentY = 230;
+
   // Draw Name Row (allow 2 lines if needed)
   ctx.fillStyle = '#6B7280'; // Neutral Gray
   ctx.font = 'bold 15px "Poppins", "Montserrat", sans-serif';
   if (nameLine2) {
-    ctx.fillText('Name:', labelX, startRowY - 5);
+    ctx.fillText('Name:', labelX, currentY - 5);
     ctx.fillStyle = '#0B4A8B'; // Primary Blue
-    ctx.font = 'bold 20px "Poppins", "Montserrat", sans-serif'; // slightly smaller for 2 lines
-    ctx.fillText(nameLine1, valueX, startRowY - 5);
-    ctx.fillText(nameLine2, valueX, startRowY + 18);
+    ctx.font = 'bold 20px "Poppins", "Montserrat", sans-serif';
+    ctx.fillText(nameLine1, valueX, currentY - 5);
+    ctx.fillText(nameLine2, valueX, currentY + 16);
+    currentY += 42; // Next row start
   } else {
-    ctx.fillText('Name:', labelX, startRowY);
+    ctx.fillText('Name:', labelX, currentY);
     ctx.fillStyle = '#0B4A8B'; // Primary Blue
     ctx.font = 'bold 22px "Poppins", "Montserrat", sans-serif';
-    ctx.fillText(nameLine1, valueX, startRowY);
+    ctx.fillText(nameLine1, valueX, currentY);
+    currentY += 32; // Next row start (approx 8px gap after name text height)
   }
 
-  // Draw remaining details rows at fixed Y spacing
-  for (let i = 1; i < labels.length; i++) {
-    const rowY = startRowY + i * rowSpacing;
-
-    // Label styling (sentence case, neutral gray)
-    ctx.fillStyle = '#6B7280'; // Neutral Gray
+  const drawPngRow = (lbl: string, val: string, yPos: number) => {
+    ctx.fillStyle = '#6B7280';
     ctx.font = 'bold 15px "Poppins", "Montserrat", sans-serif';
-    ctx.fillText(labels[i], labelX, rowY);
+    ctx.fillText(lbl, labelX, yPos);
 
-    // Value styling
-    ctx.fillStyle = '#1E3A5F'; // Dark Blue #1E3A5F
-    ctx.font = 'bold 16px "Poppins", "Montserrat", sans-serif';
-
-    let valStr = values[i];
-    const maxWidth = 280;
-    if (ctx.measureText(valStr).width > maxWidth) {
-      while (ctx.measureText(valStr + '...').width > maxWidth && valStr.length > 0) {
+    ctx.fillStyle = '#1E3A5F';
+    ctx.font = 'bold 17px "Poppins", "Montserrat", sans-serif';
+    
+    let valStr = val || 'Not Available';
+    const maxValW = 280;
+    if (ctx.measureText(valStr).width > maxValW) {
+      while (ctx.measureText(valStr + '...').width > maxValW && valStr.length > 0) {
         valStr = valStr.substring(0, valStr.length - 1);
       }
       valStr += '...';
     }
-    ctx.fillText(valStr, valueX, rowY);
-  }
+    ctx.fillText(valStr, valueX, yPos);
+  };
+
+  drawPngRow('Staff ID:', staffNo, currentY);
+  currentY += 40;
+  drawPngRow('Designation:', position, currentY);
+  currentY += 40;
+  drawPngRow('Department:', department, currentY);
+  currentY += 40;
+  drawPngRow('Gender:', gender, currentY);
   ctx.restore();
 
   // --- 11. Verification Box containing QR Code & Label (narrower, 20% smaller QR) ---

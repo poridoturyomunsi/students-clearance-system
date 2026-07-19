@@ -1634,19 +1634,20 @@ export async function generateStaffIdCardsPdf({
     doc.setFont("helvetica", "bold");
     doc.setFontSize(4.0);
     
+    let currentY = y + 19.0;
+    
+    doc.text("Name:", labelX, currentY);
+    doc.setTextColor(11, 74, 139); // Primary Blue
+    doc.setFont("helvetica", "bold");
+    doc.setFontSize(5.8);
     if (nameLines.length > 1) {
-      doc.text("Name:", labelX, y + 21.5);
-      doc.setTextColor(11, 74, 139); // Primary Blue
-      doc.setFont("helvetica", "bold");
-      doc.setFontSize(5.5); // Slightly smaller to ensure fit on two lines
-      doc.text(nameLines[0], valueX, y + 21.5);
-      doc.text(nameLines[1], valueX, y + 24.8);
+      doc.text(nameLines[0], valueX, currentY);
+      currentY += 3.2;
+      doc.text(nameLines[1], valueX, currentY);
+      currentY += 3.2;
     } else {
-      doc.text("Name:", labelX, y + 22.5);
-      doc.setTextColor(11, 74, 139); // Primary Blue
-      doc.setFont("helvetica", "bold");
-      doc.setFontSize(6.2);
-      doc.text(nameLines[0], valueX, y + 22.5);
+      doc.text(nameLines[0], valueX, currentY);
+      currentY += 3.6;
     }
 
     const drawDetailRow = (
@@ -1663,7 +1664,7 @@ export async function generateStaffIdCardsPdf({
       // Value Text
       doc.setTextColor(30, 58, 95); // Dark Blue #1E3A5F
       doc.setFont("helvetica", "bold");
-      doc.setFontSize(5.0);
+      doc.setFontSize(4.8);
       
       let valStr = val || 'Not Available';
       const maxValW = 21.0;
@@ -1676,10 +1677,13 @@ export async function generateStaffIdCardsPdf({
       doc.text(valStr, valueX, rowY);
     };
 
-    drawDetailRow("Staff No:", member.employeeNumber || member.id || 'Not Available', y + 28.5);
-    drawDetailRow("Designation:", (member.position || 'Not Available').toUpperCase(), y + 32.5);
-    drawDetailRow("Department:", (member.department || 'Not Available').toUpperCase(), y + 36.5);
-    drawDetailRow("Gender:", (member.gender || 'Female').toUpperCase(), y + 40.5);
+    drawDetailRow("Staff ID:", member.employeeNumber || member.id || 'Not Available', currentY);
+    currentY += 3.8;
+    drawDetailRow("Designation:", (member.position || 'Not Available').toUpperCase(), currentY);
+    currentY += 3.8;
+    drawDetailRow("Department:", (member.department || 'Not Available').toUpperCase(), currentY);
+    currentY += 3.8;
+    drawDetailRow("Gender:", (member.gender || 'Female').toUpperCase(), currentY);
 
     // 11. Verification Box containing QR Code & Label
     const qrBoxW = 13.5;
@@ -1868,16 +1872,34 @@ export async function generateStaffIdCardsPdf({
     doc.setFillColor(255, 255, 255);
     doc.roundedRect(x, y, cardW, cardH, 3.18, 3.18, 'F');
 
-    // 2. Subtle blue geometric pattern
-    drawGeometricPattern(doc, x, y);
+    // 2. Clear light-blue grid and waves on the back card (anti-counterfeit pattern)
+    doc.saveGraphicsState();
+    doc.setDrawColor(210, 230, 255); // More visible light-blue
+    doc.setLineWidth(0.15);
+    // Draw vertical grid lines every 5mm
+    for (let gx = 5.0; gx < cardW; gx += 5.0) {
+      doc.line(x + gx, y + 0.5, x + gx, y + cardH - 0.5);
+    }
+    // Draw horizontal grid lines every 5mm
+    for (let gy = 5.0; gy < cardH; gy += 5.0) {
+      doc.line(x + 0.5, y + gy, x + cardW - 0.5, y + gy);
+    }
+    // Elegant intersecting vector lines for anti-counterfeit look
+    doc.setDrawColor(180, 215, 255);
+    doc.setLineWidth(0.2);
+    doc.line(x + 5, y + 5, x + cardW - 5, y + cardH - 5);
+    doc.line(x + 5, y + cardH - 5, x + cardW - 5, y + 5);
+    doc.circle(x + cardW / 2, y + cardH / 2, 16, 'D');
+    doc.circle(x + cardW / 2, y + cardH / 2, 22, 'D');
+    doc.restoreGraphicsState();
 
-    // 3. School logo background watermark (6% opacity)
+    // 3. School logo background watermark (10% opacity)
     if (activeLogoPng) {
       try {
         doc.saveGraphicsState();
         const gStateClass = (doc as any).GState || (doc.constructor as any).GState;
         if (gStateClass) {
-          doc.setGState(new gStateClass({ opacity: 0.06 }));
+          doc.setGState(new gStateClass({ opacity: 0.10 }));
         }
         doc.addImage(activeLogoPng, 'PNG', x + (cardW - 24) / 2, y + (cardH - 24) / 2, 24, 24, undefined, 'NONE');
         doc.restoreGraphicsState();
@@ -1888,51 +1910,47 @@ export async function generateStaffIdCardsPdf({
 
     // 4. Header Section
     // Top Left: School details
-    doc.setTextColor(11, 74, 139); // Primary Blue #0B4A8B
+    doc.setTextColor(6, 44, 84); // Dark Navy Blue #062C54
     doc.setFont("helvetica", "bold");
     doc.setFontSize(5.0);
     doc.text("ST. PAUL SECONDARY SCHOOL, NASUTI", x + 5.0, y + 5.5);
 
-    doc.setTextColor(100, 116, 139); // Slate Gray
+    doc.setTextColor(71, 85, 105); // Medium Gray
     doc.setFont("helvetica", "normal");
     doc.setFontSize(3.8);
     doc.text("P.O. Box 678, Nasuti, Iganga", x + 5.0, y + 9.0);
 
     // Top Right: Card ID
     const barcodeVal = member.employeeNumber || member.id;
-    doc.setTextColor(100, 116, 139);
-    doc.setFont("helvetica", "normal");
-    doc.setFontSize(3.8);
-    doc.text("ID Card Number: ", x + cardW - 5.0, y + 5.5, { align: 'right' });
+    const numText = barcodeVal;
     
     // Bold value right aligned
-    const numText = barcodeVal;
     doc.setFont("helvetica", "bold");
-    doc.setTextColor(11, 74, 139);
+    doc.setTextColor(6, 44, 84);
     doc.text(numText, x + cardW - 5.0, y + 5.5, { align: 'right' });
 
     // Calculate left edge of number to place label to its left
     const numWidth = doc.getTextWidth(numText);
     doc.setFont("helvetica", "normal");
-    doc.setTextColor(100, 116, 139);
+    doc.setTextColor(71, 85, 105);
     doc.text("ID Card Number: ", x + cardW - 5.0 - numWidth - 0.5, y + 5.5, { align: 'right' });
 
     // 5. Section: CARD OWNERSHIP STATEMENT & RULES
-    doc.setTextColor(11, 74, 139);
+    doc.setTextColor(6, 44, 84);
     doc.setFont("helvetica", "bold");
     doc.setFontSize(4.0);
     doc.text("CARD OWNERSHIP STATEMENT & RULES:", x + 5.0, y + 14.5);
     
     // Draw thin underline for the title
     const titleW = doc.getTextWidth("CARD OWNERSHIP STATEMENT & RULES:");
-    doc.setDrawColor(11, 74, 139);
+    doc.setDrawColor(6, 44, 84);
     doc.setLineWidth(0.12);
     doc.line(x + 5.0, y + 15.3, x + 5.0 + titleW, y + 15.3);
 
     // Numbered statements
     doc.setTextColor(71, 85, 105);
-    doc.setFont("helvetica", "normal");
-    doc.setFontSize(3.5);
+    doc.setFont("helvetica", "bold");
+    doc.setFontSize(3.8);
     const statements = [
       "1. This card is the property of St. Paul Secondary School, Nasuti.",
       "2. If found, please return to the school administration office at the address listed above.",
@@ -1947,9 +1965,9 @@ export async function generateStaffIdCardsPdf({
       });
     });
 
-    // 6. Thin light-gray horizontal line separating main from footer
-    doc.setDrawColor(226, 232, 240); // Light Gray
-    doc.setLineWidth(0.15);
+    // 6. Thicker horizontal line separating main from footer
+    doc.setDrawColor(203, 213, 225); // Slate 300
+    doc.setLineWidth(0.35);
     doc.line(x + 5.0, y + 38.5, x + cardW - 5.0, y + 38.5);
 
     // 7. Footer section
@@ -1964,41 +1982,41 @@ export async function generateStaffIdCardsPdf({
     const hex = Math.abs(hash).toString(16).toUpperCase().slice(0, 8).padStart(8, '0');
     const serialStr = `SN-${hex}`;
 
-    // Bottom Left Info Block
+    // Bottom Left Info Block aligned perfectly along common baseline bottomY + 8.2
     doc.setFont("helvetica", "bold");
     doc.setTextColor(100, 116, 139);
     doc.setFontSize(3.2);
     
-    doc.text("TEL: ", x + 5.0, bottomY);
+    doc.text("TEL: ", x + 5.0, bottomY + 1.8);
     doc.setFont("helvetica", "normal");
     doc.setTextColor(71, 85, 105);
-    doc.text("+256 776246610", x + 11.5, bottomY);
+    doc.text("+256 776246610", x + 11.5, bottomY + 1.8);
 
     doc.setFont("helvetica", "bold");
     doc.setTextColor(100, 116, 139);
-    doc.text("EMAIL: ", x + 5.0, bottomY + 3.2);
+    doc.text("EMAIL: ", x + 5.0, bottomY + 5.0);
     doc.setFont("helvetica", "normal");
     doc.setTextColor(71, 85, 105);
-    doc.text("stpaulssnasuti2022@gmail.com", x + 15.0, bottomY + 3.2);
+    doc.text("stpaulssnasuti2022@gmail.com", x + 15.0, bottomY + 5.0);
 
     doc.setFont("helvetica", "bold");
     doc.setTextColor(100, 116, 139);
-    doc.text("SERIAL: ", x + 5.0, bottomY + 6.4);
+    doc.text("SERIAL: ", x + 5.0, bottomY + 8.2);
     doc.setFont("helvetica", "bold");
-    doc.setTextColor(11, 74, 139);
-    doc.text(serialStr, x + 16.5, bottomY + 6.4);
+    doc.setTextColor(6, 44, 84);
+    doc.text(serialStr, x + 16.5, bottomY + 8.2);
 
-    // Bottom Right Barcode Block
+    // Bottom Right Barcode Block (scaled up by ~25%, height 7.5mm)
     doc.saveGraphicsState();
-    drawPdfBarcode(doc, x + 53.0, bottomY - 2.0, barcodeVal, 6.0, 0.28);
+    drawPdfBarcode(doc, x + 49.0, bottomY - 3.0, barcodeVal, 7.5, 0.35);
     doc.restoreGraphicsState();
 
-    // Spaced out barcode value text beneath it
-    doc.setTextColor(100, 116, 139);
+    // Spaced out card number text printed beneath barcode perfectly baseline aligned along bottomY + 8.2
+    doc.setTextColor(71, 85, 105);
     doc.setFont("Courier", "bold");
-    doc.setFontSize(4.0);
+    doc.setFontSize(4.8);
     const spacedBarcode = barcodeVal.split('').join(' ');
-    doc.text(spacedBarcode, x + 53.0 + 10.75, bottomY + 6.8, { align: 'center' });
+    doc.text(spacedBarcode, x + 49.0 + 15.5, bottomY + 8.2, { align: 'center' });
   };
 
   let counter = 0;
