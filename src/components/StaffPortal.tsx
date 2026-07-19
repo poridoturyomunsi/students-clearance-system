@@ -924,30 +924,60 @@ export default function StaffPortal({
                   </h3>
                   
                   {/* Premium ID Card Preview Container - centered horizontally and vertically, responsive */}
-                  <div className="flex flex-col items-center justify-center p-3 bg-slate-900/30 border border-slate-850 rounded-2xl min-h-[260px] w-full relative">
-                    <div className="w-[90%] flex items-center justify-center">
-                      <StaffCard 
-                        staff={{
-                          id: staffId,
-                          name: staffName,
-                          username: staffUsername || '',
-                          category: category,
-                          position: position || staffProfile?.position || 'Staff Member',
-                          department: staffProfile?.department || 'General',
-                          employeeNumber: staffProfile?.employee_number || '',
-                          gender: gender || staffProfile?.gender || '',
-                          photo: staffProfile?.photo || photo || '',
-                          signature: staffProfile?.signature || '',
-                          activeCard: staffProfile?.activeCard || null,
-                          status: staffProfile?.status || 'Active',
-                          forcePasswordChange: forcePasswordChange,
-                          subjects: assignedSubjects,
-                          classes: assignedClasses,
-                          employmentStatus: staffProfile?.employment_status || 'Permanent'
-                        }} 
-                        logoBase64={schoolLogo} 
-                        authorizedSignatureBase64={authorizedSignature}
-                      />
+                  <div className="flex flex-col items-center justify-center p-3 bg-slate-900/30 border border-slate-850 rounded-2xl min-h-[260px] w-full relative gap-4">
+                    <div className="w-[90%] flex flex-col gap-6 items-center justify-center">
+                      <div className="flex flex-col items-center gap-1.5 w-full">
+                        <span className="text-[9px] text-slate-500 font-semibold uppercase tracking-wider">Front Side</span>
+                        <StaffCard 
+                          staff={{
+                            id: staffId,
+                            name: staffName,
+                            username: staffUsername || '',
+                            category: category,
+                            position: position || staffProfile?.position || 'Staff Member',
+                            department: staffProfile?.department || 'General',
+                            employeeNumber: staffProfile?.employee_number || '',
+                            gender: gender || staffProfile?.gender || '',
+                            photo: staffProfile?.photo || photo || '',
+                            signature: staffProfile?.signature || '',
+                            activeCard: staffProfile?.activeCard || null,
+                            status: staffProfile?.status || 'Active',
+                            forcePasswordChange: forcePasswordChange,
+                            subjects: assignedSubjects,
+                            classes: assignedClasses,
+                            employmentStatus: staffProfile?.employment_status || 'Permanent'
+                          }} 
+                          side="front"
+                          logoBase64={schoolLogo} 
+                          authorizedSignatureBase64={authorizedSignature}
+                        />
+                      </div>
+                      <div className="flex flex-col items-center gap-1.5 w-full">
+                        <span className="text-[9px] text-slate-500 font-semibold uppercase tracking-wider">Back Side</span>
+                        <StaffCard 
+                          staff={{
+                            id: staffId,
+                            name: staffName,
+                            username: staffUsername || '',
+                            category: category,
+                            position: position || staffProfile?.position || 'Staff Member',
+                            department: staffProfile?.department || 'General',
+                            employeeNumber: staffProfile?.employee_number || '',
+                            gender: gender || staffProfile?.gender || '',
+                            photo: staffProfile?.photo || photo || '',
+                            signature: staffProfile?.signature || '',
+                            activeCard: staffProfile?.activeCard || null,
+                            status: staffProfile?.status || 'Active',
+                            forcePasswordChange: forcePasswordChange,
+                            subjects: assignedSubjects,
+                            classes: assignedClasses,
+                            employmentStatus: staffProfile?.employment_status || 'Permanent'
+                          }} 
+                          side="back"
+                          logoBase64={schoolLogo} 
+                          authorizedSignatureBase64={authorizedSignature}
+                        />
+                      </div>
                     </div>
                   </div>
                 </div>

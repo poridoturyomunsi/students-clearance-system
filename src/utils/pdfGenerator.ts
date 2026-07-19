@@ -1864,136 +1864,141 @@ export async function generateStaffIdCardsPdf({
 
 
   const drawStaffBack = async (doc: jsPDF, x: number, y: number, member: Staff) => {
-    // 1. Shadow
-    doc.setFillColor(235, 240, 247);
-    doc.roundedRect(x + 0.5, y + 0.5, cardW, cardH, 3.18, 3.18, 'F');
-
-    // 2. Card Base
+    // 1. Base Card Background (White)
     doc.setFillColor(255, 255, 255);
     doc.roundedRect(x, y, cardW, cardH, 3.18, 3.18, 'F');
 
-    // 3. Subtle blue geometric pattern (matching the front)
+    // 2. Subtle blue geometric pattern
     drawGeometricPattern(doc, x, y);
 
-    // 4. Double border layout
-    // Outer border (Dark navy)
-    doc.setDrawColor(0, 62, 126);
-    doc.setLineWidth(0.8);
-    doc.roundedRect(x, y, cardW, cardH, 3.18, 3.18, 'D');
-
-    // Inner border (Light blue)
-    doc.setDrawColor(234, 245, 255);
-    doc.setLineWidth(0.35);
-    doc.roundedRect(x + 0.8, y + 0.8, cardW - 1.6, cardH - 1.6, 2.5, 2.5, 'D');
-
-    // 5. Matching Header (Logo, School Details, Badge)
-    const crestBoxX = x + 3.5;
-    const crestBoxY = y + 2.8;
-    const crestBoxW = 9.8;
-    const crestBoxH = 9.8;
-    doc.setFillColor(255, 255, 255);
-    doc.setDrawColor(234, 245, 255);
-    doc.setLineWidth(0.18);
-    doc.roundedRect(crestBoxX, crestBoxY, crestBoxW, crestBoxH, 0.8, 0.8, 'FD');
-
+    // 3. School logo background watermark (6% opacity)
     if (activeLogoPng) {
       try {
-        doc.addImage(activeLogoPng, 'PNG', crestBoxX + 0.6, crestBoxY + 0.6, crestBoxW - 1.2, crestBoxH - 1.2);
+        doc.saveGraphicsState();
+        const gStateClass = (doc as any).GState || (doc.constructor as any).GState;
+        if (gStateClass) {
+          doc.setGState(new gStateClass({ opacity: 0.06 }));
+        }
+        doc.addImage(activeLogoPng, 'PNG', x + (cardW - 24) / 2, y + (cardH - 24) / 2, 24, 24, undefined, 'NONE');
+        doc.restoreGraphicsState();
       } catch (e) {
-        console.warn("Crest logo draw failed on back", e);
+        console.warn("Failed drawing watermark in PDF staff back", e);
       }
     }
 
-    doc.setTextColor(0, 62, 126); // #003E7E
-    doc.setFont("helvetica", "bold");
-    doc.setFontSize(7.5);
-    doc.text("ST. PAUL SECONDARY SCHOOL, NASUTI", x + 14.5, y + 6.2);
-
-    doc.setTextColor(100, 116, 139);
-    doc.setFont("helvetica", "bold");
-    doc.setFontSize(5.2);
-    doc.text("P.O. BOX 678, NASUTI, IGANGA", x + 14.5, y + 9.6);
-
-    const badgeW = 16.0;
-    const badgeH = 3.5;
-    const badgeX = x + cardW - badgeW - 3.5;
-    const badgeY = y + 8.5;
-    doc.setFillColor(11, 108, 184); // #0B6CB8
-    doc.roundedRect(badgeX, badgeY, badgeW, badgeH, 1.75, 1.75, 'F');
-    doc.setTextColor(255, 255, 255);
-    doc.setFont("helvetica", "bold");
-    doc.setFontSize(4.0);
-    doc.text("STAFF ID", badgeX + badgeW / 2, badgeY + 2.4, { align: 'center' });
-
-    // Divider Line
-    doc.setDrawColor(11, 108, 184);
-    doc.setLineWidth(0.25);
-    doc.line(x + 3.5, y + 14.2, x + cardW - 3.5, y + 14.2);
-
-    // 6. Card Use Policy & Terms
-    doc.setTextColor(0, 62, 126);
+    // 4. Header Section
+    // Top Left: School details
+    doc.setTextColor(11, 74, 139); // Primary Blue #0B4A8B
     doc.setFont("helvetica", "bold");
     doc.setFontSize(5.0);
-    doc.text("CARD USE POLICY & TERMS", x + 5, y + 18.0);
+    doc.text("ST. PAUL SECONDARY SCHOOL, NASUTI", x + 5.0, y + 5.5);
 
+    doc.setTextColor(100, 116, 139); // Slate Gray
+    doc.setFont("helvetica", "normal");
+    doc.setFontSize(3.8);
+    doc.text("P.O. Box 678, Nasuti, Iganga", x + 5.0, y + 9.0);
+
+    // Top Right: Card ID
+    const barcodeVal = member.employeeNumber || member.id;
+    doc.setTextColor(100, 116, 139);
+    doc.setFont("helvetica", "normal");
+    doc.setFontSize(3.8);
+    doc.text("ID Card Number: ", x + cardW - 5.0, y + 5.5, { align: 'right' });
+    
+    // Bold value right aligned
+    const numText = barcodeVal;
+    doc.setFont("helvetica", "bold");
+    doc.setTextColor(11, 74, 139);
+    doc.text(numText, x + cardW - 5.0, y + 5.5, { align: 'right' });
+
+    // Calculate left edge of number to place label to its left
+    const numWidth = doc.getTextWidth(numText);
+    doc.setFont("helvetica", "normal");
+    doc.setTextColor(100, 116, 139);
+    doc.text("ID Card Number: ", x + cardW - 5.0 - numWidth - 0.5, y + 5.5, { align: 'right' });
+
+    // 5. Section: CARD OWNERSHIP STATEMENT & RULES
+    doc.setTextColor(11, 74, 139);
+    doc.setFont("helvetica", "bold");
+    doc.setFontSize(4.0);
+    doc.text("CARD OWNERSHIP STATEMENT & RULES:", x + 5.0, y + 14.5);
+    
+    // Draw thin underline for the title
+    const titleW = doc.getTextWidth("CARD OWNERSHIP STATEMENT & RULES:");
+    doc.setDrawColor(11, 74, 139);
+    doc.setLineWidth(0.12);
+    doc.line(x + 5.0, y + 15.3, x + 5.0 + titleW, y + 15.3);
+
+    // Numbered statements
     doc.setTextColor(71, 85, 105);
     doc.setFont("helvetica", "normal");
-    doc.setFontSize(4.2);
-    const terms = [
-      "1. This card is the property of St. Paul Secondary School.",
-      "2. It must be worn prominently at all times on school premises.",
-      "3. If found, please return to the school administration office immediately."
+    doc.setFontSize(3.5);
+    const statements = [
+      "1. This card is the property of St. Paul Secondary School, Nasuti.",
+      "2. If found, please return to the school administration office at the address listed above.",
+      "3. In the event of loss, this card must be reported immediately to the School Administration Office."
     ];
-    let ty = y + 21.5;
-    terms.forEach(term => {
-      doc.text(term, x + 5, ty);
-      ty += 2.8;
+    let sy = y + 19.5;
+    statements.forEach(statement => {
+      const lines = doc.splitTextToSize(statement, cardW - 10.0);
+      lines.forEach((line: string) => {
+        doc.text(line, x + 5.0, sy);
+        sy += 3.8;
+      });
     });
 
-    // 7. Emergency Contact & Validity
-    doc.setTextColor(0, 62, 126);
+    // 6. Thin light-gray horizontal line separating main from footer
+    doc.setDrawColor(226, 232, 240); // Light Gray
+    doc.setLineWidth(0.15);
+    doc.line(x + 5.0, y + 38.5, x + cardW - 5.0, y + 38.5);
+
+    // 7. Footer section
+    const bottomY = y + 41.5;
+
+    // Deterministic card serial number
+    let hash = 0;
+    for (let i = 0; i < barcodeVal.length; i++) {
+      hash = (hash << 5) - hash + barcodeVal.charCodeAt(i);
+      hash |= 0;
+    }
+    const hex = Math.abs(hash).toString(16).toUpperCase().slice(0, 8).padStart(8, '0');
+    const serialStr = `SN-${hex}`;
+
+    // Bottom Left Info Block
     doc.setFont("helvetica", "bold");
-    doc.setFontSize(4.5);
-    doc.text("EMERGENCY CONTACT:", x + 5, y + 31.5);
+    doc.setTextColor(100, 116, 139);
+    doc.setFontSize(3.2);
     
-    doc.setTextColor(71, 85, 105);
+    doc.text("TEL: ", x + 5.0, bottomY);
     doc.setFont("helvetica", "normal");
-    doc.setFontSize(4.2);
-    doc.text("Admin Office: +256 701 234 567", x + 5, y + 34.5);
+    doc.setTextColor(71, 85, 105);
+    doc.text("+256 776246610", x + 11.5, bottomY);
 
-    doc.setTextColor(0, 62, 126);
     doc.setFont("helvetica", "bold");
-    doc.setFontSize(4.5);
-    doc.text("CARD VALIDITY:", x + 48, y + 31.5);
-    
-    doc.setTextColor(71, 85, 105);
+    doc.setTextColor(100, 116, 139);
+    doc.text("EMAIL: ", x + 5.0, bottomY + 3.2);
     doc.setFont("helvetica", "normal");
-    doc.setFontSize(4.2);
-    doc.text("Valid for 5 years from issue date", x + 48, y + 34.5);
+    doc.setTextColor(71, 85, 105);
+    doc.text("stpaulssnasuti2022@gmail.com", x + 15.0, bottomY + 3.2);
 
-    // 8. Divider line above barcode/serial
-    doc.setDrawColor(226, 232, 240);
-    doc.setLineWidth(0.2);
-    doc.line(x + 5, y + 38.0, x + cardW - 5, y + 38.0);
+    doc.setFont("helvetica", "bold");
+    doc.setTextColor(100, 116, 139);
+    doc.text("SERIAL: ", x + 5.0, bottomY + 6.4);
+    doc.setFont("helvetica", "bold");
+    doc.setTextColor(11, 74, 139);
+    doc.text(serialStr, x + 16.5, bottomY + 6.4);
 
-    // 9. Barcode generated from staff number (employeeNumber || id)
-    const barcodeVal = member.employeeNumber || member.id;
+    // Bottom Right Barcode Block
     doc.saveGraphicsState();
-    drawPdfBarcode(doc, x + 5, y + 40.5, barcodeVal, 5.5, 0.55);
+    drawPdfBarcode(doc, x + 53.0, bottomY - 2.0, barcodeVal, 6.0, 0.28);
     doc.restoreGraphicsState();
 
-    // Text representation of barcode below it
-    doc.setTextColor(71, 85, 105);
-    doc.setFont("Courier", "bold");
-    doc.setFontSize(5.5);
-    doc.text(barcodeVal, x + 16, y + 48.5);
-
-    // 10. Unique Serial Number (bottom right)
-    const serialNo = `SPSSN-2026-${(member.employeeNumber || member.id || "0000").replace(/[^0-9]/g, "").slice(0, 5).padStart(5, "0")}`;
+    // Spaced out barcode value text beneath it
     doc.setTextColor(100, 116, 139);
-    doc.setFont("helvetica", "bold");
-    doc.setFontSize(4.5);
-    doc.text(`S/N: ${serialNo}`, x + cardW - 5, y + 47.0, { align: 'right' });
+    doc.setFont("Courier", "bold");
+    doc.setFontSize(4.0);
+    const spacedBarcode = barcodeVal.split('').join(' ');
+    doc.text(spacedBarcode, x + 53.0 + 10.75, bottomY + 6.8, { align: 'center' });
   };
 
   let counter = 0;

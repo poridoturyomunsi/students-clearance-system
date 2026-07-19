@@ -8,9 +8,10 @@ interface StaffCardProps {
   logoBase64?: string | null;
   authorizedSignatureBase64?: string | null;
   showWatermark?: boolean;
+  side?: 'front' | 'back';
 }
 
-export default function StaffCard({ staff, logoBase64, authorizedSignatureBase64, showWatermark = true }: StaffCardProps) {
+export default function StaffCard({ staff, logoBase64, authorizedSignatureBase64, showWatermark = true, side = 'front' }: StaffCardProps) {
   // Details
   const fullName = `${staff.firstName || ''} ${staff.middleName ? staff.middleName + ' ' : ''}${staff.lastName || ''}`.trim() || staff.name || 'Not Available';
   const staffNo = staff.employeeNumber || staff.id || 'Not Available';
@@ -53,6 +54,174 @@ export default function StaffCard({ staff, logoBase64, authorizedSignatureBase64
   const qrCodeUrl = `https://api.qrserver.com/v1/create-qr-code/?size=150x150&data=${encodeURIComponent(
     window.location.origin + '/staff/verify/' + (staff.employeeNumber || staff.id)
   )}`;
+
+  if (side === 'back') {
+    let hash = 0;
+    const str = staff.employeeNumber || staff.id || '';
+    for (let i = 0; i < str.length; i++) {
+      hash = (hash << 5) - hash + str.charCodeAt(i);
+      hash |= 0;
+    }
+    const hex = Math.abs(hash).toString(16).toUpperCase().slice(0, 8).padStart(8, '0');
+    const serialStr = `SN-${hex}`;
+
+    return (
+      <div 
+        className="relative w-full max-w-[420px] aspect-[1.585] bg-[#0B4A8B] rounded-[16px] p-[0.6cqw] shadow-2xl overflow-hidden flex flex-col justify-between select-none font-sans"
+        style={{ 
+          containerType: 'inline-size',
+          boxShadow: '0 12px 30px -5px rgba(11, 74, 139, 0.3), 0 8px 16px -6px rgba(11, 74, 139, 0.25)'
+        } as React.CSSProperties}
+      >
+        {/* Inner Card Container with Light Blue Inner Border */}
+        <div className="relative w-full h-full rounded-[12px] border-[1.5px] border-[#EAF5FF] overflow-hidden bg-white flex flex-col justify-between p-[3cqw] z-10">
+          
+          {/* Security Background Layer */}
+          <div className="absolute inset-0 pointer-events-none select-none z-0 overflow-hidden bg-white">
+            <svg className="absolute inset-0 w-full h-full pointer-events-none" viewBox="0 0 420 265" fill="none">
+              <defs>
+                {/* Security Micro Grid Pattern */}
+                <pattern id="sec-grid-back" width="6" height="6" patternUnits="userSpaceOnUse">
+                  <path d="M 6 0 L 0 0 0 6" fill="none" stroke="#2F80ED" strokeWidth="0.08" strokeOpacity="0.04" />
+                </pattern>
+                
+                {/* Guilloche Pattern 1 (intersecting lines) */}
+                <pattern id="guilloche-back-1" width="40" height="40" patternUnits="userSpaceOnUse">
+                  <path d="M 0 20 Q 10 5, 20 20 T 40 20" fill="none" stroke="#2F80ED" strokeWidth="0.08" strokeOpacity="0.04" />
+                  <path d="M 0 10 Q 10 25, 20 10 T 40 10" fill="none" stroke="#2F80ED" strokeWidth="0.06" strokeOpacity="0.03" />
+                </pattern>
+              </defs>
+
+              {/* Grid Background */}
+              <rect width="420" height="265" fill="url(#sec-grid-back)" />
+              <rect width="420" height="265" fill="url(#guilloche-back-1)" />
+
+              {/* Wave Artworks */}
+              <path d="M-20,40 Q80,10 180,60 T380,20 T500,40" fill="none" stroke="#2F80ED" strokeWidth="0.12" strokeOpacity="0.05" />
+              <path d="M-20,45 Q80,15 180,65 T380,25 T500,45" fill="none" stroke="#2F80ED" strokeWidth="0.12" strokeOpacity="0.05" />
+              <path d="M-20,180 Q100,210 220,170 T460,190" fill="none" stroke="#2F80ED" strokeWidth="0.1" strokeOpacity="0.04" />
+              <path d="M-20,185 Q100,215 220,175 T460,195" fill="none" stroke="#2F80ED" strokeWidth="0.1" strokeOpacity="0.04" />
+            </svg>
+          </div>
+
+          {/* Faint School Crest Watermark in Center (5% opacity) */}
+          {showWatermark && (
+            <div className="absolute inset-0 flex items-center justify-center opacity-[0.06] scale-[1.2] pointer-events-none select-none z-0">
+              <SchoolLogo className="w-[45%] h-[45%]" logoBase64={logoBase64} />
+            </div>
+          )}
+
+          {/* Header */}
+          <div className="relative z-10 flex items-start justify-between w-full border-b border-slate-100 pb-[1.2cqw]">
+            <div className="flex flex-col text-left">
+              <span className="text-[2.6cqw] font-extrabold uppercase text-[#0B4A8B] leading-none tracking-wide" style={{ fontFamily: 'Montserrat, sans-serif' }}>
+                ST. PAUL SECONDARY SCHOOL, NASUTI
+              </span>
+              <span className="text-[1.8cqw] text-slate-500 font-medium uppercase tracking-wider mt-[0.5cqw] leading-none">
+                P.O. Box 678, Nasuti, Iganga
+              </span>
+            </div>
+            <div className="text-right flex flex-col items-end">
+              <span className="text-[1.8cqw] text-slate-400 font-semibold tracking-wide leading-none">
+                ID Card Number: <span className="text-[#0B4A8B] font-bold">{staffNo}</span>
+              </span>
+            </div>
+          </div>
+
+          {/* Card Ownership Statement & Rules */}
+          <div className="relative z-10 flex-1 flex flex-col justify-start text-left mt-[1.8cqw] gap-[1cqw]">
+            <div className="inline-self-start border-b border-[#0B4A8B] pb-[0.2cqw]">
+              <span className="text-[2cqw] font-extrabold uppercase text-[#0B4A8B] tracking-wider leading-none">
+                CARD OWNERSHIP STATEMENT & RULES:
+              </span>
+            </div>
+            <div className="flex flex-col gap-[1.2cqw] text-[1.92cqw] text-slate-700 font-normal leading-[1.3] pl-[0.5cqw]">
+              <div className="flex items-start gap-[1.5cqw]">
+                <span className="font-bold text-[#0B4A8B]">1.</span>
+                <span>This card is the property of St. Paul Secondary School, Nasuti.</span>
+              </div>
+              <div className="flex items-start gap-[1.5cqw]">
+                <span className="font-bold text-[#0B4A8B]">2.</span>
+                <span>If found, please return to the school administration office at the address listed above.</span>
+              </div>
+              <div className="flex items-start gap-[1.5cqw]">
+                <span className="font-bold text-[#0B4A8B]">3.</span>
+                <span>In the event of loss, this card must be reported immediately to the School Administration Office.</span>
+              </div>
+            </div>
+          </div>
+
+          {/* Thin horizontal line separating the rules from footer */}
+          <div className="w-full h-[1px] bg-slate-100 my-[1.2cqw] z-10 relative" />
+
+          {/* Footer Area */}
+          <div className="relative z-10 flex items-center justify-between w-full h-[8.5cqw] shrink-0">
+            {/* Info Block (Bottom Left) */}
+            <div className="flex flex-col text-left gap-[0.5cqw] text-[1.8cqw]">
+              <div className="leading-none">
+                <span className="font-bold text-slate-500 tracking-[0.2px]">TEL:</span>{' '}
+                <span className="font-medium text-slate-800">+256 776246610</span>
+              </div>
+              <div className="leading-none">
+                <span className="font-bold text-slate-500 tracking-[0.2px]">EMAIL:</span>{' '}
+                <span className="font-medium text-slate-800">stpaulssnasuti2022@gmail.com</span>
+              </div>
+              <div className="leading-none">
+                <span className="font-bold text-slate-500 tracking-[0.2px]">SERIAL:</span>{' '}
+                <span className="font-semibold text-[#0B4A8B] font-mono">{serialStr}</span>
+              </div>
+            </div>
+
+            {/* Barcode Block (Bottom Right) */}
+            <div className="flex flex-col items-center justify-end h-full gap-[0.4cqw]">
+              <div className="bg-white p-[0.3cqw] px-[1.5cqw] border border-slate-100 rounded-md flex items-center justify-center h-[5.2cqw]">
+                {/* SVG Barcode representation */}
+                <svg className="w-[18cqw] h-[4.2cqw]" viewBox="0 0 100 24" preserveAspectRatio="none">
+                  <g fill="#000000">
+                    <rect x="0" width="2" height="24" />
+                    <rect x="3" width="1" height="24" />
+                    <rect x="5" width="3" height="24" />
+                    <rect x="9" width="1" height="24" />
+                    <rect x="11" width="2" height="24" />
+                    <rect x="15" width="4" height="24" />
+                    <rect x="20" width="1" height="24" />
+                    <rect x="22" width="2" height="24" />
+                    <rect x="25" width="3" height="24" />
+                    <rect x="29" width="1" height="24" />
+                    <rect x="31" width="2" height="24" />
+                    <rect x="34" width="4" height="24" />
+                    <rect x="39" width="1" height="24" />
+                    <rect x="41" width="2" height="24" />
+                    <rect x="44" width="3" height="24" />
+                    <rect x="48" width="1" height="24" />
+                    <rect x="50" width="2" height="24" />
+                    <rect x="53" width="4" height="24" />
+                    <rect x="58" width="1" height="24" />
+                    <rect x="60" width="2" height="24" />
+                    <rect x="63" width="3" height="24" />
+                    <rect x="67" width="1" height="24" />
+                    <rect x="69" width="2" height="24" />
+                    <rect x="72" width="4" height="24" />
+                    <rect x="77" width="1" height="24" />
+                    <rect x="79" width="2" height="24" />
+                    <rect x="82" width="3" height="24" />
+                    <rect x="86" width="1" height="24" />
+                    <rect x="88" width="2" height="24" />
+                    <rect x="91" width="4" height="24" />
+                    <rect x="96" width="2" height="24" />
+                  </g>
+                </svg>
+              </div>
+              <span className="text-[1.5cqw] font-bold font-mono text-slate-500 tracking-[0.25em] uppercase leading-none">
+                {staffNo.split('').join(' ')}
+              </span>
+            </div>
+          </div>
+
+        </div>
+      </div>
+    );
+  }
 
   // Spirograph generator for government-grade security print rosettes
   const getSpirographPath = (cx: number, cy: number, R: number, r: number, p: number, rotations: number = 8) => {

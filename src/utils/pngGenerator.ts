@@ -46,13 +46,212 @@ function drawRoundedRect(
  */
 export async function generateStaffIdCardPng(
   member: Staff,
-  schoolLogoBase64?: string | null
+  schoolLogoBase64?: string | null,
+  authorizedSignatureBase64?: string | null,
+  side: 'front' | 'back' = 'front'
 ): Promise<string> {
   const canvas = document.createElement('canvas');
   canvas.width = 1012;
   canvas.height = 638;
   const ctx = canvas.getContext('2d');
   if (!ctx) throw new Error('Could not get 2D context from canvas');
+
+  if (side === 'back') {
+    // 1. Background Fill (White)
+    ctx.fillStyle = '#FFFFFF';
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+    // 2. Subtle light-blue security pattern
+    ctx.save();
+    ctx.strokeStyle = 'rgba(47, 128, 237, 0.04)';
+    ctx.lineWidth = 1.0;
+    // Draw horizontal grid lines every 24px
+    for (let gy = 0; gy < canvas.height; gy += 24) {
+      ctx.beginPath();
+      ctx.moveTo(0, gy);
+      ctx.lineTo(canvas.width, gy);
+      ctx.stroke();
+    }
+    // Draw vertical grid lines every 24px
+    for (let gx = 0; gx < canvas.width; gx += 24) {
+      ctx.beginPath();
+      ctx.moveTo(gx, 0);
+      ctx.lineTo(gx, canvas.height);
+      ctx.stroke();
+    }
+    // Draw waves
+    ctx.strokeStyle = 'rgba(47, 128, 237, 0.05)';
+    ctx.lineWidth = 1.5;
+    ctx.beginPath();
+    ctx.moveTo(-50, 100);
+    ctx.bezierCurveTo(200, 20, 500, 250, 700, 100);
+    ctx.bezierCurveTo(900, -20, 1000, 200, canvas.width + 50, 100);
+    ctx.stroke();
+
+    ctx.beginPath();
+    ctx.moveTo(-50, 120);
+    ctx.bezierCurveTo(200, 40, 500, 270, 700, 120);
+    ctx.bezierCurveTo(900, 0, 1000, 220, canvas.width + 50, 120);
+    ctx.stroke();
+
+    ctx.beginPath();
+    ctx.moveTo(-50, 450);
+    ctx.bezierCurveTo(300, 520, 600, 380, canvas.width + 50, 480);
+    ctx.stroke();
+    ctx.restore();
+
+    // 3. Faint School Crest Watermark in Center (5-10% opacity)
+    if (schoolLogoBase64) {
+      try {
+        ctx.save();
+        ctx.globalAlpha = 0.06;
+        const logoImg = await loadImage(schoolLogoBase64);
+        ctx.drawImage(logoImg, (canvas.width - 260) / 2, (canvas.height - 260) / 2, 260, 260);
+        ctx.restore();
+      } catch (e) {
+        console.warn('Failed drawing watermark on PNG card back:', e);
+      }
+    }
+
+    // 4. Header Section
+    // Top Left: School name and address
+    ctx.fillStyle = '#0B4A8B'; // Primary Blue
+    ctx.font = 'bold 24px "Montserrat", "Poppins", sans-serif';
+    ctx.textAlign = 'left';
+    ctx.textBaseline = 'top';
+    ctx.fillText('ST. PAUL SECONDARY SCHOOL, NASUTI', 50, 55);
+
+    ctx.fillStyle = '#64748B'; // Slate Gray
+    ctx.font = '500 17px "Montserrat", "Poppins", sans-serif';
+    ctx.fillText('P.O. Box 678, Nasuti, Iganga', 50, 95);
+
+    // Top Right: Card ID
+    const barcodeVal = member.employeeNumber || member.id || 'Not Available';
+    ctx.textAlign = 'right';
+    ctx.fillStyle = '#64748B';
+    ctx.font = '500 17px "Montserrat", sans-serif';
+    ctx.fillText('ID Card Number: ', canvas.width - 50 - ctx.measureText(barcodeVal).width - 4, 55);
+    ctx.fillStyle = '#0B4A8B';
+    ctx.font = 'bold 17px "Montserrat", sans-serif';
+    ctx.fillText(barcodeVal, canvas.width - 50, 55);
+
+    // Header border bottom line
+    ctx.strokeStyle = '#F1F5F9';
+    ctx.lineWidth = 2.0;
+    ctx.beginPath();
+    ctx.moveTo(50, 135);
+    ctx.lineTo(canvas.width - 50, 135);
+    ctx.stroke();
+
+    // 5. Card Ownership Statement & Rules
+    ctx.fillStyle = '#0B4A8B';
+    ctx.font = 'bold 18px "Montserrat", "Poppins", sans-serif';
+    ctx.textAlign = 'left';
+    ctx.fillText('CARD OWNERSHIP STATEMENT & RULES:', 50, 165);
+
+    // Underline
+    const titleW = ctx.measureText('CARD OWNERSHIP STATEMENT & RULES:').width;
+    ctx.strokeStyle = '#0B4A8B';
+    ctx.lineWidth = 1.5;
+    ctx.beginPath();
+    ctx.moveTo(50, 192);
+    ctx.lineTo(50 + titleW, 192);
+    ctx.stroke();
+
+    // Rules
+    ctx.fillStyle = '#334155'; // Darker Slate
+    ctx.font = 'normal 17px "Inter", "Poppins", sans-serif';
+    const rules = [
+      '1. This card is the property of St. Paul Secondary School, Nasuti.',
+      '2. If found, please return to the school administration office at the address listed above.',
+      '3. In the event of loss, this card must be reported immediately to the School Administration Office.'
+    ];
+    let ry = 225;
+    rules.forEach(rule => {
+      ctx.fillText(rule, 50, ry);
+      ry += 40;
+    });
+
+    // 6. Thin light-gray horizontal line separating main from footer
+    ctx.strokeStyle = '#E2E8F0';
+    ctx.lineWidth = 1.5;
+    ctx.beginPath();
+    ctx.moveTo(50, 460);
+    ctx.lineTo(canvas.width - 50, 460);
+    ctx.stroke();
+
+    // 7. Footer Block
+    const footerY = 495;
+
+    // Deterministic card serial number
+    let hash = 0;
+    for (let i = 0; i < barcodeVal.length; i++) {
+      hash = (hash << 5) - hash + barcodeVal.charCodeAt(i);
+      hash |= 0;
+    }
+    const hex = Math.abs(hash).toString(16).toUpperCase().slice(0, 8).padStart(8, '0');
+    const serialStr = `SN-${hex}`;
+
+    // Bottom Left Info Block
+    ctx.textAlign = 'left';
+    ctx.textBaseline = 'middle';
+    
+    ctx.fillStyle = '#64748B';
+    ctx.font = 'bold 16px "Montserrat", sans-serif';
+    ctx.fillText('TEL:', 50, footerY);
+    ctx.fillStyle = '#1E293B';
+    ctx.font = '500 16px "Montserrat", sans-serif';
+    ctx.fillText('+256 776246610', 95, footerY);
+
+    ctx.fillStyle = '#64748B';
+    ctx.font = 'bold 16px "Montserrat", sans-serif';
+    ctx.fillText('EMAIL:', 50, footerY + 30);
+    ctx.fillStyle = '#1E293B';
+    ctx.font = '500 16px "Montserrat", sans-serif';
+    ctx.fillText('stpaulssnasuti2022@gmail.com', 120, footerY + 30);
+
+    ctx.fillStyle = '#64748B';
+    ctx.font = 'bold 16px "Montserrat", sans-serif';
+    ctx.fillText('SERIAL:', 50, footerY + 60);
+    ctx.fillStyle = '#0B4A8B';
+    ctx.font = 'bold 16px "Courier New", monospace';
+    ctx.fillText(serialStr, 130, footerY + 60);
+
+    // Bottom Right Barcode Block
+    const barcodeX = canvas.width - 240;
+    const barcodeY = footerY - 15;
+    const barcodeW = 190;
+    const barcodeH = 50;
+
+    // Draw simulated Code 128 barcode lines
+    ctx.save();
+    ctx.fillStyle = '#000000';
+    const pattern = [2, 1, 3, 1, 2, 4, 1, 2, 3, 1, 2, 4, 1, 2, 3, 1, 2, 4, 1, 2, 3, 1, 2, 4, 1, 2, 3, 1, 2, 4, 2];
+    let currX = barcodeX + 25; // center offset
+    for (let i = 0; i < pattern.length; i++) {
+      const w = pattern[i] * 2.2;
+      if (i % 2 === 0) {
+        ctx.fillRect(currX, barcodeY, w, barcodeH);
+      }
+      currX += w;
+    }
+    ctx.restore();
+
+    // Spaced out barcode value text beneath it
+    ctx.fillStyle = '#64748B';
+    ctx.font = 'bold 14px "Courier New", monospace';
+    ctx.textAlign = 'center';
+    const spacedBarcode = barcodeVal.split('').join(' ');
+    ctx.fillText(spacedBarcode, barcodeX + barcodeW / 2 + 10, barcodeY + barcodeH + 20);
+
+    // Redraw inner border to cleanly frame the footer area
+    ctx.strokeStyle = '#EAF4FF';
+    ctx.lineWidth = 4;
+    drawRoundedRect(ctx, 10, 10, canvas.width - 20, canvas.height - 20, 20);
+    ctx.stroke();
+
+    return canvas.toDataURL('image/png');
+  }
 
   // Format Date Helper to '24 Jun 2026'
   const formatDate = (dateInput: any) => {
@@ -576,12 +775,16 @@ export async function generateStaffIdCardsPngZip(
 
   for (let i = 0; i < total; i++) {
     const member = staffMembers[i];
-    const dataUrl = await generateStaffIdCardPng(member, schoolLogoBase64, authorizedSignatureBase64);
+    const frontUrl = await generateStaffIdCardPng(member, schoolLogoBase64, authorizedSignatureBase64, 'front');
+    const backUrl = await generateStaffIdCardPng(member, schoolLogoBase64, authorizedSignatureBase64, 'back');
     
     // Extract base64 data bytes
-    const base64Data = dataUrl.split(',')[1];
-    const fileName = `staff_id_${member.employeeNumber || member.id || i}.png`;
-    zip.file(fileName, base64Data, { base64: true });
+    const frontBase64 = frontUrl.split(',')[1];
+    const backBase64 = backUrl.split(',')[1];
+    const baseName = `staff_id_${member.employeeNumber || member.id || i}`;
+    
+    zip.file(`${baseName}_front.png`, frontBase64, { base64: true });
+    zip.file(`${baseName}_back.png`, backBase64, { base64: true });
 
     if (onProgress) {
       onProgress(i + 1, total);

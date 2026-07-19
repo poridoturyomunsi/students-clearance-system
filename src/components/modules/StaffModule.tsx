@@ -65,14 +65,24 @@ export default function StaffModule() {
     try {
       if (printingMembers.length === 1) {
         const member = printingMembers[0];
-        const dataUrl = await generateStaffIdCardPng(member, settings.school_logo, settings.head_teacher_signature);
-        const link = document.createElement('a');
-        link.href = dataUrl;
-        link.download = `staff_id_${member.employeeNumber || member.id}.png`;
-        document.body.appendChild(link);
-        link.click();
-        document.body.removeChild(link);
-        setSuccess('PNG Staff ID card downloaded successfully.');
+        const frontUrl = await generateStaffIdCardPng(member, settings.school_logo, settings.head_teacher_signature, 'front');
+        const backUrl = await generateStaffIdCardPng(member, settings.school_logo, settings.head_teacher_signature, 'back');
+        
+        const linkFront = document.createElement('a');
+        linkFront.href = frontUrl;
+        linkFront.download = `staff_id_${member.employeeNumber || member.id}_front.png`;
+        document.body.appendChild(linkFront);
+        linkFront.click();
+        document.body.removeChild(linkFront);
+
+        const linkBack = document.createElement('a');
+        linkBack.href = backUrl;
+        linkBack.download = `staff_id_${member.employeeNumber || member.id}_back.png`;
+        document.body.appendChild(linkBack);
+        linkBack.click();
+        document.body.removeChild(linkBack);
+
+        setSuccess('PNG Staff ID front and back cards downloaded successfully.');
       } else {
         const zipBlob = await generateStaffIdCardsPngZip(printingMembers, settings.school_logo, settings.head_teacher_signature);
         const link = document.createElement('a');
@@ -1396,14 +1406,27 @@ export default function StaffModule() {
               ) : (
                 <>
                   {/* Premium ID Card Visual Preview */}
-                  <div className="flex flex-col items-center justify-center p-4 bg-slate-950 border border-white/5 rounded-xl min-h-[260px] w-full relative">
-                    <span className="text-[10px] text-slate-500 font-black uppercase tracking-wider mb-3 block">ID Card Visual Preview</span>
-                    <div className="w-[85%] max-w-[380px] flex items-center justify-center">
-                      <StaffCard 
-                        staff={cardManagementStaff} 
-                        logoBase64={settings.school_logo} 
-                        authorizedSignatureBase64={settings.head_teacher_signature}
-                      />
+                  <div className="flex flex-col items-center justify-center p-4 bg-slate-950 border border-white/5 rounded-xl min-h-[260px] w-full relative gap-4">
+                    <span className="text-[10px] text-slate-500 font-black uppercase tracking-wider mb-1 block">ID Card Visual Preview</span>
+                    <div className="w-[85%] max-w-[380px] flex flex-col gap-6 items-center justify-center">
+                      <div className="flex flex-col items-center gap-1.5 w-full">
+                        <span className="text-[9px] text-slate-400 font-semibold uppercase tracking-wider">Front Side</span>
+                        <StaffCard 
+                          staff={cardManagementStaff} 
+                          side="front"
+                          logoBase64={settings.school_logo} 
+                          authorizedSignatureBase64={settings.head_teacher_signature}
+                        />
+                      </div>
+                      <div className="flex flex-col items-center gap-1.5 w-full">
+                        <span className="text-[9px] text-slate-400 font-semibold uppercase tracking-wider">Back Side</span>
+                        <StaffCard 
+                          staff={cardManagementStaff} 
+                          side="back"
+                          logoBase64={settings.school_logo} 
+                          authorizedSignatureBase64={settings.head_teacher_signature}
+                        />
+                      </div>
                     </div>
                   </div>
 
@@ -1480,14 +1503,24 @@ export default function StaffModule() {
                           if (!cardManagementStaff) return;
                           setCardLoading(true);
                           try {
-                            const dataUrl = await generateStaffIdCardPng(cardManagementStaff, settings.school_logo);
-                            const link = document.createElement('a');
-                            link.href = dataUrl;
-                            link.download = `staff_id_${cardManagementStaff.employeeNumber || cardManagementStaff.id}.png`;
-                            document.body.appendChild(link);
-                            link.click();
-                            document.body.removeChild(link);
-                            setSuccess('PNG Staff ID card downloaded successfully.');
+                            const frontUrl = await generateStaffIdCardPng(cardManagementStaff, settings.school_logo, settings.head_teacher_signature, 'front');
+                            const backUrl = await generateStaffIdCardPng(cardManagementStaff, settings.school_logo, settings.head_teacher_signature, 'back');
+                            
+                            const linkFront = document.createElement('a');
+                            linkFront.href = frontUrl;
+                            linkFront.download = `staff_id_${cardManagementStaff.employeeNumber || cardManagementStaff.id}_front.png`;
+                            document.body.appendChild(linkFront);
+                            linkFront.click();
+                            document.body.removeChild(linkFront);
+
+                            const linkBack = document.createElement('a');
+                            linkBack.href = backUrl;
+                            linkBack.download = `staff_id_${cardManagementStaff.employeeNumber || cardManagementStaff.id}_back.png`;
+                            document.body.appendChild(linkBack);
+                            linkBack.click();
+                            document.body.removeChild(linkBack);
+
+                            setSuccess('PNG Staff ID front and back cards downloaded successfully.');
                           } catch (err: any) {
                             setError('Failed to download PNG: ' + err.message);
                           } finally {
