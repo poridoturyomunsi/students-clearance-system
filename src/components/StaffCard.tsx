@@ -6,10 +6,11 @@ import { Calendar, PenTool, CheckCircle2, Clock } from 'lucide-react';
 interface StaffCardProps {
   staff: Staff;
   logoBase64?: string | null;
+  authorizedSignatureBase64?: string | null;
   showWatermark?: boolean;
 }
 
-export default function StaffCard({ staff, logoBase64, showWatermark = true }: StaffCardProps) {
+export default function StaffCard({ staff, logoBase64, authorizedSignatureBase64, showWatermark = true }: StaffCardProps) {
   // Details
   const fullName = `${staff.firstName || ''} ${staff.middleName ? staff.middleName + ' ' : ''}${staff.lastName || ''}`.trim() || staff.name || 'Not Available';
   const staffNo = staff.employeeNumber || staff.id || 'Not Available';
@@ -496,15 +497,33 @@ export default function StaffCard({ staff, logoBase64, showWatermark = true }: S
               </span>
             </div>
             <div className="h-[3.6cqw] flex items-center justify-center pb-[0.2cqw]">
-              {staff.signature ? (
+              {isHeadTeacher ? (
+                staff.signature ? (
+                  <img 
+                    src={staff.signature} 
+                    alt="Authorized signature" 
+                    className="max-h-full object-contain brightness-95" 
+                  />
+                ) : authorizedSignatureBase64 ? (
+                  <img 
+                    src={authorizedSignatureBase64} 
+                    alt="Authorized signature" 
+                    className="max-h-full object-contain brightness-95" 
+                  />
+                ) : (
+                  <span className="text-[2.2cqw] font-mono italic text-slate-400 capitalize">
+                    {staff.lastName || 'Head Teacher'}
+                  </span>
+                )
+              ) : authorizedSignatureBase64 ? (
                 <img 
-                  src={staff.signature} 
+                  src={authorizedSignatureBase64} 
                   alt="Authorized signature" 
                   className="max-h-full object-contain brightness-95" 
                 />
               ) : (
                 <span className="text-[2.2cqw] font-mono italic text-slate-400 capitalize">
-                  {isHeadTeacher ? (staff.lastName || 'Head Teacher') : 'Authorized'}
+                  Authorized
                 </span>
               )}
             </div>

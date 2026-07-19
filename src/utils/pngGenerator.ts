@@ -518,9 +518,13 @@ export async function generateStaffIdCardPng(
 
   // Col 3 Value: Authorised Signature
   const isHeadTeacher = (member.position || '').replace(/\s+/g, '').toUpperCase() === 'HEADTEACHER';
-  if (member.signature) {
+  const displayAuthSig = isHeadTeacher
+    ? (member.signature || authorizedSignatureBase64)
+    : (authorizedSignatureBase64 || null);
+
+  if (displayAuthSig) {
     try {
-      const sigImg = await loadImage(member.signature);
+      const sigImg = await loadImage(displayAuthSig);
       ctx.drawImage(sigImg, 528, bottomY + 48, 140, 36);
     } catch (e) {
       console.warn('Failed to draw signature image on PNG:', e);
@@ -561,6 +565,7 @@ export async function generateStaffIdCardPng(
 export async function generateStaffIdCardsPngZip(
   staffMembers: Staff[],
   schoolLogoBase64?: string | null,
+  authorizedSignatureBase64?: string | null,
   onProgress?: (current: number, total: number) => void
 ): Promise<Blob> {
   const zip = new JSZip();
@@ -568,7 +573,7 @@ export async function generateStaffIdCardsPngZip(
 
   for (let i = 0; i < total; i++) {
     const member = staffMembers[i];
-    const dataUrl = await generateStaffIdCardPng(member, schoolLogoBase64);
+    const dataUrl = await generateStaffIdCardPng(member, schoolLogoBase64, authorizedSignatureBase64);
     
     // Extract base64 data bytes
     const base64Data = dataUrl.split(',')[1];

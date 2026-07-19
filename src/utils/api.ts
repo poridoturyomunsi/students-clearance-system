@@ -246,7 +246,7 @@ export async function fetchSuspectedDuplicates(): Promise<{ success: boolean; gr
   return await apiCall('/api/admin/students/suspected-duplicates');
 }
 
-export async function fetchSchoolLogoFromDb(): Promise<{ logo: string | null }> {
+export async function fetchSchoolLogoFromDb(): Promise<{ logo: string | null; authorizedSignature?: string | null }> {
   return await apiCall('/api/branding');
 }
 
@@ -254,6 +254,13 @@ export async function saveSchoolLogoInDb(logoBase64: string | null): Promise<{ s
   return await apiCall('/api/branding', {
     method: 'POST',
     body: JSON.stringify({ logo: logoBase64 }),
+  });
+}
+
+export async function saveAuthorizedSignatureInDb(sigBase64: string | null): Promise<{ success: boolean; authorizedSignature?: string }> {
+  return await apiCall('/api/branding', {
+    method: 'POST',
+    body: JSON.stringify({ authorizedSignature: sigBase64 }),
   });
 }
 

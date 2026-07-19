@@ -7,7 +7,7 @@ import { Staff, LeaveRequest, TimetableSlot } from '../../types.ts';
 import { 
   fetchStaffList, createStaffMember, updateStaffMember, deleteStaffMember, 
   resetStaffPassword, updateStaffStatus, importStaffBulk, fetchAllLeaveRequestsAdmin, 
-  updateLeaveRequestAdmin, fetchClassTeachers, saveClassTeacher, fetchSettings,
+  updateLeaveRequestAdmin, fetchClassTeachers, saveClassTeacher, fetchSettings, saveSettings,
   fetchStaffMember, activateStaffCard, deactivateStaffCard, revokeStaffCard, reissueStaffCard, regenerateStaffQr
 } from '../../utils/api.ts';
 import { generateStaffIdCardsPdf } from '../../utils/pdfGenerator.ts';
@@ -44,6 +44,7 @@ export default function StaffModule() {
       const doc = await generateStaffIdCardsPdf({
         staffMembers: printingMembers,
         schoolLogoBase64: settings.schoolLogo,
+        authorizedSignatureBase64: settings.head_teacher_signature,
         printSide: printSide
       });
       doc.save(`staff_id_cards_${printSide}.pdf`);
@@ -64,7 +65,7 @@ export default function StaffModule() {
     try {
       if (printingMembers.length === 1) {
         const member = printingMembers[0];
-        const dataUrl = await generateStaffIdCardPng(member, settings.schoolLogo);
+        const dataUrl = await generateStaffIdCardPng(member, settings.schoolLogo, settings.head_teacher_signature);
         const link = document.createElement('a');
         link.href = dataUrl;
         link.download = `staff_id_${member.employeeNumber || member.id}.png`;
@@ -73,7 +74,7 @@ export default function StaffModule() {
         document.body.removeChild(link);
         setSuccess('PNG Staff ID card downloaded successfully.');
       } else {
-        const zipBlob = await generateStaffIdCardsPngZip(printingMembers, settings.schoolLogo);
+        const zipBlob = await generateStaffIdCardsPngZip(printingMembers, settings.schoolLogo, settings.head_teacher_signature);
         const link = document.createElement('a');
         link.href = URL.createObjectURL(zipBlob);
         link.download = `staff_id_cards_png.zip`;
@@ -449,8 +450,61 @@ export default function StaffModule() {
       const base64 = event.target?.result as string;
       const compressed = await compressSignatureImage(base64);
       setFormData(prev => ({ ...prev, signature: compressed }));
+      
+      const isHead = (formData.position || '').replace(/\s+/g, '').toUpperCase() === 'HEADTEACHER';
+      if (isHead) {
+        setSettings((prev: any) => ({ ...prev, head_teacher_signature: compressed }));
+        try {
+          await saveSettings({ head_teacher_signature: compressed });
+          setSuccess('Headteacher signature updated successfully.');
+          setTimeout(() => setSuccess(null), 3000);
+        } catch (err: any) {
+          setError('Failed to save Headteacher signature: ' + err.message);
+        }
+      }
     };
     reader.readAsDataURL(file);
+  };
+
+  const handleHeadTeacherSignatureSelect = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = async (event) => {
+      const base64 = event.target?.result as string;
+      const compressed = await compressSignatureImage(base64);
+      setSettings((prev: any) => ({ ...prev, head_teacher_signature: compressed }));
+      
+      const isHead = (formData.position || '').replace(/\s+/g, '').toUpperCase() === 'HEADTEACHER';
+      if (isHead) {
+        setFormData(prev => ({ ...prev, signature: compressed }));
+      }
+      
+      try {
+        await saveSettings({ head_teacher_signature: compressed });
+        setSuccess('Headteacher signature updated successfully.');
+        setTimeout(() => setSuccess(null), 3000);
+      } catch (err: any) {
+        setError('Failed to save Headteacher signature: ' + err.message);
+      }
+    };
+    reader.readAsDataURL(file);
+  };
+
+  const handlePositionChange = (val: string) => {
+    setFormData(prev => {
+      const updated = { ...prev, position: val };
+      const isHead = val.replace(/\s+/g, '').toUpperCase() === 'HEADTEACHER';
+      if (isHead) {
+        if (prev.signature && !settings.head_teacher_signature) {
+          saveSettings({ head_teacher_signature: prev.signature }).catch(e => console.error(e));
+          setSettings((s: any) => ({ ...s, head_teacher_signature: prev.signature }));
+        } else if (!prev.signature && settings.head_teacher_signature) {
+          updated.signature = settings.head_teacher_signature;
+        }
+      }
+      return updated;
+    });
   };
 
   const handleDownloadTemplate = () => {
@@ -778,10 +832,10 @@ export default function StaffModule() {
               </div>
 
               <div className="space-y-2">
-                <span className="text-[10px] text-slate-500 uppercase font-black tracking-wider block">Authorized Signature</span>
+                <span className="text-[10px] text-slate-500 uppercase font-black tracking-wider block">Holder's Signature</span>
                 <div className="w-32 h-16 bg-slate-900 border border-slate-800 rounded-xl mx-auto overflow-hidden flex items-center justify-center relative group shadow-inner">
                   {formData.signature ? (
-                    <img src={formData.signature} alt="Authorized signature" className="w-full h-full object-contain p-1" />
+                    <img src={formData.signature} alt="Holder signature" className="w-full h-full object-contain p-1" />
                   ) : (
                     <FileText className="w-6 h-6 text-slate-700" />
                   )}
@@ -790,6 +844,22 @@ export default function StaffModule() {
                     <input type="file" accept="image/*" onChange={handleSignatureSelect} className="hidden" />
                   </label>
                 </div>
+              </div>
+
+              <div className="space-y-2">
+                <span className="text-[10px] text-slate-500 uppercase font-black tracking-wider block">Headteacher's Signature</span>
+                <div className="w-32 h-16 bg-slate-900 border border-slate-800 rounded-xl mx-auto overflow-hidden flex items-center justify-center relative group shadow-inner">
+                  {settings.head_teacher_signature ? (
+                    <img src={settings.head_teacher_signature} alt="Headteacher signature" className="w-full h-full object-contain p-1" />
+                  ) : (
+                    <FileText className="w-6 h-6 text-slate-700" />
+                  )}
+                  <label className="absolute inset-0 bg-black/60 opacity-0 group-hover:opacity-100 transition flex items-center justify-center cursor-pointer">
+                    <Camera className="w-4 h-4 text-white" />
+                    <input type="file" accept="image/*" onChange={handleHeadTeacherSignatureSelect} className="hidden" />
+                  </label>
+                </div>
+                <span className="text-[8px] text-slate-500 block leading-tight">Global Authorized Sig<br/>(Applies to all cards)</span>
               </div>
             </div>
 
@@ -820,7 +890,7 @@ export default function StaffModule() {
                 </div>
                 <div className="space-y-1">
                   <label className="text-[9px] text-slate-500 uppercase font-black tracking-wider block">Position / Job Title</label>
-                  <input type="text" value={formData.position} onChange={e => setFormData(prev => ({ ...prev, position: e.target.value }))} className="w-full bg-slate-900 border border-slate-800 rounded-xl px-3 py-2 text-xs text-slate-200 focus:outline-none focus:border-indigo-500" required />
+                  <input type="text" value={formData.position} onChange={e => handlePositionChange(e.target.value)} className="w-full bg-slate-900 border border-slate-800 rounded-xl px-3 py-2 text-xs text-slate-200 focus:outline-none focus:border-indigo-500" required />
                 </div>
                 <div className="space-y-1">
                   <label className="text-[9px] text-slate-500 uppercase font-black tracking-wider block">Department</label>
@@ -1332,6 +1402,7 @@ export default function StaffModule() {
                       <StaffCard 
                         staff={cardManagementStaff} 
                         logoBase64={settings.schoolLogo} 
+                        authorizedSignatureBase64={settings.head_teacher_signature}
                       />
                     </div>
                   </div>

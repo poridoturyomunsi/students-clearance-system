@@ -3415,45 +3415,61 @@ async function getLogoAsBase64(logoVal) {
 app.get('/api/branding', async (req, res) => {
   try {
     if (!pool || !dbInitialized) {
-      return res.json({ logo: null, degraded: true, message: 'Database unavailable; using default branding.' });
+      return res.json({ logo: null, authorizedSignature: null, degraded: true, message: 'Database unavailable; using default branding.' });
     }
 
-    const [rows] = await pool.query('SELECT val_value FROM settings WHERE key_name = ?', ['school_logo']);
-    if (rows.length === 0) {
-      return res.json({ logo: null, degraded: false });
-    }
-    res.json({ logo: rows[0].val_value, degraded: false });
+    const [logoRows] = await pool.query('SELECT val_value FROM settings WHERE key_name = ?', ['school_logo']);
+    const [sigRows] = await pool.query('SELECT val_value FROM settings WHERE key_name = ?', ['head_teacher_signature']);
+    
+    res.json({ 
+      logo: logoRows.length > 0 ? logoRows[0].val_value : null, 
+      authorizedSignature: sigRows.length > 0 ? sigRows[0].val_value : null,
+      degraded: false 
+    });
   } catch (err) {
     res.status(500).json({ error: err.message, degraded: true });
   }
 });
 
-// POST school logo branding (Saves logo to disk and saves path in DB)
+// POST school logo and authorized signature branding
 app.post('/api/branding', async (req, res) => {
   try {
-    const { logo } = req.body;
+    const { logo, authorizedSignature } = req.body;
     let logoValue = logo;
+    let sigValue = authorizedSignature;
     
-    if (logo && logo.startsWith('data:image/')) {
-      const cloudName = process.env.CLOUDINARY_CLOUD_NAME;
-      const apiKey = process.env.CLOUDINARY_API_KEY;
-      const apiSecret = process.env.CLOUDINARY_API_SECRET;
-      
-      if (cloudName && apiKey && apiSecret) {
-        console.log('[Branding] Cloudinary configured. Uploading logo to Cloudinary...');
-        logoValue = await uploadToCloudinaryIfNeeded(logo, 'school_logo_branding');
-      } else {
-        // Ephemeral disk fallback: Save the raw base64 string directly in the database
-        // to ensure it survives server restarts/redeployments on Railway/Render.
-        logoValue = logo;
+    const cloudName = process.env.CLOUDINARY_CLOUD_NAME;
+    const apiKey = process.env.CLOUDINARY_API_KEY;
+    const apiSecret = process.env.CLOUDINARY_API_SECRET;
+    const hasCloudinary = !!(cloudName && apiKey && apiSecret);
+
+    if (logo !== undefined) {
+      if (logo && logo.startsWith('data:image/')) {
+        if (hasCloudinary) {
+          console.log('[Branding] Cloudinary configured. Uploading logo to Cloudinary...');
+          logoValue = await uploadToCloudinaryIfNeeded(logo, 'school_logo_branding');
+        }
       }
+      await pool.query(
+        `INSERT INTO settings (key_name, val_value) VALUES (?, ?) ON DUPLICATE KEY UPDATE val_value = ?`,
+        ['school_logo', logoValue || null, logoValue || null]
+      );
+    }
+
+    if (authorizedSignature !== undefined) {
+      if (authorizedSignature && authorizedSignature.startsWith('data:image/')) {
+        if (hasCloudinary) {
+          console.log('[Branding] Cloudinary configured. Uploading authorized signature to Cloudinary...');
+          sigValue = await uploadToCloudinaryIfNeeded(authorizedSignature, 'school_authorized_signature');
+        }
+      }
+      await pool.query(
+        `INSERT INTO settings (key_name, val_value) VALUES (?, ?) ON DUPLICATE KEY UPDATE val_value = ?`,
+        ['head_teacher_signature', sigValue || null, sigValue || null]
+      );
     }
     
-    await pool.query(
-      `INSERT INTO settings (key_name, val_value) VALUES (?, ?) ON DUPLICATE KEY UPDATE val_value = ?`,
-      ['school_logo', logoValue || null, logoValue || null]
-    );
-    res.json({ success: true, logo: logoValue });
+    res.json({ success: true, logo: logoValue, authorizedSignature: sigValue });
   } catch (err) {
     res.status(500).json({ error: err.message });
   }

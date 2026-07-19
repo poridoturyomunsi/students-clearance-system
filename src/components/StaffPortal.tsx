@@ -38,6 +38,7 @@ interface StaffPortalProps {
   assignedSubjects: string[];
   teacherAssignments?: { subject: string, grade_class: string }[];
   schoolLogo: string | null;
+  authorizedSignature?: string | null;
   gender?: string;
   photo?: string;
   classTeacherFor?: string[];
@@ -55,6 +56,7 @@ export default function StaffPortal({
   assignedSubjects = [],
   teacherAssignments = [],
   schoolLogo,
+  authorizedSignature = null,
   gender = '',
   photo = '',
   classTeacherFor = [],
@@ -944,6 +946,7 @@ export default function StaffPortal({
                           employmentStatus: staffProfile?.employment_status || 'Permanent'
                         }} 
                         logoBase64={schoolLogo} 
+                        authorizedSignatureBase64={authorizedSignature}
                       />
                     </div>
                   </div>
@@ -984,6 +987,7 @@ export default function StaffPortal({
                           employmentStatus: staffProfile?.employment_status || 'Permanent'
                         }],
                         schoolLogoBase64: schoolLogo,
+                        authorizedSignatureBase64: authorizedSignature,
                         printSide: 'front'
                       });
                       doc.save(`staff_id_card_${staffId}.pdf`);
@@ -1019,7 +1023,7 @@ export default function StaffPortal({
                         subjects: assignedSubjects,
                         classes: assignedClasses,
                         employmentStatus: staffProfile?.employment_status || 'Permanent'
-                      }, schoolLogo);
+                      }, schoolLogo, authorizedSignature);
                       
                       const link = document.createElement('a');
                       link.href = dataUrl;

@@ -233,6 +233,7 @@ function AppContent() {
     }
     return DEFAULT_SCHOOL_LOGO;
   });
+  const [authorizedSignature, setAuthorizedSignature] = useState<string | null>(null);
 
   const [authSession, setAuthSession] = useState<any>(() => {
     try {
@@ -541,14 +542,20 @@ function AppContent() {
 
         if (mounted) {
           // Process branding logo
-          if (brandingRes && brandingRes.logo) {
-            setSchoolLogo(brandingRes.logo);
-            localStorage.setItem('clearance_printer_school_logo', brandingRes.logo);
-            console.log("[App Init] Successfully loaded branding school logo.");
-          } else if (brandingRes) {
-            setSchoolLogo(DEFAULT_SCHOOL_LOGO);
-            localStorage.removeItem('clearance_printer_school_logo');
-            localStorage.removeItem('clearance_printer_school_logo_cleaned_v2');
+          // Process branding logo and authorized signature
+          if (brandingRes) {
+            if (brandingRes.logo) {
+              setSchoolLogo(brandingRes.logo);
+              localStorage.setItem('clearance_printer_school_logo', brandingRes.logo);
+              console.log("[App Init] Successfully loaded branding school logo.");
+            } else {
+              setSchoolLogo(DEFAULT_SCHOOL_LOGO);
+              localStorage.removeItem('clearance_printer_school_logo');
+              localStorage.removeItem('clearance_printer_school_logo_cleaned_v2');
+            }
+            if (brandingRes.authorizedSignature) {
+              setAuthorizedSignature(brandingRes.authorizedSignature);
+            }
           }
 
           // Process database connection status
@@ -4025,6 +4032,7 @@ function AppContent() {
           assignedSubjects={authSession.user.subjects || []}
           teacherAssignments={authSession.user.assignments || []}
           schoolLogo={schoolLogo}
+          authorizedSignature={authorizedSignature}
           gender={authSession.user.gender}
           photo={authSession.user.photo}
           classTeacherFor={authSession.user.classTeacherFor}

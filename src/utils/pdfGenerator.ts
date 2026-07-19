@@ -1378,11 +1378,13 @@ export async function generateClearancePdf({
 export async function generateStaffIdCardsPdf({
   staffMembers,
   schoolLogoBase64,
+  authorizedSignatureBase64,
   printSide = 'both',
   onProgress
 }: {
   staffMembers: Staff[];
   schoolLogoBase64?: string | null;
+  authorizedSignatureBase64?: string | null;
   printSide?: 'front' | 'back' | 'both';
   onProgress?: (current: number, total: number) => void;
 }): Promise<jsPDF> {
@@ -1823,9 +1825,13 @@ export async function generateStaffIdCardsPdf({
 
     // Col 3 Value: Authorised Signature
     const isHeadTeacher = (member.position || '').replace(/\s+/g, '').toUpperCase() === 'HEADTEACHER';
-    if (member.signature) {
+    const displayAuthSig = isHeadTeacher
+      ? (member.signature || authorizedSignatureBase64)
+      : (authorizedSignatureBase64 || null);
+
+    if (displayAuthSig) {
       try {
-        doc.addImage(member.signature, 'PNG', x + 44.5, bottomY + 4.5, 14, 3.8);
+        doc.addImage(displayAuthSig, 'PNG', x + 44.5, bottomY + 4.5, 14, 3.8);
       } catch (e) {
         console.warn("Failed drawing authorized signature in PDF", e);
       }
