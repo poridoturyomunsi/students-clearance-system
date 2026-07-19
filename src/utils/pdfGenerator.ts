@@ -1688,8 +1688,8 @@ export async function generateStaffIdCardsPdf({
     drawDetailRow("Gender:", (member.gender || 'Female').toUpperCase(), y + 40.5);
 
     // 11. Verification Box containing QR Code & Label
-    const qrBoxW = 15.5;
-    const qrBoxH = 22.2;
+    const qrBoxW = 13.5;
+    const qrBoxH = 19.0; // smaller box height (less padding)
     const qrBoxX = x + cardW - qrBoxW - 3.5;
     const qrBoxY = y + 21.0;
 
@@ -1698,9 +1698,9 @@ export async function generateStaffIdCardsPdf({
     doc.setLineWidth(0.18);
     doc.roundedRect(qrBoxX, qrBoxY, qrBoxW, qrBoxH, 1.5, 1.5, 'FD');
 
-    const qrSize = 13.0;
+    const qrSize = 11.0; // smaller QR size to fit the smaller box
     const qrX = qrBoxX + (qrBoxW - qrSize) / 2;
-    const qrY = qrBoxY + 1.8; // pushed down slightly
+    const qrY = qrBoxY + 2.8; // pushed down inside box (more top padding)
 
     const verificationUrl = `${window.location.origin}/staff/verify/${member.employeeNumber || member.id}`;
     try {
@@ -1715,7 +1715,7 @@ export async function generateStaffIdCardsPdf({
     doc.setTextColor(11, 74, 139); // Primary Blue
     doc.setFont("helvetica", "bold");
     doc.setFontSize(3.2);
-    doc.text("Scan QR Code", qrBoxX + qrBoxW / 2, qrBoxY + 18.2, { align: 'center' }); // label positioned tighter
+    doc.text("Scan QR Code", qrBoxX + qrBoxW / 2, qrBoxY + 16.5, { align: 'center' }); // label positioned nicely inside smaller box
 
     // 12. Bottom Row (4 equally spaced columns separated by vertical line vectors)
     const bottomY = y + 43.5;

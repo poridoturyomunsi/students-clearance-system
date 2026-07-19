@@ -429,9 +429,9 @@ export default function StaffCard({ staff, logoBase64, authorizedSignatureBase64
             </div>
 
             {/* Column 3: Verification QR Code Section (narrower, 20% smaller QR) */}
-            <div className="shrink-0 w-[25cqw] h-[50cqw] flex flex-col items-center justify-end pb-[0.5cqw] z-10">
-              <div className="bg-white border border-[#2F80ED] rounded-xl p-[1.5cqw] flex flex-col items-center justify-center gap-[0.8cqw] shadow-xs w-full pt-[2cqw] pb-[2cqw]">
-                <img src={qrCodeUrl} alt="Verification QR" className="w-[17cqw] h-[17cqw] object-contain" />
+            <div className="shrink-0 w-[21.5cqw] h-[50cqw] flex flex-col items-center justify-end pb-[0.5cqw] z-10">
+              <div className="bg-white border border-[#2F80ED] rounded-xl p-[0.8cqw] pt-[2.2cqw] pb-[1.2cqw] flex flex-col items-center justify-center gap-[0.5cqw] shadow-xs w-full">
+                <img src={qrCodeUrl} alt="Verification QR" className="w-[17cqw] h-[17cqw] object-contain mt-[0.8cqw]" />
                 <div className="flex flex-col items-center leading-none text-center">
                   <span className="text-[1.8cqw] font-bold text-[#0B4A8B] tracking-[0.2px]">
                     Scan QR Code
