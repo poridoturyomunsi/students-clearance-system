@@ -710,10 +710,10 @@ export default function StaffModule() {
           )}
 
           {/* Grid list */}
-          <div className="overflow-x-auto">
-            <table className="w-full text-left text-xs leading-normal">
+          <div className="overflow-x-auto w-full">
+            <table className="w-full text-left text-xs leading-normal min-w-[850px]">
               <thead>
-                <tr className="text-slate-500 font-bold uppercase text-[9px] font-mono border-b border-slate-850">
+                <tr className="text-slate-500 font-bold uppercase text-[9px] font-mono border-b border-slate-850 whitespace-nowrap">
                   <th className="py-3 px-3 w-8">
                     <input
                       type="checkbox"
@@ -756,22 +756,22 @@ export default function StaffModule() {
                         )}
                       </div>
                     </td>
-                    <td className="py-3 px-3">
+                    <td className="py-3 px-3 whitespace-nowrap">
                       <p className="text-slate-200 font-bold uppercase">{item.name}</p>
                       <p className="text-[10px] text-slate-500 font-mono mt-0.5">{item.id} | {item.username}</p>
                     </td>
-                    <td className="py-3 px-3">
+                    <td className="py-3 px-3 whitespace-nowrap">
                       <span className={`px-2 py-0.5 rounded text-[8.5px] font-black uppercase tracking-wider ${
                         item.category === 'Teaching' ? 'bg-indigo-950 text-indigo-400 border border-indigo-900/40' : 'bg-slate-900 text-slate-400 border border-slate-800'
                       }`}>
                         {item.category}
                       </span>
                     </td>
-                    <td className="py-3 px-3 text-slate-350">
+                    <td className="py-3 px-3 text-slate-350 whitespace-nowrap">
                       <p className="font-bold text-slate-300">{item.position}</p>
                       <p className="text-[10px] text-slate-500 font-mono mt-0.5">{item.department || 'N/A'} | {item.employmentStatus}</p>
                     </td>
-                    <td className="py-3 px-3">
+                    <td className="py-3 px-3 whitespace-nowrap">
                       <span className={`px-1.5 py-0.5 rounded text-[8.5px] font-black uppercase tracking-wider ${
                         item.status === 'Active' ? 'bg-emerald-950 text-emerald-400 border border-emerald-900/30' :
                         item.status === 'On Leave' ? 'bg-amber-955 bg-amber-950 text-amber-400 border border-amber-900/30' :
@@ -780,7 +780,7 @@ export default function StaffModule() {
                         {item.status}
                       </span>
                     </td>
-                    <td className="py-3 px-3">
+                    <td className="py-3 px-3 whitespace-nowrap">
                       <div className="flex justify-end gap-1.5 font-sans">
                         <button onClick={() => triggerPrintFlow([item])} className="px-2.5 py-1 bg-indigo-950 hover:bg-indigo-900 text-indigo-400 border border-indigo-900/40 rounded text-[9px] font-bold uppercase transition">
                           Print Card

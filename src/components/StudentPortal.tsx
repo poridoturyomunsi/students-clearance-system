@@ -33,6 +33,8 @@ export default function StudentPortal({ studentId, studentName, adminNo, student
   const [activeTab, setActiveTab] = useState<'overview' | 'academic' | 'clearance' | 'report'>('overview');
   const [reportCompiling, setReportCompiling] = useState(false);
   const [reportProgress, setReportProgress] = useState<{ current: number; total: number } | null>(null);
+  const [clearanceCompiling, setClearanceCompiling] = useState(false);
+  const [clearanceProgress, setClearanceProgress] = useState<{ current: number; total: number } | null>(null);
 
   const loadData = async () => {
     setLoading(true);
@@ -154,6 +156,8 @@ export default function StudentPortal({ studentId, studentName, adminNo, student
   const feeStatus = activeFee ? activeFee.payment_status : 'Pending';
 
   const handleDownloadClearanceCard = async () => {
+    setClearanceCompiling(true);
+    setClearanceProgress(null);
     try {
       const response = await fetch(`${getApiBaseUrl()}/api/pdf/generate`, {
         method: 'POST',
@@ -170,11 +174,28 @@ export default function StudentPortal({ studentId, studentName, adminNo, student
       });
       if (!response.ok) throw new Error('PDF failed');
       const res = await response.json();
-      if (res.success && res.filename) {
-        await triggerFileDownload(`${getApiBaseUrl()}/api/pdf/download/${res.filename}`, res.filename);
+      if (res.success && res.taskId) {
+        const taskId = res.taskId;
+        let done = false;
+        while (!done) {
+          await new Promise(resolve => setTimeout(resolve, 500));
+          const statusRes = await fetchPdfTaskStatus(taskId);
+          if (statusRes.status === 'processing') {
+            setClearanceProgress({ current: statusRes.progress, total: statusRes.total });
+          } else if (statusRes.status === 'completed') {
+            done = true;
+            setClearanceProgress({ current: statusRes.total, total: statusRes.total });
+            await triggerFileDownload(`${getApiBaseUrl()}/api/pdf/download/${statusRes.filename}`, statusRes.filename!);
+          } else if (statusRes.status === 'failed') {
+            throw new Error(statusRes.error || 'Server PDF card generation failed.');
+          }
+        }
       }
-    } catch (err) {
-      alert('Could not export clearance card: ' + err);
+    } catch (err: any) {
+      alert('Could not export clearance card: ' + err.message);
+    } finally {
+      setClearanceCompiling(false);
+      setClearanceProgress(null);
     }
   };
 
@@ -637,11 +658,32 @@ export default function StudentPortal({ studentId, studentName, adminNo, student
                 </div>
                 <button
                   onClick={handleDownloadClearanceCard}
-                  className="px-4 py-2 bg-indigo-650 hover:bg-indigo-600 text-white rounded-lg text-xs font-bold uppercase tracking-wider cursor-pointer flex items-center gap-1.5"
+                  disabled={clearanceCompiling}
+                  className="px-4 py-2 bg-indigo-650 hover:bg-indigo-600 disabled:opacity-50 text-white rounded-lg text-xs font-bold uppercase tracking-wider cursor-pointer flex items-center gap-1.5"
                 >
-                  <Download className="w-4 h-4" /> Download PDF Card
+                  {clearanceCompiling ? (
+                    <>
+                      <RefreshCw className="w-4 h-4 animate-spin" /> Compiling...
+                    </>
+                  ) : (
+                    <>
+                      <Download className="w-4 h-4" /> Download PDF Card
+                    </>
+                  )}
                 </button>
               </div>
+
+              {clearanceCompiling && clearanceProgress && (
+                <div className="bg-indigo-950/40 p-3.5 rounded-2xl border border-indigo-900/30 flex flex-col gap-2 text-[10px] font-mono animate-fade-in">
+                  <div className="flex justify-between font-bold text-indigo-300">
+                    <span>GENERATING CLEARANCE CARD...</span>
+                    <span>{clearanceProgress.current} / {clearanceProgress.total} COMPLETED</span>
+                  </div>
+                  <div className="h-1.5 bg-slate-900 rounded-full overflow-hidden">
+                    <div className="h-full bg-indigo-500 transition-all duration-100" style={{ width: `${(clearanceProgress.current / clearanceProgress.total) * 100}%` }} />
+                  </div>
+                </div>
+              )}
 
               {/* Cards Grid Preview */}
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-6 p-4 bg-slate-900/30 border border-slate-850 rounded-xl overflow-auto justify-items-center">
