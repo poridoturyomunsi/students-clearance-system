@@ -63,13 +63,13 @@ export async function generateStaffIdCardPng(
 
 
 
-    // 3. Faint School Crest Watermark in Center (10% opacity)
+    // 3. Faint School Crest Watermark in Center (16% opacity, size 320 for visibility and centering)
     if (schoolLogoBase64) {
       try {
         ctx.save();
-        ctx.globalAlpha = 0.10;
+        ctx.globalAlpha = 0.16;
         const logoImg = await loadImage(schoolLogoBase64);
-        ctx.drawImage(logoImg, (canvas.width - 260) / 2, (canvas.height - 260) / 2, 260, 260);
+        ctx.drawImage(logoImg, (canvas.width - 320) / 2, (canvas.height - 320) / 2, 320, 320);
         ctx.restore();
       } catch (e) {
         console.warn('Failed drawing watermark on PNG card back:', e);
@@ -93,10 +93,10 @@ export async function generateStaffIdCardPng(
     ctx.textAlign = 'right';
     ctx.fillStyle = '#475569';
     ctx.font = '500 17px "Montserrat", sans-serif';
-    ctx.fillText('ID Card Number: ', canvas.width - 50 - ctx.measureText(barcodeVal).width - 4, 55);
+    ctx.fillText('ID Card Number: ', canvas.width - 70 - ctx.measureText(barcodeVal).width - 4, 55);
     ctx.fillStyle = '#062C54';
     ctx.font = 'bold 17px "Montserrat", sans-serif';
-    ctx.fillText(barcodeVal, canvas.width - 50, 55);
+    ctx.fillText(barcodeVal, canvas.width - 70, 55);
 
     // Header border bottom line
     ctx.strokeStyle = '#F1F5F9';
@@ -180,9 +180,9 @@ export async function generateStaffIdCardPng(
     ctx.font = 'bold 16px "Courier New", monospace';
     ctx.fillText(serialStr, 130, footerY + 60);
 
-    // Bottom Right Barcode Block (scaled up by ~25%)
+    // Bottom Right Barcode Block (scaled up by ~25%, positioned slightly higher)
     const barcodeX = canvas.width - 290;
-    const barcodeY = footerY - 20;
+    const barcodeY = footerY - 35;
     const barcodeW = 240;
     const barcodeH = 65;
 
@@ -200,12 +200,11 @@ export async function generateStaffIdCardPng(
     }
     ctx.restore();
 
-    // Spaced out card number text printed beneath barcode perfectly aligned along common baseline (footerY + 60)
+    // Compact card number text printed beneath barcode perfectly aligned along footerY + 50
     ctx.fillStyle = '#334155';
     ctx.font = 'bold 18px "Courier New", monospace';
     ctx.textAlign = 'center';
-    const spacedBarcode = barcodeVal.split('').join(' ');
-    ctx.fillText(spacedBarcode, barcodeX + barcodeW / 2, footerY + 60);
+    ctx.fillText(barcodeVal, barcodeX + barcodeW / 2, footerY + 50);
 
     // Redraw inner border to cleanly frame the footer area
     ctx.strokeStyle = '#EAF4FF';
@@ -421,7 +420,7 @@ export async function generateStaffIdCardPng(
   const labelX = 360;
   const valueX = 490;
   
-  const startRowY = 255;
+  const startRowY = 275;
   const rowSpacing = 53;
 
   const labels = ['Name:', 'Staff No:', 'Designation:', 'Department:', 'Gender:'];

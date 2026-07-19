@@ -98,9 +98,9 @@ export default function StaffCard({ staff, logoBase64, authorizedSignatureBase64
           
 
 
-          {/* Faint School Crest Watermark in Center (10% opacity) */}
+          {/* Faint School Crest Watermark in Center (16% opacity) */}
           {showWatermark && (
-            <div className="absolute inset-0 flex items-center justify-center opacity-[0.10] scale-[1.2] pointer-events-none select-none z-0">
+            <div className="absolute inset-0 flex items-center justify-center opacity-[0.16] scale-[1.2] pointer-events-none select-none z-0">
               <SchoolLogo className="w-[45%] h-[45%]" logoBase64={logoBase64} />
             </div>
           )}
@@ -115,7 +115,7 @@ export default function StaffCard({ staff, logoBase64, authorizedSignatureBase64
                 P.O. Box 678, Nasuti, Iganga
               </span>
             </div>
-            <div className="text-right flex flex-col items-end">
+            <div className="text-right flex flex-col items-end pr-[2cqw]">
               <span className="text-[1.9cqw] text-slate-450 font-bold tracking-wide leading-none">
                 ID Card Number: <span className="text-[#062C54] font-black">{staffNo}</span>
               </span>
@@ -149,7 +149,7 @@ export default function StaffCard({ staff, logoBase64, authorizedSignatureBase64
           <div className="w-full h-[2px] bg-slate-300 my-[1.2cqw] z-10 relative" />
 
           {/* Footer Area */}
-          <div className="relative z-10 flex items-end justify-between w-full h-[10.2cqw] shrink-0 pb-[0.4cqw]">
+          <div className="relative z-10 flex items-center justify-between w-full h-[10.2cqw] shrink-0 pb-[0.4cqw]">
             {/* Info Block (Bottom Left) */}
             <div className="flex flex-col text-left gap-[0.6cqw] text-[1.85cqw] pb-[0.2cqw]">
               <div className="leading-none">
@@ -167,7 +167,7 @@ export default function StaffCard({ staff, logoBase64, authorizedSignatureBase64
             </div>
 
             {/* Barcode Block (Bottom Right) */}
-            <div className="flex flex-col items-center gap-[0.5cqw]">
+            <div className="flex flex-col items-center gap-[0.5cqw] mt-[-1cqw]">
               <div className="bg-white p-[0.4cqw] px-[1.8cqw] border border-slate-200 rounded-md flex items-center justify-center h-[6.5cqw]">
                 {/* SVG Barcode representation */}
                 <svg className="w-[23cqw] h-[5.5cqw]" viewBox="0 0 100 24" preserveAspectRatio="none">
@@ -206,8 +206,8 @@ export default function StaffCard({ staff, logoBase64, authorizedSignatureBase64
                   </g>
                 </svg>
               </div>
-              <span className="text-[1.85cqw] font-black font-mono text-slate-700 tracking-[0.25em] uppercase leading-none text-center">
-                {staffNo.split('').join(' ')}
+              <span className="text-[1.85cqw] font-bold font-mono text-slate-700 tracking-[0.08em] uppercase leading-none text-center">
+                {staffNo}
               </span>
             </div>
           </div>
@@ -379,7 +379,7 @@ export default function StaffCard({ staff, logoBase64, authorizedSignatureBase64
             </div>
 
             {/* Column 2: Staff Details List (expanded width) */}
-            <div className="flex-1 flex flex-col justify-center text-left min-w-0 h-[50cqw] pl-[1cqw] gap-[1.6cqw]">
+            <div className="flex-1 flex flex-col justify-start pt-[3.5cqw] text-left min-w-0 h-[50cqw] pl-[1cqw] gap-[1.6cqw]">
               
               {/* Name Row */}
               <div className="flex items-start gap-[1cqw] w-full">

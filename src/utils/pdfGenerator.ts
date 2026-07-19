@@ -1634,7 +1634,7 @@ export async function generateStaffIdCardsPdf({
     doc.setFont("helvetica", "bold");
     doc.setFontSize(4.0);
     
-    let currentY = y + 19.0;
+    let currentY = y + 22.0;
     
     doc.text("Name:", labelX, currentY);
     doc.setTextColor(11, 74, 139); // Primary Blue
@@ -1876,15 +1876,15 @@ export async function generateStaffIdCardsPdf({
 
 
 
-    // 3. School logo background watermark (10% opacity)
+    // 3. School logo background watermark (16% opacity, size 30 for better centering)
     if (activeLogoPng) {
       try {
         doc.saveGraphicsState();
         const gStateClass = (doc as any).GState || (doc.constructor as any).GState;
         if (gStateClass) {
-          doc.setGState(new gStateClass({ opacity: 0.10 }));
+          doc.setGState(new gStateClass({ opacity: 0.16 }));
         }
-        doc.addImage(activeLogoPng, 'PNG', x + (cardW - 24) / 2, y + (cardH - 24) / 2, 24, 24, undefined, 'NONE');
+        doc.addImage(activeLogoPng, 'PNG', x + (cardW - 30) / 2, y + (cardH - 30) / 2, 30, 30, undefined, 'NONE');
         doc.restoreGraphicsState();
       } catch (e) {
         console.warn("Failed drawing watermark in PDF staff back", e);
@@ -1989,17 +1989,16 @@ export async function generateStaffIdCardsPdf({
     doc.setTextColor(6, 44, 84);
     doc.text(serialStr, x + 16.5, bottomY + 8.2);
 
-    // Bottom Right Barcode Block (scaled up by ~25%, height 7.5mm)
+    // Bottom Right Barcode Block (scaled up by ~25%, height 7.5mm, positioned slightly higher)
     doc.saveGraphicsState();
-    drawPdfBarcode(doc, x + 49.0, bottomY - 3.0, barcodeVal, 7.5, 0.35);
+    drawPdfBarcode(doc, x + 49.0, bottomY - 4.5, barcodeVal, 7.5, 0.35);
     doc.restoreGraphicsState();
 
-    // Spaced out card number text printed beneath barcode perfectly baseline aligned along bottomY + 8.2
+    // Compact card number text printed beneath barcode perfectly baseline aligned along bottomY + 6.8
     doc.setTextColor(71, 85, 105);
     doc.setFont("Courier", "bold");
     doc.setFontSize(4.8);
-    const spacedBarcode = barcodeVal.split('').join(' ');
-    doc.text(spacedBarcode, x + 49.0 + 15.5, bottomY + 8.2, { align: 'center' });
+    doc.text(barcodeVal, x + 49.0 + 15.5, bottomY + 6.8, { align: 'center' });
   };
 
   let counter = 0;
