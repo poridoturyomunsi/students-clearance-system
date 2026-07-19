@@ -1,17 +1,27 @@
 import { initializeApp } from 'firebase/app';
 import { getAuth, signInAnonymously, onAuthStateChanged, User, GoogleAuthProvider, signInWithPopup, signOut } from 'firebase/auth';
-import { getFirestore, enableIndexedDbPersistence } from 'firebase/firestore';
+import { initializeFirestore, getFirestore, persistentLocalCache, persistentMultipleTabManager } from 'firebase/firestore';
 import { getStorage } from 'firebase/storage';
 import firebaseConfig from '../../firebase-applet-config.json';
 
 const app = initializeApp(firebaseConfig);
 
+const firestoreSettings = {
+  localCache: typeof window !== 'undefined'
+    ? persistentLocalCache({ tabManager: persistentMultipleTabManager() })
+    : undefined
+};
+
 export let db: any;
 try {
-  db = getFirestore(app, firebaseConfig.firestoreDatabaseId || '(default)');
+  db = initializeFirestore(app, firestoreSettings, firebaseConfig.firestoreDatabaseId || '(default)');
 } catch (e) {
   console.error("Synchronous Firestore initialization failed with custom database ID. Falling back to (default)...", e);
-  db = getFirestore(app, '(default)');
+  try {
+    db = initializeFirestore(app, firestoreSettings, '(default)');
+  } catch (e2) {
+    db = getFirestore(app, '(default)');
+  }
 }
 
 export const auth = getAuth(app);
@@ -27,25 +37,18 @@ export let isFallbackDbActive = false;
 export function fallbackToDefaultDatabase() {
   if (isFallbackDbActive) return;
   try {
-    db = getFirestore(app, '(default)');
+    db = initializeFirestore(app, firestoreSettings, '(default)');
     isFallbackDbActive = true;
     console.info("Successfully re-routed db to standard (default) database.");
   } catch (e) {
-    console.error("Critical: Failed to switch to default database:", e);
-  }
-}
-
-// Enable offline persistence for seamless work when disconnected
-if (typeof window !== 'undefined') {
-  enableIndexedDbPersistence(db).catch((err) => {
-    if (err.code === 'failed-precondition') {
-      console.warn("Firestore persistence failed precondition (multiple tabs open).");
-    } else if (err.code === 'unimplemented') {
-      console.warn("Firestore persistence is unimplemented by this browser.");
-    } else {
-      console.error("Firestore persistence failed to enable:", err);
+    try {
+      db = getFirestore(app, '(default)');
+      isFallbackDbActive = true;
+      console.info("Successfully re-routed db using getFirestore fallback.");
+    } catch (err) {
+      console.error("Critical: Failed to switch to default database:", e);
     }
-  });
+  }
 }
 
 // Authentication state handling

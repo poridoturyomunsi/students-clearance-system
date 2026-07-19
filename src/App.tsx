@@ -483,6 +483,7 @@ function AppContent() {
   };
 
   useEffect(() => {
+    if (!authSession || !authSession.token) return;
     let mounted = true;
     (async () => {
       try {
@@ -495,7 +496,7 @@ function AppContent() {
       }
     })();
     return () => { mounted = false; };
-  }, []);
+  }, [authSession]);
 
   // Unified app configuration and database startup initialization
   useEffect(() => {
