@@ -37,6 +37,40 @@ self.addEventListener('fetch', (event) => {
     return;
   }
 
+  // Network-First strategy for HTML, JS, and CSS web assets to prevent dynamic chunk loading crashes
+  const isWebAsset = 
+    requestUrl.origin === self.location.origin && 
+    (requestUrl.pathname === '/' || 
+     requestUrl.pathname.endsWith('.html') || 
+     requestUrl.pathname.includes('/assets/') ||
+     requestUrl.pathname.endsWith('.js') ||
+     requestUrl.pathname.endsWith('.css'));
+
+  if (isWebAsset) {
+    event.respondWith(
+      fetch(event.request)
+        .then((networkResponse) => {
+          if (networkResponse && networkResponse.status === 200 && networkResponse.type === 'basic') {
+            const responseClone = networkResponse.clone();
+            caches.open(CACHE_NAME).then((cache) => {
+              cache.put(event.request, responseClone);
+            });
+          }
+          return networkResponse;
+        })
+        .catch(() => {
+          return caches.match(event.request).then((cachedResponse) => {
+            if (cachedResponse) {
+              return cachedResponse;
+            }
+            return caches.match('/index.html');
+          });
+        })
+    );
+    return;
+  }
+
+  // Cache-First strategy for media assets, manifest, and icons
   event.respondWith(
     caches.match(event.request).then((cachedResponse) => {
       if (cachedResponse) {

@@ -3,13 +3,14 @@ import { createRoot } from 'react-dom/client';
 import './index.css';
 import { registerServiceWorker } from './registerServiceWorker.ts';
 import { reportMetric } from './perf/perf';
+import App from './App.tsx';
+import StaffPortal from './components/StaffPortal.tsx';
 
 const startTs = performance.now();
 const root = createRoot(document.getElementById('root')!);
 
-async function mountApp() {
+function mountApp() {
   if (typeof window !== 'undefined' && window.location && window.location.pathname === '/_dev_teacher') {
-    const { default: StaffPortal } = await import('./components/StaffPortal.tsx');
     root.render(
       <StrictMode>
         <StaffPortal
@@ -25,7 +26,6 @@ async function mountApp() {
       </StrictMode>
     );
   } else {
-    const { default: App } = await import('./App.tsx');
     root.render(
       <StrictMode>
         <App />
@@ -52,6 +52,6 @@ async function mountApp() {
   }, 300);
 }
 
-mountApp().catch(e => console.error('Failed to mount app', e));
+mountApp();
 
 registerServiceWorker();
