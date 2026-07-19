@@ -380,8 +380,8 @@ export async function generateStaffIdCardPng(
   const qrBoxY = 222; // pushed down slightly
 
   ctx.save();
-  ctx.fillStyle = '#EAF4FF'; // Light Blue
-  ctx.strokeStyle = 'rgba(47, 128, 237, 0.3)'; // Accent border
+  ctx.fillStyle = '#FFFFFF'; // White background
+  ctx.strokeStyle = '#2F80ED'; // Solid Blue border
   ctx.lineWidth = 2.0;
   drawRoundedRect(ctx, qrBoxX, qrBoxY, qrBoxW, qrBoxH, 18);
   ctx.fill();

@@ -1693,8 +1693,8 @@ export async function generateStaffIdCardsPdf({
     const qrBoxX = x + cardW - qrBoxW - 3.5;
     const qrBoxY = y + 21.0;
 
-    doc.setFillColor(234, 244, 255); // Light Blue #EAF4FF
-    doc.setDrawColor(47, 128, 237); // Accent Blue #2F80ED
+    doc.setFillColor(255, 255, 255); // White background
+    doc.setDrawColor(47, 128, 237); // Solid Blue border
     doc.setLineWidth(0.18);
     doc.roundedRect(qrBoxX, qrBoxY, qrBoxW, qrBoxH, 1.5, 1.5, 'FD');
 
