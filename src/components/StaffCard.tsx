@@ -346,9 +346,9 @@ export default function StaffCard({ staff, logoBase64, authorizedSignatureBase64
         )}
 
         {/* Header (Logo, School Details, Badge) */}
-        <div className="relative z-10 flex items-center justify-between pb-[0.8cqw] w-full">
+        <div className="relative z-10 flex items-center justify-between pb-[1.4cqw] border-b border-[#2F80ED]/15 w-full">
           <div className="flex items-center gap-[2cqw]">
-            <div className="bg-white p-[0.3cqw] rounded-[0.8cqw] border border-[#EAF4FF] shadow-xs shrink-0 w-[9.2cqw] h-[9.2cqw] flex items-center justify-center">
+            <div className="bg-white p-[0.3cqw] rounded-[0.8cqw] border border-[#EAF4FF] shadow-xs shrink-0 w-[10.1cqw] h-[10.1cqw] flex items-center justify-center">
               <SchoolLogo className="w-full h-full object-contain" logoBase64={logoBase64} />
             </div>
             <div className="flex flex-col text-left pr-[18cqw]">

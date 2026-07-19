@@ -324,7 +324,7 @@ export async function generateStaffIdCardPng(
   // --- 7. Header Section ---
   const crestX = 40;
   const crestY = 28;
-  const crestSize = 98;
+  const crestSize = 108; // increased by ~10%
   ctx.save();
   ctx.fillStyle = '#FFFFFF';
   ctx.strokeStyle = '#EAF4FF';
@@ -346,11 +346,21 @@ export async function generateStaffIdCardPng(
   ctx.fillStyle = '#0B4A8B'; // Primary Blue
   ctx.font = 'bold 30px "Poppins", "Montserrat", sans-serif';
   ctx.textAlign = 'left';
-  ctx.fillText('ST. PAUL SECONDARY SCHOOL, NASUTI', 152, 68);
+  ctx.fillText('ST. PAUL SECONDARY SCHOOL, NASUTI', 162, 68); // shifted to align with wider logo
 
   ctx.fillStyle = '#6B7280'; // Neutral Gray
   ctx.font = 'bold 18px "Poppins", "Montserrat", sans-serif';
-  ctx.fillText('P.O. BOX 678, NASUTI, IGANGA', 152, 102);
+  ctx.fillText('P.O. BOX 678, NASUTI, IGANGA', 162, 102); // shifted to align with wider logo
+
+  // Single clean horizontal divider line below header
+  ctx.save();
+  ctx.strokeStyle = 'rgba(47, 128, 237, 0.15)'; // Accent blue at 15% opacity
+  ctx.lineWidth = 2;
+  ctx.beginPath();
+  ctx.moveTo(40, 148);
+  ctx.lineTo(canvas.width - 40, 148);
+  ctx.stroke();
+  ctx.restore();
 
   // STAFF badge (pill shaped corner badge)
   const badgeW = 90;

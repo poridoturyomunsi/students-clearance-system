@@ -1477,8 +1477,6 @@ export async function generateStaffIdCardsPdf({
     doc.saveGraphicsState();
     doc.setDrawColor(47, 128, 237); // Accent Blue #2F80ED
     doc.setLineWidth(0.08);
-    doc.line(x + 3, y + 2.5, x + cardW - 3, y + 2.5);
-    doc.line(x + 3, y + 3.0, x + cardW - 3, y + 3.0);
     doc.line(x + 3, y + cardH - 2.5, x + cardW - 3, y + cardH - 2.5);
     doc.line(x + 3, y + cardH - 3.0, x + cardW - 3, y + cardH - 3.0);
     doc.restoreGraphicsState();
@@ -1516,8 +1514,8 @@ export async function generateStaffIdCardsPdf({
     // 6. Header block (School logo and info)
     const crestBoxX = x + 3.5;
     const crestBoxY = y + 2.8;
-    const crestBoxW = 9.8;
-    const crestBoxH = 9.8;
+    const crestBoxW = 10.8;
+    const crestBoxH = 10.8;
     doc.setFillColor(255, 255, 255);
     doc.setDrawColor(234, 244, 255);
     doc.setLineWidth(0.18);
@@ -1534,12 +1532,19 @@ export async function generateStaffIdCardsPdf({
     doc.setTextColor(11, 74, 139); // Primary Blue
     doc.setFont("helvetica", "bold");
     doc.setFontSize(7.5);
-    doc.text("ST. PAUL SECONDARY SCHOOL, NASUTI", x + 14.5, y + 6.2);
+    doc.text("ST. PAUL SECONDARY SCHOOL, NASUTI", x + 15.5, y + 6.2);
 
     doc.setTextColor(107, 114, 128); // Neutral Gray
     doc.setFont("helvetica", "bold");
     doc.setFontSize(5.2);
-    doc.text("P.O. BOX 678, NASUTI, IGANGA", x + 14.5, y + 9.6);
+    doc.text("P.O. BOX 678, NASUTI, IGANGA", x + 15.5, y + 9.6);
+
+    // Single clean horizontal divider line below header
+    doc.saveGraphicsState();
+    doc.setDrawColor(47, 128, 237); // Accent Blue #2F80ED
+    doc.setLineWidth(0.18);
+    doc.line(x + 3.0, y + 14.1, x + cardW - 3.0, y + 14.1);
+    doc.restoreGraphicsState();
 
     // Pill corner badge "STAFF"
     const badgeW = 10.0;
