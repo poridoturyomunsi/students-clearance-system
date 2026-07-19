@@ -98,9 +98,23 @@ export default function StaffCard({ staff, logoBase64, authorizedSignatureBase64
           
 
 
-          {/* Faint School Crest Watermark in Center (16% opacity) */}
+          {/* Security Background Layer (Subtle Grid & Wave Guilloche) */}
+          <div className="absolute inset-0 pointer-events-none select-none z-0 overflow-hidden bg-white">
+            <svg className="absolute inset-0 w-full h-full pointer-events-none" viewBox="0 0 420 265" fill="none">
+              <defs>
+                <pattern id="sec-grid-back" width="16" height="16" patternUnits="userSpaceOnUse">
+                  <path d="M 16 0 L 0 0 0 16" fill="none" stroke="#2F80ED" strokeWidth="0.12" strokeOpacity="0.06" />
+                </pattern>
+              </defs>
+              <rect width="420" height="265" fill="url(#sec-grid-back)" />
+              <path d="M-20,60 Q100,20 210,120 T440,80" fill="none" stroke="#2F80ED" strokeWidth="0.25" strokeOpacity="0.08" />
+              <path d="M-20,200 Q100,240 210,140 T440,180" fill="none" stroke="#2F80ED" strokeWidth="0.25" strokeOpacity="0.08" />
+            </svg>
+          </div>
+
+          {/* Faint School Crest Watermark in Center (9% opacity for security watermark) */}
           {showWatermark && (
-            <div className="absolute inset-0 flex items-center justify-center opacity-[0.16] scale-[1.2] pointer-events-none select-none z-0">
+            <div className="absolute inset-0 flex items-center justify-center opacity-[0.09] scale-[1.2] pointer-events-none select-none z-0">
               <SchoolLogo className="w-[45%] h-[45%]" logoBase64={logoBase64} />
             </div>
           )}
@@ -146,7 +160,7 @@ export default function StaffCard({ staff, logoBase64, authorizedSignatureBase64
           </div>
 
           {/* Thin horizontal line separating the rules from footer */}
-          <div className="w-full h-[2px] bg-slate-300 my-[1.2cqw] z-10 relative" />
+          <div className="w-full h-[1px] bg-slate-200/80 my-[1.2cqw] z-10 relative" />
 
           {/* Footer Area */}
           <div className="relative z-10 flex items-center justify-between w-full h-[10.2cqw] shrink-0 pb-[0.4cqw]">
@@ -317,9 +331,9 @@ export default function StaffCard({ staff, logoBase64, authorizedSignatureBase64
           ST. PAUL SEC. SCH SECURITY DOCUMENT
         </div>
 
-        {/* Faint School Crest Watermark in Center (softer 5% opacity for semi-transparency) */}
+        {/* Faint School Crest Watermark in Center (4% opacity) */}
         {showWatermark && (
-          <div className="absolute inset-0 flex items-center justify-center opacity-[0.05] scale-[1.4] rotate-6 z-0 pointer-events-none select-none">
+          <div className="absolute inset-0 flex items-center justify-center opacity-[0.04] scale-[1.6] rotate-6 z-0 pointer-events-none select-none">
             <SchoolLogo className="w-[48%] h-[48%]" logoBase64={logoBase64} />
           </div>
         )}

@@ -1508,9 +1508,9 @@ export async function generateStaffIdCardsPdf({
     doc.setLineWidth(0.35);
     doc.roundedRect(x + 0.8, y + 0.8, cardW - 1.6, cardH - 1.6, 2.5, 2.5, 'D');
 
-    // 5. Faint Watermark Crest in background (softer 2% opacity)
+    // 5. Faint Watermark Crest in background (softer 4% opacity)
     if (activeLogoPng) {
-      drawSafeWatermark(doc, activeLogoPng, x + cardW / 2 - 13, y + cardH / 2 - 13, 26, 26, 0.02);
+      drawSafeWatermark(doc, activeLogoPng, x + cardW / 2 - 17, y + cardH / 2 - 17, 34, 34, 0.04);
     }
 
     // 6. Header block (School logo and info)
@@ -1874,15 +1874,34 @@ export async function generateStaffIdCardsPdf({
     doc.setFillColor(255, 255, 255);
     doc.roundedRect(x, y, cardW, cardH, 3.18, 3.18, 'F');
 
+    // 2. Subtle light-blue security pattern (grid and curves)
+    doc.saveGraphicsState();
+    doc.setDrawColor(235, 245, 255); // Extremely soft light-blue
+    doc.setLineWidth(0.08);
+    // Vertical grid lines every 4mm
+    for (let gx = 4.0; gx < cardW; gx += 4.0) {
+      doc.line(x + gx, y + 0.5, x + gx, y + cardH - 0.5);
+    }
+    // Horizontal grid lines every 4mm
+    for (let gy = 4.0; gy < cardH; gy += 4.0) {
+      doc.line(x + 0.5, y + gy, x + cardW - 0.5, y + gy);
+    }
+    // Two thin wavy lines across back card
+    doc.setDrawColor(215, 230, 255);
+    doc.setLineWidth(0.12);
+    doc.line(x + 5, y + 10, x + cardW - 5, y + cardH - 15);
+    doc.line(x + 5, y + cardH - 15, x + cardW - 5, y + 10);
+    doc.restoreGraphicsState();
 
 
-    // 3. School logo background watermark (16% opacity, size 30 for better centering)
+
+    // 3. School logo background watermark (9% opacity, size 30 for better centering)
     if (activeLogoPng) {
       try {
         doc.saveGraphicsState();
         const gStateClass = (doc as any).GState || (doc.constructor as any).GState;
         if (gStateClass) {
-          doc.setGState(new gStateClass({ opacity: 0.16 }));
+          doc.setGState(new gStateClass({ opacity: 0.09 }));
         }
         doc.addImage(activeLogoPng, 'PNG', x + (cardW - 30) / 2, y + (cardH - 30) / 2, 30, 30, undefined, 'NONE');
         doc.restoreGraphicsState();
@@ -1950,7 +1969,7 @@ export async function generateStaffIdCardsPdf({
 
     // 6. Thicker horizontal line separating main from footer
     doc.setDrawColor(203, 213, 225); // Slate 300
-    doc.setLineWidth(0.35);
+    doc.setLineWidth(0.12);
     doc.line(x + 5.0, y + 38.5, x + cardW - 5.0, y + 38.5);
 
     // 7. Footer section

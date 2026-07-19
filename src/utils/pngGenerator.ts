@@ -61,13 +61,40 @@ export async function generateStaffIdCardPng(
     ctx.fillStyle = '#FFFFFF';
     ctx.fillRect(0, 0, canvas.width, canvas.height);
 
+    // 2. Subtle light-blue security pattern (grid and curves)
+    ctx.save();
+    ctx.strokeStyle = 'rgba(47, 128, 237, 0.05)'; // 5% opacity
+    ctx.lineWidth = 0.8;
+    // Draw horizontal grid lines every 20px
+    for (let gy = 20; gy < canvas.height; gy += 20) {
+      ctx.beginPath();
+      ctx.moveTo(10, gy);
+      ctx.lineTo(canvas.width - 10, gy);
+      ctx.stroke();
+    }
+    // Draw vertical grid lines every 20px
+    for (let gx = 20; gx < canvas.width; gx += 20) {
+      ctx.beginPath();
+      ctx.moveTo(gx, 10);
+      ctx.lineTo(gx, canvas.height - 10);
+      ctx.stroke();
+    }
+    // Two thin wavy lines
+    ctx.strokeStyle = 'rgba(47, 128, 237, 0.07)';
+    ctx.lineWidth = 1.2;
+    ctx.beginPath();
+    ctx.moveTo(50, 100);
+    ctx.bezierCurveTo(300, 50, 700, 500, canvas.width - 50, 450);
+    ctx.stroke();
+    ctx.restore();
 
 
-    // 3. Faint School Crest Watermark in Center (16% opacity, size 320 for visibility and centering)
+
+    // 3. Faint School Crest Watermark in Center (9% opacity, size 320 for visibility and centering)
     if (schoolLogoBase64) {
       try {
         ctx.save();
-        ctx.globalAlpha = 0.16;
+        ctx.globalAlpha = 0.09;
         const logoImg = await loadImage(schoolLogoBase64);
         ctx.drawImage(logoImg, (canvas.width - 320) / 2, (canvas.height - 320) / 2, 320, 320);
         ctx.restore();
@@ -135,9 +162,9 @@ export async function generateStaffIdCardPng(
       ry += 40;
     });
 
-    // 6. Thicker gray horizontal line separating main from footer
-    ctx.strokeStyle = '#CBD5E1'; // Slate 300
-    ctx.lineWidth = 3.5;
+    // 6. Thin horizontal line separating main from footer
+    ctx.strokeStyle = '#E2E8F0'; // Slate 200
+    ctx.lineWidth = 1.2;
     ctx.beginPath();
     ctx.moveTo(50, 460);
     ctx.lineTo(canvas.width - 50, 460);
@@ -250,7 +277,7 @@ export async function generateStaffIdCardPng(
     try {
       const wmImg = await loadImage(schoolLogoBase64);
       ctx.save();
-      ctx.globalAlpha = 0.02;
+      ctx.globalAlpha = 0.04;
       const wmSize = 340;
       ctx.drawImage(
         wmImg,
