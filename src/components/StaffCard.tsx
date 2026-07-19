@@ -346,7 +346,7 @@ export default function StaffCard({ staff, logoBase64, authorizedSignatureBase64
         )}
 
         {/* Header (Logo, School Details, Badge) */}
-        <div className="relative z-10 flex items-center justify-between pb-[0.8cqw] border-b-[1.5px] border-[#2F80ED]/30 w-full">
+        <div className="relative z-10 flex items-center justify-between pb-[0.8cqw] w-full">
           <div className="flex items-center gap-[2cqw]">
             <div className="bg-white p-[0.3cqw] rounded-[0.8cqw] border border-[#EAF4FF] shadow-xs shrink-0 w-[9.2cqw] h-[9.2cqw] flex items-center justify-center">
               <SchoolLogo className="w-full h-full object-contain" logoBase64={logoBase64} />
@@ -450,7 +450,7 @@ export default function StaffCard({ staff, logoBase64, authorizedSignatureBase64
         </div>
 
         {/* Bottom Section (Premium Shaded Corporate Footer with Icons) */}
-        <div className="relative z-20 grid grid-cols-4 items-center justify-between pt-[1.5cqw] pb-[1cqw] border-t border-slate-100 mt-[1.5cqw] shrink-0 h-[10.5cqw] w-full text-center bg-[#F8FAFC]">
+        <div className="relative z-20 grid grid-cols-4 items-center justify-between pt-[1.5cqw] pb-[1cqw] mt-[1.5cqw] shrink-0 h-[10.5cqw] w-full text-center bg-[#F8FAFC]">
           
           {/* Column 1: Issue Date */}
           <div className="flex flex-col items-center justify-center h-full gap-[0.4cqw]">
@@ -480,16 +480,12 @@ export default function StaffCard({ staff, logoBase64, authorizedSignatureBase64
               </span>
             </div>
             <div className="h-[3.6cqw] flex items-center justify-center pb-[0.2cqw]">
-              {staff.signature ? (
+              {staff.signature && (
                 <img 
                   src={staff.signature} 
                   alt="Staff signature" 
                   className="max-h-full object-contain" 
                 />
-              ) : (
-                <span className="text-[2.2cqw] text-slate-400 font-medium tracking-[0.1em] pointer-events-none select-none">
-                  ...........................
-                </span>
               )}
             </div>
           </div>

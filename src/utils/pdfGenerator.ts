@@ -1553,10 +1553,7 @@ export async function generateStaffIdCardsPdf({
     doc.setFontSize(4.0);
     doc.text("STAFF", badgeX + badgeW / 2, badgeY + 2.4, { align: 'center' });
 
-    // 7. Divider Line
-    doc.setDrawColor(47, 128, 237); // Accent Blue
-    doc.setLineWidth(0.25);
-    doc.line(x + 3.5, y + 14.2, x + cardW - 3.5, y + 14.2);
+
 
     // Centered Pill Container: STAFF IDENTITY CARD (shifted right)
     const pillW = 38.0;
@@ -1722,10 +1719,7 @@ export async function generateStaffIdCardsPdf({
     doc.setFillColor(248, 250, 252);
     doc.rect(x + 0.8, bottomY, cardW - 1.6, cardH - 0.8 - 43.5, 'F');
 
-    // Horizontal Divider (Thin accent grey line)
-    doc.setDrawColor(234, 240, 246);
-    doc.setLineWidth(0.18);
-    doc.line(x + 3.5, bottomY, x + cardW - 3.5, bottomY);
+
 
     // Vertical Divider 1
     doc.setDrawColor(226, 232, 240); // Thin light-gray separators
@@ -1814,13 +1808,6 @@ export async function generateStaffIdCardsPdf({
       } catch (e) {
         console.warn("Failed drawing signature in PDF", e);
       }
-    } else {
-      doc.saveGraphicsState();
-      doc.setTextColor(100, 116, 139);
-      doc.setFont("courier", "normal");
-      doc.setFontSize(4.0);
-      doc.text("...........................", x + 23.5, bottomY + 7.5);
-      doc.restoreGraphicsState();
     }
 
     // Col 3 Value: Authorised Signature

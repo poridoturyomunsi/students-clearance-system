@@ -369,13 +369,7 @@ export async function generateStaffIdCardPng(
   ctx.fillText('STAFF', badgeX + badgeW / 2, badgeY + 22);
   ctx.restore();
 
-  // Divider Line
-  ctx.strokeStyle = '#2F80ED'; // Accent Blue
-  ctx.lineWidth = 2;
-  ctx.beginPath();
-  ctx.moveTo(40, 142);
-  ctx.lineTo(canvas.width - 40, 142);
-  ctx.stroke();
+
 
   // --- Centered Pill: STAFF IDENTITY CARD (shifted right) ---
   const pillW = 440;
@@ -576,13 +570,7 @@ export async function generateStaffIdCardPng(
   ctx.fillStyle = '#F8FAFC';
   ctx.fillRect(10, bottomY, canvas.width - 20, canvas.height - 10 - bottomY);
 
-  // Divider Line
-  ctx.strokeStyle = 'rgba(226, 232, 240, 0.8)';
-  ctx.lineWidth = 2;
-  ctx.beginPath();
-  ctx.moveTo(40, bottomY);
-  ctx.lineTo(canvas.width - 40, bottomY);
-  ctx.stroke();
+
 
   // Vertical Separators (thin light-gray lines)
   ctx.strokeStyle = '#E2E8F0';
@@ -676,12 +664,6 @@ export async function generateStaffIdCardPng(
     } catch (e) {
       console.warn('Failed to draw signature image on PNG:', e);
     }
-  } else {
-    ctx.save();
-    ctx.fillStyle = '#94A3B8';
-    ctx.font = '15px "Courier New", Courier, monospace';
-    ctx.fillText('...........................', 275, bottomY + 76);
-    ctx.restore();
   }
 
   // Col 3 Value: Authorised Signature
