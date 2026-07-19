@@ -3536,7 +3536,7 @@ function AppContent() {
             </div>
           </div>
           <div className="text-center space-y-1">
-            <h2 className="text-sm font-black uppercase text-slate-200 font-mono tracking-widest">St. Paul S S Nasuti Management System</h2>
+            <h2 className="text-sm font-black uppercase text-slate-200 font-mono tracking-widest">St. Paul Secondary School Management System</h2>
             <p className="text-[10px] text-slate-500 font-mono">Verifying database connection & initializing modules...</p>
           </div>
         </div>
