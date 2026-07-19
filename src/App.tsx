@@ -7543,7 +7543,7 @@ function AppContent() {
 
       {/* FLOATING BACKGROUND TASKS PANEL */}
       {authSession && (
-        <div className="fixed bottom-4 right-24 z-[9999] font-sans">
+        <div className="fixed bottom-4 right-24 z-[9999] font-sans hidden sm:block">
           {/* Trigger Button */}
           <button
             onClick={() => setIsBgTasksOpen(prev => !prev)}
