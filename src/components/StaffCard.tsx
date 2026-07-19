@@ -105,10 +105,17 @@ export default function StaffCard({ staff, logoBase64, authorizedSignatureBase64
                 <pattern id="sec-grid-back" width="16" height="16" patternUnits="userSpaceOnUse">
                   <path d="M 16 0 L 0 0 0 16" fill="none" stroke="#2F80ED" strokeWidth="0.12" strokeOpacity="0.06" />
                 </pattern>
+                <pattern id="guilloche-back" width="40" height="40" patternUnits="userSpaceOnUse">
+                  <path d="M 0 20 Q 10 5, 20 20 T 40 20" fill="none" stroke="#2F80ED" strokeWidth="0.12" strokeOpacity="0.06" />
+                  <path d="M 0 20 Q 10 35, 20 20 T 40 20" fill="none" stroke="#2F80ED" strokeWidth="0.12" strokeOpacity="0.06" />
+                </pattern>
               </defs>
               <rect width="420" height="265" fill="url(#sec-grid-back)" />
-              <path d="M-20,60 Q100,20 210,120 T440,80" fill="none" stroke="#2F80ED" strokeWidth="0.25" strokeOpacity="0.08" />
-              <path d="M-20,200 Q100,240 210,140 T440,180" fill="none" stroke="#2F80ED" strokeWidth="0.25" strokeOpacity="0.08" />
+              <rect width="420" height="265" fill="url(#guilloche-back)" />
+              <path d="M-20,50 C100,20 200,80 440,50" fill="none" stroke="#2F80ED" strokeWidth="0.15" strokeOpacity="0.08" />
+              <path d="M-20,90 C100,60 200,120 440,90" fill="none" stroke="#2F80ED" strokeWidth="0.15" strokeOpacity="0.08" />
+              <path d="M-20,130 C100,100 200,160 440,130" fill="none" stroke="#2F80ED" strokeWidth="0.15" strokeOpacity="0.08" />
+              <path d="M-20,170 C100,140 200,200 440,170" fill="none" stroke="#2F80ED" strokeWidth="0.15" strokeOpacity="0.08" />
             </svg>
           </div>
 

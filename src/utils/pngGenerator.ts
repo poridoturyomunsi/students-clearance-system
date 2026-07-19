@@ -79,13 +79,22 @@ export async function generateStaffIdCardPng(
       ctx.lineTo(gx, canvas.height - 10);
       ctx.stroke();
     }
-    // Two thin wavy lines
-    ctx.strokeStyle = 'rgba(47, 128, 237, 0.07)';
-    ctx.lineWidth = 1.2;
-    ctx.beginPath();
-    ctx.moveTo(50, 100);
-    ctx.bezierCurveTo(300, 50, 700, 500, canvas.width - 50, 450);
-    ctx.stroke();
+    // Draw 4 continuous sine-wave curves (guilloche pattern) across the card
+    ctx.strokeStyle = 'rgba(47, 128, 237, 0.06)';
+    ctx.lineWidth = 1.0;
+    for (let w = 0; w < 4; w++) {
+      const startY = 120 + w * 90;
+      ctx.beginPath();
+      for (let px = 30; px < canvas.width - 30; px += 10) {
+        const py = startY + Math.sin((px * Math.PI * 4) / (canvas.width - 60)) * 25;
+        if (px === 30) {
+          ctx.moveTo(px, py);
+        } else {
+          ctx.lineTo(px, py);
+        }
+      }
+      ctx.stroke();
+    }
     ctx.restore();
 
 

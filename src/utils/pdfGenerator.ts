@@ -1886,11 +1886,22 @@ export async function generateStaffIdCardsPdf({
     for (let gy = 4.0; gy < cardH; gy += 4.0) {
       doc.line(x + 0.5, y + gy, x + cardW - 0.5, y + gy);
     }
-    // Two thin wavy lines across back card
+    // Continuous light-blue wavy guilloche lines across back card
     doc.setDrawColor(215, 230, 255);
-    doc.setLineWidth(0.12);
-    doc.line(x + 5, y + 10, x + cardW - 5, y + cardH - 15);
-    doc.line(x + 5, y + cardH - 15, x + cardW - 5, y + 10);
+    doc.setLineWidth(0.10);
+    for (let w = 0; w < 4; w++) {
+      const startY = y + 12 + w * 8;
+      const points: {x: number, y: number}[] = [];
+      const steps = 30;
+      for (let j = 0; j <= steps; j++) {
+        const px = x + (j * cardW) / steps;
+        const py = startY + Math.sin((j * Math.PI * 4) / steps) * 1.8;
+        points.push({x: px, y: py});
+      }
+      for (let j = 0; j < points.length - 1; j++) {
+        doc.line(points[j].x, points[j].y, points[j+1].x, points[j+1].y);
+      }
+    }
     doc.restoreGraphicsState();
 
 
