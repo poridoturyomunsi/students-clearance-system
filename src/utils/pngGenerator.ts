@@ -490,9 +490,14 @@ export async function generateStaffIdCardPng(
   } else {
     issueDateStr = formatDate(member.createdAt || new Date());
   }
+  ctx.save();
   ctx.fillStyle = '#1E3A5F'; // Dark Blue #1E3A5F
-  ctx.font = 'bold 15px "Poppins", "Montserrat", sans-serif';
+  ctx.font = '500 14px "Montserrat", "Poppins", sans-serif';
+  if ('letterSpacing' in ctx) {
+    (ctx as any).letterSpacing = '1.5px';
+  }
   ctx.fillText(issueDateStr, 30, bottomY + 76);
+  ctx.restore();
 
   // Col 2 Value: Holder Signature
   if (member.signature) {
@@ -503,10 +508,11 @@ export async function generateStaffIdCardPng(
       console.warn('Failed to draw signature image on PNG:', e);
     }
   } else {
-    const sigText = member.lastName || 'Staff';
-    ctx.fillStyle = '#475569';
-    ctx.font = 'italic 15px "Courier New", Courier, monospace';
-    ctx.fillText(sigText, 275, bottomY + 76);
+    ctx.save();
+    ctx.fillStyle = '#94A3B8';
+    ctx.font = '15px "Courier New", Courier, monospace';
+    ctx.fillText('...........................', 275, bottomY + 76);
+    ctx.restore();
   }
 
   // Col 3 Value: Authorised Signature
@@ -538,8 +544,12 @@ export async function generateStaffIdCardPng(
     expDate.setFullYear(expDate.getFullYear() + 5);
     expDateStr = formatDate(expDate);
   }
+  ctx.save();
   ctx.fillStyle = '#2F80ED'; // Accent Blue
-  ctx.font = 'bold 15px "Poppins", "Montserrat", sans-serif';
+  ctx.font = '500 14px "Montserrat", "Poppins", sans-serif';
+  if ('letterSpacing' in ctx) {
+    (ctx as any).letterSpacing = '1.5px';
+  }
   ctx.fillText(expDateStr, 780, bottomY + 76);
   ctx.restore();
 

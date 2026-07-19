@@ -324,10 +324,7 @@ export default function StaffCard({ staff, logoBase64, authorizedSignatureBase64
               );
             })}
 
-            {/* Fine Microtext Border at Bottom */}
-            <text x="12" y="253" fontSize="2.2" fontFamily="monospace" fill="#0B4A8B" fillOpacity="0.12" letterSpacing="0.8">
-              ST. PAUL SECONDARY SCHOOL OFFICIAL SECURITY CREDENTIAL • VERIFY ONLINE
-            </text>
+
           </svg>
         </div>
 
@@ -450,7 +447,10 @@ export default function StaffCard({ staff, logoBase64, authorizedSignatureBase64
                 Issue Date
               </span>
             </div>
-            <span className="text-[#1E3A5F] font-extrabold text-[2.6cqw] leading-none">
+            <span 
+              className="text-[#1E3A5F] text-[2.5cqw] leading-none tracking-[0.15em] font-medium"
+              style={{ fontFamily: '"Montserrat", sans-serif' }}
+            >
               {issueDateStr}
             </span>
           </div>
@@ -473,7 +473,11 @@ export default function StaffCard({ staff, logoBase64, authorizedSignatureBase64
                   alt="Staff signature" 
                   className="max-h-full object-contain" 
                 />
-              ) : null}
+              ) : (
+                <span className="text-[2.2cqw] text-slate-400 font-medium tracking-[0.1em] pointer-events-none select-none">
+                  ...........................
+                </span>
+              )}
             </div>
           </div>
 
@@ -524,7 +528,10 @@ export default function StaffCard({ staff, logoBase64, authorizedSignatureBase64
                 Expiry Date
               </span>
             </div>
-            <span className="text-[#2F80ED] font-extrabold text-[2.6cqw] leading-none">
+            <span 
+              className="text-[#2F80ED] text-[2.5cqw] leading-none tracking-[0.15em] font-medium"
+              style={{ fontFamily: '"Montserrat", sans-serif' }}
+            >
               {expiryDateStr}
             </span>
           </div>

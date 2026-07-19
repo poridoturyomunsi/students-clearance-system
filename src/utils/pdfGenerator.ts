@@ -1483,13 +1483,7 @@ export async function generateStaffIdCardsPdf({
     doc.line(x + 3, y + cardH - 3.0, x + cardW - 3, y + cardH - 3.0);
     doc.restoreGraphicsState();
 
-    // Security microtext at top edge
-    doc.saveGraphicsState();
-    doc.setTextColor(47, 128, 237); // Accent Blue
-    doc.setFont("helvetica", "normal");
-    doc.setFontSize(2.2);
-    doc.text("ST. PAUL SECONDARY SCHOOL OFFICIAL SECURITY CREDENTIAL • VERIFY ONLINE", x + 10.0, y + 1.8);
-    doc.restoreGraphicsState();
+
 
     // Vertical Security Margin Text (faint opacity)
     doc.saveGraphicsState();
@@ -1803,9 +1797,11 @@ export async function generateStaffIdCardsPdf({
       issueDateStr = formatDate(member.createdAt || new Date());
     }
     doc.setTextColor(30, 58, 95); // Dark Blue #1E3A5F
-    doc.setFont("helvetica", "bold");
-    doc.setFontSize(4.0);
+    doc.setFont("helvetica", "normal");
+    doc.setFontSize(3.6);
+    doc.setCharSpace(0.18);
     doc.text(issueDateStr, x + 3.0, bottomY + 7.5);
+    doc.setCharSpace(0);
 
     // Col 2 Value: Holder Signature
     if (member.signature) {
@@ -1817,9 +1813,9 @@ export async function generateStaffIdCardsPdf({
     } else {
       doc.saveGraphicsState();
       doc.setTextColor(100, 116, 139);
-      doc.setFont("courier", "oblique");
+      doc.setFont("courier", "normal");
       doc.setFontSize(4.0);
-      doc.text(member.lastName || 'Staff', x + 23.5, bottomY + 7.5);
+      doc.text("...........................", x + 23.5, bottomY + 7.5);
       doc.restoreGraphicsState();
     }
 
@@ -1854,9 +1850,11 @@ export async function generateStaffIdCardsPdf({
       expDateStr = formatDate(expDate);
     }
     doc.setTextColor(47, 128, 237); // Accent Blue
-    doc.setFont("helvetica", "bold");
-    doc.setFontSize(4.0);
+    doc.setFont("helvetica", "normal");
+    doc.setFontSize(3.6);
+    doc.setCharSpace(0.18);
     doc.text(expDateStr, x + 66.0, bottomY + 7.5);
+    doc.setCharSpace(0);
 
     // Redraw inner border to cleanly frame the footer area
     doc.setDrawColor(234, 244, 255);
