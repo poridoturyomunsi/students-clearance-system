@@ -130,8 +130,8 @@ export default function ClearanceCard({
           </span>
         </div>
 
-        {/* Right: Term Badge at EXTREME TOP END RIGHT */}
-        <div className="shrink-0 flex items-center justify-center">
+        {/* Right: Term Badge aligned to top-right corner, lowered to be vertically centered in header ribbon */}
+        <div className="shrink-0 flex items-center justify-center mt-3">
           <div className="bg-[#0b1942] text-white border border-white/20 px-2.5 py-1 rounded-md text-[7.5px] font-mono font-black uppercase shrink-0 tracking-wider text-center shadow-sm">
             TERM 2, 2026
           </div>
@@ -152,7 +152,7 @@ export default function ClearanceCard({
           {/* TWO COLUMNS: Left Framed Photo, Right Wide Info Area */}
           <div className="flex-1 flex items-center gap-3 min-w-0 pt-0.5">
             {/* Left Column: Passport Photo framed inside rectangular box with rounded corners & blue border */}
-            <div className="w-[92px] h-[106px] shrink-0 border-[1.8px] border-[var(--theme-primary)] rounded-xl p-1 bg-white flex items-center justify-center overflow-hidden shadow-2xs">
+            <div className="w-[92px] h-[108px] shrink-0 border-[1.8px] border-[var(--theme-primary)] rounded-xl p-1 bg-white flex items-center justify-center overflow-hidden shadow-2xs">
               <div className="w-full h-full bg-slate-50 rounded-lg flex items-center justify-center overflow-hidden shrink-0">
                 {photoUrl ? (
                   <img
@@ -174,12 +174,12 @@ export default function ClearanceCard({
               </div>
             </div>
 
-            {/* Right Column: Information section occupying all remaining horizontal space (No border, No divider lines) */}
-            <div className="flex-1 flex flex-col justify-between h-[106px] min-w-0 pl-1 pr-0.5">
+            {/* Right Column: Information section with enhanced vertical spacing between fields */}
+            <div className="flex-1 flex flex-col justify-between h-[108px] min-w-0 pl-1 pr-0.5 py-0.5">
               {/* 1. STUDENT NUMBER */}
               <div className="flex flex-col justify-center">
                 <span className="text-[7px] font-black text-[var(--theme-text)] uppercase tracking-wider leading-none">STUDENT NUMBER</span>
-                <span className="text-[10.5px] font-black text-black leading-tight uppercase truncate mt-[1.5px]">
+                <span className="text-[10.5px] font-black text-slate-950 leading-tight uppercase truncate mt-[2px]">
                   {student.studentNo || student.adminNo}
                 </span>
               </div>
@@ -187,7 +187,7 @@ export default function ClearanceCard({
               {/* 2. NAME */}
               <div className="flex flex-col justify-center">
                 <span className="text-[7px] font-black text-[var(--theme-text)] uppercase tracking-wider leading-none">NAME</span>
-                <span className="text-[10.5px] font-black text-black leading-tight uppercase truncate mt-[1.5px]">
+                <span className="text-[10.5px] font-black text-slate-950 leading-tight uppercase truncate mt-[2px]">
                   {student.name}
                 </span>
               </div>
@@ -195,7 +195,7 @@ export default function ClearanceCard({
               {/* 3. CLASS */}
               <div className="flex flex-col justify-center">
                 <span className="text-[7px] font-black text-[var(--theme-text)] uppercase tracking-wider leading-none">CLASS</span>
-                <span className="text-[10.5px] font-black text-black leading-tight uppercase truncate mt-[1.5px]">
+                <span className="text-[10.5px] font-black text-slate-950 leading-tight uppercase truncate mt-[2px]">
                   {student.gradeClass}
                 </span>
               </div>
@@ -203,7 +203,7 @@ export default function ClearanceCard({
               {/* 4. STATUS */}
               <div className="flex flex-col justify-center">
                 <span className="text-[7px] font-black text-[var(--theme-text)] uppercase tracking-wider leading-none">STATUS</span>
-                <span className="text-[10.5px] font-black text-black leading-tight uppercase truncate mt-[1.5px]">
+                <span className="text-[10.5px] font-black text-slate-950 leading-tight uppercase truncate mt-[2px]">
                   {student.boardingStatus === 'Hosteller' || student.boardingStatus === 'Boarder' ? 'HOSTELLER' : 'DAY SCHOLAR'}
                 </span>
               </div>
@@ -211,7 +211,7 @@ export default function ClearanceCard({
               {/* 5. GENDER */}
               <div className="flex flex-col justify-center">
                 <span className="text-[7px] font-black text-[var(--theme-text)] uppercase tracking-wider leading-none">GENDER</span>
-                <span className="text-[10.5px] font-black text-black leading-tight uppercase truncate mt-[1.5px]">
+                <span className="text-[10.5px] font-black text-slate-950 leading-tight uppercase truncate mt-[2px]">
                   {(student.gender || 'Male').toUpperCase()}
                 </span>
               </div>
