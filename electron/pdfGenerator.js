@@ -324,9 +324,9 @@ function drawCardFrontPdf(
 
   // Left Column: Framed Passport Photo with blue/theme border and rounded corners
   const photoFrameX = containerX + 2.0;
-  const photoFrameY = containerY + 6.5;
-  const photoFrameW = 21.0;
-  const photoFrameH = 22.0;
+  const photoFrameY = containerY + 6.2;
+  const photoFrameW = 22.0;
+  const photoFrameH = 23.0;
 
   doc.setDrawColor(themePrimary.r, themePrimary.g, themePrimary.b);
   doc.setLineWidth(0.35);
@@ -358,10 +358,10 @@ function drawCardFrontPdf(
     doc.ellipse(photoImgX + photoImgW / 2, photoImgY + 14.0, 5.5, 3.0, 'S');
   }
 
-  // Right Column: Wide Information section extending to right edge (No outer border, No divider lines)
-  const infoX = photoFrameX + photoFrameW + 3.5;
-  const fieldYStart = photoFrameY + 2.2;
-  const fieldSpacing = 4.1;
+  // Right Column: Information section moved right with enhanced padding and spacing
+  const infoX = photoFrameX + photoFrameW + 4.5;
+  const fieldYStart = photoFrameY + 2.0;
+  const fieldSpacing = 4.3;
 
   const fields = [
     { label: 'STUDENT NUMBER', val: (student.studentNo || student.adminNo || '').toUpperCase() },
@@ -381,7 +381,7 @@ function drawCardFrontPdf(
 
     // Bold black value directly below label with larger readable font size
     doc.setFont('helvetica', 'bold');
-    doc.setFontSize(7.2);
+    doc.setFontSize(7.6);
     doc.setTextColor(0, 0, 0);
     doc.text(f.val, infoX, fy + 2.4);
   });
