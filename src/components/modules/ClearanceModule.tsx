@@ -211,7 +211,7 @@ export default function ClearanceModule() {
       };
 
       await saveStudentInDb(student);
-      await loadClearanceData();
+      setStudents(prev => [student as any, ...prev.filter(s => s.id !== student.id)]);
       setShowAddModal(false);
       setAddForm({ ...DEFAULT_ADD_FORM });
       setImportSummary(null);

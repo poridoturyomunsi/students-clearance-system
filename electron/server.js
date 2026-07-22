@@ -984,6 +984,30 @@ async function runStaffMigrations(conn) {
   }
 }
 
+async function ensurePerformanceIndexes(dbPool) {
+  if (!dbPool) return;
+  const queries = [
+    'ALTER TABLE students ADD INDEX idx_adminNo (adminNo)',
+    'ALTER TABLE students ADD INDEX idx_name (name(100))',
+    'ALTER TABLE students ADD INDEX idx_gradeClass (gradeClass)',
+    'ALTER TABLE students ADD INDEX idx_isCleared (isCleared)',
+    'ALTER TABLE students ADD INDEX idx_boardingStatus (boardingStatus)',
+    'ALTER TABLE students ADD INDEX idx_printStatus (printStatus)',
+    'ALTER TABLE students ADD INDEX idx_gender (gender)',
+    'ALTER TABLE students ADD INDEX idx_search_composite (name(50), adminNo, gradeClass)',
+    'ALTER TABLE student_accounts ADD INDEX idx_student_accounts_id (student_id)',
+    'ALTER TABLE olevel_marks ADD INDEX idx_olevel_student_term_year (student_id, term, year)',
+    'ALTER TABLE uace_marks ADD INDEX idx_uace_student_term_year (student_id, term, year)'
+  ];
+  for (const q of queries) {
+    try {
+      await dbPool.query(q);
+    } catch (e) {
+      // Index already exists or table not yet present
+    }
+  }
+}
+
 async function ensureDbInitialized() {
   if (!pool || !currentDbConfig) return false;
   if (dbInitialized) return true;
@@ -1010,6 +1034,7 @@ async function ensureDbInitialized() {
     } finally {
       if (fastMigConn) fastMigConn.release();
     }
+    ensurePerformanceIndexes(pool).catch(idxErr => console.warn('[DB-INIT-LOG] Index verification warning:', idxErr.message));
     dbInitialized = true;
     initializingDb = false;
     console.log('[DB-INIT-LOG] Database is already initialized. Skipping full migration schemas.');
@@ -3155,49 +3180,61 @@ app.post('/api/students', async (req, res) => {
     if (!s.adminNo) {
       return res.status(400).json({ error: 'Admission number (adminNo) is required.' });
     }
-    // Check duplicate (OPTIMIZED: LIMIT 1)
+    // Check duplicate (OPTIMIZED: indexed query with LIMIT 1)
     const [existing] = await pool.query('SELECT id, name FROM students WHERE adminNo = ? AND id != ? LIMIT 1', [s.adminNo, s.id]);
     if (existing.length > 0) {
       return res.status(400).json({ error: `Registration number "${s.adminNo}" is already assigned to student "${existing[0].name}".` });
     }
 
-    try {
-      // Parallelize image compression (keep original/enhanced high-res for zoom/cropping)
-      const [compPhoto, compOriginal, compEnhanced] = await Promise.all([
-        s.photo ? compressImageIfNeeded(s.photo, 150, 150, 75, true) : Promise.resolve(s.photo),
-        s.photoOriginal ? compressImageIfNeeded(s.photoOriginal, 800, 1000, 85, true) : Promise.resolve(s.photoOriginal),
-        s.photoEnhanced ? compressImageIfNeeded(s.photoEnhanced, 800, 1000, 85, true) : Promise.resolve(s.photoEnhanced)
-      ]);
-
-      // Parallelize Cloudinary uploads
-      const [photoUrl, originalUrl, enhancedUrl] = await Promise.all([
-        uploadToCloudinaryIfNeeded(compPhoto, `student_${s.id}_photo`),
-        uploadToCloudinaryIfNeeded(compOriginal, `student_${s.id}_original`),
-        uploadToCloudinaryIfNeeded(compEnhanced, `student_${s.id}_enhanced`)
-      ]);
-
-      s.photo = photoUrl;
-      s.photoOriginal = originalUrl;
-      s.photoEnhanced = enhancedUrl;
-    } catch (e) {
-      console.warn('Image processing or Cloudinary upload warning:', e);
-    }
-
     const formattedDob = s.dob && s.dob.trim() !== '' ? s.dob.trim() : null;
 
+    let photoVal = s.photo || null;
+    let originalVal = s.photoOriginal || null;
+    let enhancedVal = s.photoEnhanced || null;
+
+    // Fast database insert/update
     await pool.query(
       `INSERT INTO students (id, adminNo, name, aliases, gender, dob, gradeClass, boardingStatus, isCleared, gateClearanceDate, mealsClearanceDate, remarks, photo, photoOriginal, photoEnhanced, printStatus, parentName, parentContact) 
        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?) 
        ON DUPLICATE KEY UPDATE 
        adminNo = ?, name = ?, aliases = ?, gender = ?, dob = ?, gradeClass = ?, boardingStatus = ?, isCleared = ?, gateClearanceDate = ?, mealsClearanceDate = ?, remarks = ?, photo = ?, photoOriginal = ?, photoEnhanced = ?, printStatus = ?, parentName = ?, parentContact = ?`,
       [
-        s.id, s.adminNo, s.name, s.aliases ? JSON.stringify(s.aliases) : null, s.gender, formattedDob, s.gradeClass, s.boardingStatus, s.isCleared ? 1 : 0, s.gateClearanceDate || null, s.mealsClearanceDate || null, s.remarks || null, s.photo || null, s.photoOriginal || null, s.photoEnhanced || null, s.printStatus || 'Not Printed', s.parentName || null, s.parentContact || null,
-        s.adminNo, s.name, s.aliases ? JSON.stringify(s.aliases) : null, s.gender, formattedDob, s.gradeClass, s.boardingStatus, s.isCleared ? 1 : 0, s.gateClearanceDate || null, s.mealsClearanceDate || null, s.remarks || null, s.photo || null, s.photoOriginal || null, s.photoEnhanced || null, s.printStatus || 'Not Printed', s.parentName || null, s.parentContact || null
+        s.id, s.adminNo, s.name, s.aliases ? JSON.stringify(s.aliases) : null, s.gender, formattedDob, s.gradeClass, s.boardingStatus, s.isCleared ? 1 : 0, s.gateClearanceDate || null, s.mealsClearanceDate || null, s.remarks || null, photoVal, originalVal, enhancedVal, s.printStatus || 'Not Printed', s.parentName || null, s.parentContact || null,
+        s.adminNo, s.name, s.aliases ? JSON.stringify(s.aliases) : null, s.gender, formattedDob, s.gradeClass, s.boardingStatus, s.isCleared ? 1 : 0, s.gateClearanceDate || null, s.mealsClearanceDate || null, s.remarks || null, photoVal, originalVal, enhancedVal, s.printStatus || 'Not Printed', s.parentName || null, s.parentContact || null
       ]
     );
-    await ensureStudentAccount(pool, s.id);
-    await writeAuditLog('Save Student', `Saved student "${s.name}" (${s.adminNo})`);
+
+    // Non-blocking background side effects
+    ensureStudentAccount(pool, s.id).catch(e => console.warn('Account setup warning:', e.message));
+    writeAuditLog('Save Student', `Saved student "${s.name}" (${s.adminNo})`).catch(e => console.warn('Audit log warning:', e.message));
     statsCache = null;
+
+    // Non-blocking background image optimization & Cloudinary upload if needed
+    if ((photoVal && photoVal.startsWith('data:')) || (originalVal && originalVal.startsWith('data:'))) {
+      (async () => {
+        try {
+          const [compPhoto, compOriginal, compEnhanced] = await Promise.all([
+            photoVal ? compressImageIfNeeded(photoVal, 150, 150, 75, true) : Promise.resolve(photoVal),
+            originalVal ? compressImageIfNeeded(originalVal, 800, 1000, 85, true) : Promise.resolve(originalVal),
+            enhancedVal ? compressImageIfNeeded(enhancedVal, 800, 1000, 85, true) : Promise.resolve(enhancedVal)
+          ]);
+          const [photoUrl, originalUrl, enhancedUrl] = await Promise.all([
+            uploadToCloudinaryIfNeeded(compPhoto, `student_${s.id}_photo`),
+            uploadToCloudinaryIfNeeded(compOriginal, `student_${s.id}_original`),
+            uploadToCloudinaryIfNeeded(compEnhanced, `student_${s.id}_enhanced`)
+          ]);
+          if (photoUrl !== photoVal || originalUrl !== originalVal || enhancedUrl !== enhancedVal) {
+            await pool.query(
+              'UPDATE students SET photo = ?, photoOriginal = ?, photoEnhanced = ? WHERE id = ?',
+              [photoUrl || null, originalUrl || null, enhancedUrl || null, s.id]
+            );
+          }
+        } catch (imgErr) {
+          console.warn('Background image processing warning:', imgErr.message);
+        }
+      })();
+    }
+
     res.json({ success: true, id: s.id });
   } catch (err) {
     console.error('Error saving student:', err);
@@ -3212,43 +3249,52 @@ app.put('/api/students/:id', async (req, res) => {
     if (!s.adminNo) {
       return res.status(400).json({ error: 'Admission number (adminNo) is required.' });
     }
-    // Check duplicate (OPTIMIZED: LIMIT 1)
+    // Check duplicate (OPTIMIZED: indexed query with LIMIT 1)
     const [existing] = await pool.query('SELECT id, name FROM students WHERE adminNo = ? AND id != ? LIMIT 1', [s.adminNo, req.params.id]);
     if (existing.length > 0) {
       return res.status(400).json({ error: `Registration number "${s.adminNo}" is already assigned to student "${existing[0].name}".` });
     }
 
-    try {
-      // Parallelize image compression (keep original/enhanced high-res for zoom/cropping)
-      const [compPhoto, compOriginal, compEnhanced] = await Promise.all([
-        s.photo ? compressImageIfNeeded(s.photo, 150, 150, 75, true) : Promise.resolve(s.photo),
-        s.photoOriginal ? compressImageIfNeeded(s.photoOriginal, 800, 1000, 85, true) : Promise.resolve(s.photoOriginal),
-        s.photoEnhanced ? compressImageIfNeeded(s.photoEnhanced, 800, 1000, 85, true) : Promise.resolve(s.photoEnhanced)
-      ]);
-
-      // Parallelize Cloudinary uploads
-      const [photoUrl, originalUrl, enhancedUrl] = await Promise.all([
-        uploadToCloudinaryIfNeeded(compPhoto, `student_${req.params.id}_photo`),
-        uploadToCloudinaryIfNeeded(compOriginal, `student_${req.params.id}_original`),
-        uploadToCloudinaryIfNeeded(compEnhanced, `student_${req.params.id}_enhanced`)
-      ]);
-
-      s.photo = photoUrl;
-      s.photoOriginal = originalUrl;
-      s.photoEnhanced = enhancedUrl;
-    } catch (e) {
-      console.warn('Image processing or Cloudinary upload warning:', e);
-    }
-
     const formattedDob = s.dob && s.dob.trim() !== '' ? s.dob.trim() : null;
+
+    let photoVal = s.photo || null;
+    let originalVal = s.photoOriginal || null;
+    let enhancedVal = s.photoEnhanced || null;
 
     await pool.query(
       `UPDATE students SET adminNo = ?, name = ?, aliases = ?, gender = ?, dob = ?, gradeClass = ?, boardingStatus = ?, isCleared = ?, gateClearanceDate = ?, mealsClearanceDate = ?, remarks = ?, photo = ?, photoOriginal = ?, photoEnhanced = ?, printStatus = ?, parentName = ?, parentContact = ? WHERE id = ?`,
-      [s.adminNo, s.name, s.aliases ? JSON.stringify(s.aliases) : null, s.gender, formattedDob, s.gradeClass, s.boardingStatus, s.isCleared ? 1 : 0, s.gateClearanceDate || null, s.mealsClearanceDate || null, s.remarks || null, s.photo || null, s.photoOriginal || null, s.photoEnhanced || null, s.printStatus || 'Not Printed', s.parentName || null, s.parentContact || null, req.params.id]
+      [s.adminNo, s.name, s.aliases ? JSON.stringify(s.aliases) : null, s.gender, formattedDob, s.gradeClass, s.boardingStatus, s.isCleared ? 1 : 0, s.gateClearanceDate || null, s.mealsClearanceDate || null, s.remarks || null, photoVal, originalVal, enhancedVal, s.printStatus || 'Not Printed', s.parentName || null, s.parentContact || null, req.params.id]
     );
-    await ensureStudentAccount(pool, req.params.id);
-    await writeAuditLog('Update Student', `Updated student "${s.name}" (${s.adminNo})`);
+
+    ensureStudentAccount(pool, req.params.id).catch(e => console.warn('Account setup warning:', e.message));
+    writeAuditLog('Update Student', `Updated student "${s.name}" (${s.adminNo})`).catch(e => console.warn('Audit log warning:', e.message));
     statsCache = null;
+
+    if ((photoVal && photoVal.startsWith('data:')) || (originalVal && originalVal.startsWith('data:'))) {
+      (async () => {
+        try {
+          const [compPhoto, compOriginal, compEnhanced] = await Promise.all([
+            photoVal ? compressImageIfNeeded(photoVal, 150, 150, 75, true) : Promise.resolve(photoVal),
+            originalVal ? compressImageIfNeeded(originalVal, 800, 1000, 85, true) : Promise.resolve(originalVal),
+            enhancedVal ? compressImageIfNeeded(enhancedVal, 800, 1000, 85, true) : Promise.resolve(enhancedVal)
+          ]);
+          const [photoUrl, originalUrl, enhancedUrl] = await Promise.all([
+            uploadToCloudinaryIfNeeded(compPhoto, `student_${req.params.id}_photo`),
+            uploadToCloudinaryIfNeeded(compOriginal, `student_${req.params.id}_original`),
+            uploadToCloudinaryIfNeeded(compEnhanced, `student_${req.params.id}_enhanced`)
+          ]);
+          if (photoUrl !== photoVal || originalUrl !== originalVal || enhancedUrl !== enhancedVal) {
+            await pool.query(
+              'UPDATE students SET photo = ?, photoOriginal = ?, photoEnhanced = ? WHERE id = ?',
+              [photoUrl || null, originalUrl || null, enhancedUrl || null, req.params.id]
+            );
+          }
+        } catch (imgErr) {
+          console.warn('Background image processing warning:', imgErr.message);
+        }
+      })();
+    }
+
     res.json({ success: true });
   } catch (err) {
     res.status(500).json({ error: err.message });
@@ -3259,7 +3305,7 @@ app.put('/api/students/:id', async (req, res) => {
 app.delete('/api/students/:id', async (req, res) => {
   try {
     await pool.query('DELETE FROM students WHERE id = ?', [req.params.id]);
-    await writeAuditLog('Delete Student', `Deleted student ID ${req.params.id}`);
+    writeAuditLog('Delete Student', `Deleted student ID ${req.params.id}`).catch(e => console.warn('Audit log warning:', e.message));
     statsCache = null;
     res.json({ success: true });
   } catch (err) {

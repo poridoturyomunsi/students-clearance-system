@@ -265,8 +265,30 @@ export async function getStudentsAsync(): Promise<Student[]> {
   return INITIAL_STUDENTS;
 }
 
+function sanitizeForStorage(students: Student[]): string {
+  if (!Array.isArray(students)) return '[]';
+  // Omit massive redundant base64 images from local storage cache to prevent local storage quota exhaustion and UI thread freezes
+  const sanitized = students.map(s => {
+    let p = s.photo;
+    let po = s.photoOriginal;
+    let pe = s.photoEnhanced;
+
+    if (po && po.startsWith('data:image') && po.length > 50000) po = undefined;
+    if (pe && pe.startsWith('data:image') && pe.length > 50000) pe = undefined;
+    if (p && p.startsWith('data:image') && p.length > 250000) p = p.substring(0, 250000);
+
+    return {
+      ...s,
+      photo: p,
+      photoOriginal: po,
+      photoEnhanced: pe
+    };
+  });
+  return JSON.stringify(sanitized);
+}
+
 export function saveStudents(students: Student[]): void {
-  const payload = JSON.stringify(students);
+  const payload = sanitizeForStorage(students);
   try {
     if (typeof window !== 'undefined' && (window as any).electron?.writeDataSync) {
       (window as any).electron.writeDataSync('students', payload);
@@ -291,7 +313,7 @@ export function saveStudents(students: Student[]): void {
 }
 
 export async function saveStudentsAsync(students: Student[]): Promise<void> {
-  const payload = JSON.stringify(students);
+  const payload = sanitizeForStorage(students);
   try {
     if (typeof window !== 'undefined' && (window as any).electron?.writeData) {
       await (window as any).electron.writeData('students', payload);
