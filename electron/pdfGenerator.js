@@ -206,16 +206,18 @@ function drawCardFrontPdf(
   const r1 = themeGStart.r, g1 = themeGStart.g, b1 = themeGStart.b;
   const r2 = themeGEnd.r, g2 = themeGEnd.g, b2 = themeGEnd.b;
   
+  // 1. Base rectangle border
   doc.setLineWidth(0.35);
   doc.roundedRect(x, y, cw, ch, 3.5, 3.5, 'D');
   
+  // 2. Header gradient ribbon
   doc.setFillColor(r1, g1, b1);
-  doc.roundedRect(x + 0.5, y + 0.5, 8.0, 9.5, 3.5, 3.5, 'F');
-  doc.rect(x + 0.5, y + 6.0, 8.0, 4.5, 'F');
+  doc.roundedRect(x + 0.5, y + 0.5, 8.0, 15.5, 3.5, 3.5, 'F');
+  doc.rect(x + 0.5, y + 8.0, 8.0, 8.0, 'F');
   
   doc.setFillColor(r2, g2, b2);
-  doc.roundedRect(x + cw - 8.5, y + 0.5, 8.0, 9.5, 3.5, 3.5, 'F');
-  doc.rect(x + cw - 8.5, y + 6.0, 8.0, 4.5, 'F');
+  doc.roundedRect(x + cw - 8.5, y + 0.5, 8.0, 15.5, 3.5, 3.5, 'F');
+  doc.rect(x + cw - 8.5, y + 8.0, 8.0, 8.0, 'F');
   
   const gStartX = x + 4.0;
   const gWidth = cw - 8.0;
@@ -227,16 +229,20 @@ function drawCardFrontPdf(
     const gg = Math.round(g1 + (g2 - g1) * t);
     const gb = Math.round(b1 + (b2 - b1) * t);
     doc.setFillColor(gr, gg, gb);
-    doc.rect(gStartX + i * stepW, y + 0.5, stepW + 0.1, 10.5, 'F');
+    doc.rect(gStartX + i * stepW, y + 0.5, stepW + 0.1, 16.0, 'F');
   }
   
   let hasImageDrawn = false;
+  const logoSize = 13.2;
+  const logoX = x + 3.0;
+  const logoY = y + 1.8;
+
   if (logoBase64) {
     try {
       const isSvg = logoBase64.includes('svg+xml');
       const isJpeg = logoBase64.includes('jpeg') || logoBase64.includes('jpg');
       const format = isSvg ? 'SVG' : (isJpeg ? 'JPEG' : 'PNG');
-      doc.addImage(logoBase64, format, x + 2.4, y + 1.6, 8.0, 8.0, undefined, 'FAST');
+      doc.addImage(logoBase64, format, logoX, logoY, logoSize, logoSize, undefined, 'FAST');
       hasImageDrawn = true;
     } catch (e) {
       console.warn("Could not draw logoBase64 directly via addImage:", e);
@@ -245,37 +251,38 @@ function drawCardFrontPdf(
 
   if (!hasImageDrawn) {
     doc.setFillColor(19, 15, 60);
-    doc.roundedRect(x + 2.4, y + 1.6, 8.0, 8.0, 1.4, 1.4, 'F');
+    doc.roundedRect(logoX, logoY, logoSize, logoSize, 1.4, 1.4, 'F');
     doc.setFillColor(124, 58, 45);
     doc.setDrawColor(245, 158, 11);
     doc.setLineWidth(0.24);
-    doc.triangle(x + 2.8, y + 2.0, x + 10.0, y + 2.0, x + 6.4, y + 9.0, 'FD');
+    doc.triangle(logoX + 0.4, logoY + 0.4, logoX + logoSize - 0.4, logoY + 0.4, logoX + logoSize / 2, logoY + logoSize - 1.0, 'FD');
     doc.setFillColor(255, 255, 255);
     doc.setDrawColor(19, 15, 60);
     doc.setLineWidth(0.12);
-    doc.triangle(x + 3.8, y + 2.8, x + 9.0, y + 2.8, x + 6.4, y + 8.0, 'FD');
+    doc.triangle(logoX + 1.4, logoY + 1.2, logoX + logoSize - 1.4, logoY + 1.2, logoX + logoSize / 2, logoY + logoSize - 2.0, 'FD');
   }
   
   doc.setFont('helvetica', 'bold');
-  doc.setFontSize(7.5);
+  doc.setFontSize(8.0);
   if (classTheme.isDark) {
     doc.setTextColor(255, 255, 255);
   } else {
     doc.setTextColor(themeText.r, themeText.g, themeText.b);
   }
-  doc.text('ST. PAUL SECONDARY SCHOOL, NASUTI', x + 12.0, y + 4.8);
+  doc.text('ST. PAUL SECONDARY SCHOOL, NASUTI', x + cw / 2, y + 4.8, { align: 'center' });
   
-  doc.setFont('helvetica', 'normal');
-  doc.setFontSize(4.6);
+  doc.setFont('helvetica', 'bold');
+  doc.setFontSize(5.0);
   if (classTheme.isDark) {
     doc.setTextColor(255, 255, 255);
   } else {
     doc.setTextColor(themeText.r, themeText.g, themeText.b);
   }
-  doc.text('P.O.BOX 678, NASUTI IGANGA', x + 12.0, y + 7.8);
-  
-  doc.setFillColor(255, 255, 255, 0.15);
-  doc.roundedRect(x + cw - 24, y + 2.2, 20.5, 4.6, 0.8, 0.8, 'F');
+  doc.text('P.O.BOX 678, NASUTI IGANGA', x + cw / 2, y + 7.8, { align: 'center' });
+
+  // Term Badge right side
+  doc.setFillColor(255, 255, 255, 0.18);
+  doc.roundedRect(x + cw / 2 - 10.5, y + 10.5, 21.0, 4.5, 0.8, 0.8, 'F');
   doc.setFont('helvetica', 'bold');
   doc.setFontSize(5.8);
   if (classTheme.isDark) {
@@ -283,137 +290,108 @@ function drawCardFrontPdf(
   } else {
     doc.setTextColor(themeText.r, themeText.g, themeText.b);
   }
-  doc.text('TERM 2, 2026', x + cw - 23, y + 5.5);
+  doc.text('TERM 2, 2026', x + cw / 2, y + 13.7, { align: 'center' });
 
   if (logoBase64 && showWatermark) {
     const wmSize = 34.0;
     const wmX = x + (cw - wmSize) / 2;
-    const wmY = y + (ch - wmSize) / 2 + 3.0;
+    const wmY = y + (ch - wmSize) / 2 + 1.0;
     drawSafeWatermark(doc, logoBase64, wmX, wmY, wmSize, wmSize, watermarkOpacityVal);
   }
 
-  doc.setLineWidth(0.12);
-  doc.setDrawColor(245, 247, 250);
+  // 6. Large Container immediately below school header containing everything related to student
+  const containerX = x + 2.5;
+  const containerY = y + 16.5;
+  const containerW = cw - 5.0;
+  const containerH = ch - 22.0;
+
   doc.setFillColor(255, 255, 255);
+  doc.setDrawColor(themePrimary.r, themePrimary.g, themePrimary.b);
+  doc.setLineWidth(0.4);
+  doc.roundedRect(containerX, containerY, containerW, containerH, 2.0, 2.0, 'FD');
 
-  const picW = 26.2;
-  const picH = 33.0;
-  const picX = x + 3.0;
-  const picY = y + 13.85;
+  // Title at top center of container (no separate small box)
+  doc.setFont('helvetica', 'bold');
+  doc.setFontSize(7.0);
+  doc.setTextColor(themeText.r, themeText.g, themeText.b);
+  doc.text('STUDENT CLEARANCE CARD', x + cw / 2, containerY + 3.8, { align: 'center' });
 
-  doc.setDrawColor(220, 224, 230);
-  doc.setFillColor(248, 250, 252);
-  doc.setLineWidth(0.15);
-  doc.roundedRect(picX, picY, picW, picH, 1.0, 1.0, 'FD');
-  
+  // Two columns below title (horizontally aligned, equal height)
+  const colY = containerY + 5.2;
+  const colH = containerH - 6.5;
+
+  // Left Column: Framed Passport Photo with blue/theme border and rounded corners, equal padding
+  const photoFrameX = containerX + 1.5;
+  const photoFrameW = 19.0;
+  doc.setDrawColor(themePrimary.r, themePrimary.g, themePrimary.b);
+  doc.setLineWidth(0.35);
+  doc.roundedRect(photoFrameX, colY, photoFrameW, colH, 1.2, 1.2, 'D');
+
+  const photoImgX = photoFrameX + 0.8;
+  const photoImgY = colY + 0.8;
+  const photoImgW = photoFrameW - 1.6;
+  const photoImgH = colH - 1.6;
+
   let hasStudentPhotoDrawn = false;
   if (student.photo) {
     try {
       const fmtMatch = student.photo.match(/^data:image\/([a-zA-Z]+);base64,/);
       const format = fmtMatch ? fmtMatch[1].toUpperCase() : 'JPEG';
-      doc.addImage(student.photo, format, picX + 0.3, picY + 0.3, picW - 0.6, picH - 0.6, undefined, 'FAST');
+      doc.addImage(student.photo, format, photoImgX, photoImgY, photoImgW, photoImgH, undefined, 'FAST');
       hasStudentPhotoDrawn = true;
     } catch (e) {
-      console.warn("Could not draw student photo in back PDF:", e);
+      console.warn("Could not draw student passport photo in card front:", e);
     }
   }
 
   if (!hasStudentPhotoDrawn) {
-    doc.setLineWidth(0.35);
-    doc.setDrawColor(160, 170, 180);
-    doc.ellipse(picX + picW / 2, picY + 9.5, 3.2, 3.2);
-    doc.ellipse(picX + picW / 2, picY + 19.5, 7.5, 3.5, 'S');
+    doc.setFillColor(245, 247, 250);
+    doc.roundedRect(photoImgX, photoImgY, photoImgW, photoImgH, 0.8, 0.8, 'F');
+    doc.setLineWidth(0.2);
+    doc.setDrawColor(180, 180, 180);
+    doc.ellipse(photoImgX + photoImgW / 2, photoImgY + 6.0, 2.5, 2.5);
+    doc.ellipse(photoImgX + photoImgW / 2, photoImgY + 14.0, 5.5, 3.0, 'S');
   }
 
-  doc.setDrawColor(255, 255, 255);
-  doc.setLineWidth(0.6);
-  doc.roundedRect(picX + 0.1, picY + 0.1, picW - 0.2, picH - 0.2, 0.9, 0.9, 'D');
-
-  const dtX = x + 31;
-  const dtW = 54;
-  
-  doc.setFillColor(themeBadgeBg.r, themeBadgeBg.g, themeBadgeBg.b);
+  // Right Column: Bordered Information Panel
+  const infoPanelX = photoFrameX + photoFrameW + 2.0;
+  const infoPanelW = containerX + containerW - 1.5 - infoPanelX;
   doc.setDrawColor(themeBorder.r, themeBorder.g, themeBorder.b);
-  doc.setLineWidth(0.4);
-  doc.roundedRect(dtX, y + 12.5, dtW, 5.2, 0.8, 0.8, 'FD');
+  doc.setLineWidth(0.25);
+  doc.roundedRect(infoPanelX, colY, infoPanelW, colH, 1.2, 1.2, 'D');
 
-  doc.setFont('helvetica', 'bold');
-  doc.setFontSize(5.8);
-  doc.setTextColor(themeText.r, themeText.g, themeText.b);
-  doc.text('STUDENT CLEARANCE CARD', dtX + dtW / 2, y + 16.0, { align: 'center' });
+  // Inside Information Panel: 5 fields
+  const fieldYStart = colY + 3.2;
+  const fieldSpacing = (colH - 4.0) / 5;
 
-  const labelX = dtX;
-  const colonX = dtX + 16.0;
-  const valX = dtX + 18.5;
+  const fields = [
+    { label: 'STUDENT NUMBER', val: (student.studentNo || student.adminNo || '').toUpperCase() },
+    { label: 'NAME', val: (student.name || '').toUpperCase() },
+    { label: 'CLASS', val: (student.gradeClass || '').toUpperCase() },
+    { label: 'STATUS', val: (student.boardingStatus === 'Hosteller' || student.boardingStatus === 'Boarder' ? 'HOSTELLER' : 'DAY SCHOLAR').toUpperCase() },
+    { label: 'GENDER', val: (student.gender || 'Male').toUpperCase() }
+  ];
 
-  // 1. STUDENT NUMBER
-  const r0Y = y + 21.0;
-  doc.setFont('helvetica', 'bold');
-  doc.setFontSize(5.8);
-  doc.setTextColor(themeText.r, themeText.g, themeText.b);
-  doc.text('STUDENT NUMBER', labelX, r0Y);
-  doc.setFont('helvetica', 'bold');
-  doc.setFontSize(8.2);
-  doc.setTextColor(0, 0, 0);
-  doc.text((student.studentNo || student.adminNo || '').toUpperCase(), labelX, r0Y + 3.2);
+  fields.forEach((f, idx) => {
+    const fy = fieldYStart + idx * fieldSpacing;
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(4.4);
+    doc.setTextColor(themeText.r, themeText.g, themeText.b);
+    doc.text(f.label, infoPanelX + 1.5, fy);
 
-  doc.setDrawColor(themeBorder.r, themeBorder.g, themeBorder.b);
-  doc.setLineWidth(0.12);
-  doc.line(labelX, r0Y + 4.5, dtX + dtW, r0Y + 4.5);
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(6.5);
+    doc.setTextColor(0, 0, 0);
+    doc.text(f.val, infoPanelX + 1.5, fy + 2.5);
 
-  // 2. NAME
-  const r1Y = y + 27.2;
-  doc.setFont('helvetica', 'bold');
-  doc.setFontSize(5.8);
-  doc.setTextColor(themeText.r, themeText.g, themeText.b);
-  doc.text('NAME', labelX, r1Y);
-  doc.setFont('helvetica', 'bold');
-  doc.setFontSize(8.2);
-  doc.setTextColor(0, 0, 0);
-  doc.text((student.name || '').toUpperCase(), labelX, r1Y + 3.2);
+    if (idx < 4) {
+      doc.setDrawColor(230, 230, 230);
+      doc.setLineWidth(0.12);
+      doc.line(infoPanelX + 1.5, fy + 3.3, infoPanelX + infoPanelW - 1.5, fy + 3.3);
+    }
+  });
 
-  doc.line(labelX, r1Y + 4.5, dtX + dtW, r1Y + 4.5);
-
-  // 3. CLASS
-  const r2Y = y + 33.4;
-  doc.setFont('helvetica', 'bold');
-  doc.setFontSize(5.8);
-  doc.setTextColor(themeText.r, themeText.g, themeText.b);
-  doc.text('CLASS', labelX, r2Y);
-  doc.setFont('helvetica', 'bold');
-  doc.setFontSize(8.2);
-  doc.setTextColor(0, 0, 0);
-  doc.text((student.gradeClass || '').toUpperCase(), labelX, r2Y + 3.2);
-
-  doc.line(labelX, r2Y + 4.5, dtX + dtW, r2Y + 4.5);
-
-  // 4. STATUS
-  const r3Y = y + 39.6;
-  doc.setFont('helvetica', 'bold');
-  doc.setFontSize(5.8);
-  doc.setTextColor(themeText.r, themeText.g, themeText.b);
-  doc.text('STATUS', labelX, r3Y);
-  doc.setFont('helvetica', 'bold');
-  doc.setFontSize(8.2);
-  doc.setTextColor(0, 0, 0);
-  const boardLabel = (student.boardingStatus === 'Boarder' || student.boardingStatus === 'Hosteller' ? 'HOSTELLER' : 'DAY SCHOLAR').toUpperCase();
-  doc.text(boardLabel, labelX, r3Y + 3.2);
-
-  doc.line(labelX, r3Y + 4.5, dtX + dtW, r3Y + 4.5);
-
-  // 5. GENDER
-  const r4Y = y + 45.8;
-  doc.setFont('helvetica', 'bold');
-  doc.setFontSize(5.8);
-  doc.setTextColor(themeText.r, themeText.g, themeText.b);
-  doc.text('GENDER', labelX, r4Y);
-  doc.setFont('helvetica', 'bold');
-  doc.setFontSize(8.2);
-  doc.setTextColor(0, 0, 0);
-  doc.text((student.gender || 'Male').toUpperCase(), labelX, r4Y + 3.2);
-  
-
-
+  // 7. Card Footer band containing return instructions text
   doc.setDrawColor(180, 180, 180);
   doc.setFillColor(250, 250, 250);
   doc.setLineWidth(0.2);
