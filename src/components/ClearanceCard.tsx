@@ -139,27 +139,27 @@ export default function ClearanceCard({
       </div>
 
       {/* Main Card Content */}
-      <div className="flex-1 pt-2 px-3.5 pb-2 flex flex-col justify-between bg-white text-slate-800 z-10 select-none animate-fade-in">
+      <div className="flex-1 pt-1.5 px-3 pb-1 flex flex-col justify-between bg-white text-slate-800 z-10 select-none animate-fade-in">
         {/* Badge Heading: STUDENT CLEARANCE CARD */}
-        <div className="relative bg-[var(--theme-badge-bg)] border border-[var(--theme-border)] rounded-md py-0.5 select-none shrink-0 shadow-3xs flex items-center justify-center w-full h-[20px]">
+        <div className="relative bg-[var(--theme-badge-bg)] border border-[var(--theme-border)] rounded-md py-0.5 select-none shrink-0 shadow-3xs flex items-center justify-center w-full h-[18px]">
           <span className="text-[8px] font-black uppercase text-[var(--theme-text)] tracking-wider">
             STUDENT CLEARANCE CARD
           </span>
         </div>
 
         {/* Student Info Container */}
-        <div className="flex-1 flex items-center gap-3.5 mt-1.5 min-w-0">
+        <div className="flex-1 flex items-center gap-3 mt-1 min-w-0">
           {/* Left: Passport Photo Frame */}
           <div className="shrink-0 flex items-center justify-center">
-            <div className="bg-white border border-[var(--theme-border)] rounded-[8px] p-[3px] shadow-[0_2px_4px_rgba(0,0,0,0.08)] w-[72px] h-[90px] flex items-center justify-center overflow-hidden">
-              <div className="w-full h-full bg-white rounded-[5px] flex items-center justify-center overflow-hidden shrink-0">
+            <div className="bg-white border-2 border-[var(--theme-primary)] rounded-xl p-[2.5px] shadow-[0_2px_4px_rgba(0,0,0,0.08)] w-[92px] h-[112px] flex items-center justify-center overflow-hidden">
+              <div className="w-full h-full bg-white rounded-lg flex items-center justify-center overflow-hidden shrink-0">
                 {photoUrl ? (
                   <img
                     src={photoUrl}
                     alt={student.name}
                     referrerPolicy="no-referrer"
                     loading="lazy"
-                    className="w-full h-full object-cover brightness-[1.08] contrast-[1.08] saturate-[1.05]"
+                    className="w-full h-full object-cover object-center brightness-[1.05] contrast-[1.05]"
                     style={{ imageRendering: 'auto' }}
                   />
                 ) : (
@@ -174,41 +174,49 @@ export default function ClearanceCard({
             </div>
           </div>
 
-          {/* Right: Student Information Section */}
-          <div className="flex-1 flex flex-col justify-center min-w-0 h-full">
-            <div className="grid grid-cols-[65px_8px_1fr] gap-y-[4px] text-[8.5px] items-center text-black font-sans leading-none">
-              {/* Student No. */}
-              <span className="font-extrabold text-[var(--theme-text)] text-[7px] uppercase tracking-wider">STUDENT NO.</span>
-              <span className="font-bold text-[var(--theme-text)] text-[7px] text-center">:</span>
-              <span className="font-bold text-black text-[8.5px] uppercase truncate">{student.studentNo || student.adminNo}</span>
+          {/* Right: Student Information Container */}
+          <div className="flex-1 flex flex-col justify-between min-w-0 h-[112px] py-0.5">
+            {/* 1. STUDENT NUMBER */}
+            <div className="flex flex-col">
+              <span className="text-[6.5px] font-black text-[var(--theme-text)] uppercase tracking-wider leading-none">STUDENT NUMBER</span>
+              <span className="text-[8.5px] font-black text-black leading-tight uppercase truncate mt-[0.5px]">
+                {student.studentNo || student.adminNo}
+              </span>
+              <div className="border-b border-[var(--theme-border)] mt-[1.5px]" />
+            </div>
 
-              {/* Name */}
-              <span className="font-extrabold text-[var(--theme-text)] text-[7px] uppercase tracking-wider">NAME</span>
-              <span className="font-bold text-[var(--theme-text)] text-[7px] text-center">:</span>
-              <span className="font-bold text-black text-[9px] uppercase truncate">{student.name}</span>
+            {/* 2. NAME */}
+            <div className="flex flex-col">
+              <span className="text-[6.5px] font-black text-[var(--theme-text)] uppercase tracking-wider leading-none">NAME</span>
+              <span className="text-[8.5px] font-black text-black leading-tight uppercase truncate mt-[0.5px]">
+                {student.name}
+              </span>
+              <div className="border-b border-[var(--theme-border)] mt-[1.5px]" />
+            </div>
 
-              {/* Class */}
-              <span className="font-extrabold text-[var(--theme-text)] text-[7px] uppercase tracking-wider">CLASS</span>
-              <span className="font-bold text-[var(--theme-text)] text-[7px] text-center">:</span>
-              <span className="font-bold text-black text-[8.5px] uppercase truncate">{student.gradeClass}</span>
+            {/* 3. CLASS */}
+            <div className="flex flex-col">
+              <span className="text-[6.5px] font-black text-[var(--theme-text)] uppercase tracking-wider leading-none">CLASS</span>
+              <span className="text-[8.5px] font-black text-black leading-tight uppercase truncate mt-[0.5px]">
+                {student.gradeClass}
+              </span>
+              <div className="border-b border-[var(--theme-border)] mt-[1.5px]" />
+            </div>
 
-              {/* Status */}
-              <span className="font-extrabold text-[var(--theme-text)] text-[7px] uppercase tracking-wider">STATUS</span>
-              <span className="font-bold text-[var(--theme-text)] text-[7px] text-center">:</span>
-              <span className="font-bold text-black text-[8.5px] uppercase truncate">
+            {/* 4. STATUS */}
+            <div className="flex flex-col">
+              <span className="text-[6.5px] font-black text-[var(--theme-text)] uppercase tracking-wider leading-none">STATUS</span>
+              <span className="text-[8.5px] font-black text-black leading-tight uppercase truncate mt-[0.5px]">
                 {student.boardingStatus === 'Hosteller' ? 'HOSTELLER' : 'DAY SCHOLAR'}
               </span>
+              <div className="border-b border-[var(--theme-border)] mt-[1.5px]" />
+            </div>
 
-              {/* Gender */}
-              <span className="font-extrabold text-[var(--theme-text)] text-[7px] uppercase tracking-wider">GENDER</span>
-              <span className="font-bold text-[var(--theme-text)] text-[7px] text-center">:</span>
-              <span className="font-bold text-black text-[8.5px] uppercase truncate">{student.gender || 'Male'}</span>
-
-              {/* Eligibility */}
-              <span className="font-extrabold text-[var(--theme-text)] text-[7px] uppercase tracking-wider">ELIGIBILITY</span>
-              <span className="font-bold text-[var(--theme-text)] text-[7px] text-center">:</span>
-              <span className={`font-bold uppercase truncate text-[8.5px] ${student.isCleared ? 'text-emerald-600' : 'text-rose-600 font-extrabold'}`}>
-                {student.isCleared ? 'CLEARED ✔' : 'ON HOLD ✖'}
+            {/* 5. GENDER */}
+            <div className="flex flex-col">
+              <span className="text-[6.5px] font-black text-[var(--theme-text)] uppercase tracking-wider leading-none">GENDER</span>
+              <span className="text-[8.5px] font-black text-black leading-tight uppercase truncate mt-[0.5px]">
+                {(student.gender || 'Male').toUpperCase()}
               </span>
             </div>
           </div>

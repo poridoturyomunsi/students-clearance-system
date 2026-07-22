@@ -343,53 +343,74 @@ function drawCardFrontPdf(
   doc.text('STUDENT CLEARANCE CARD', dtX + dtW / 2, y + 16.0, { align: 'center' });
 
   const labelX = dtX;
-  const colonX = dtX + 13.5;
-  const valX = dtX + 16.5;
+  const colonX = dtX + 16.0;
+  const valX = dtX + 18.5;
 
-  const r1Y = y + 23.0;
+  // 1. STUDENT NUMBER
+  const r0Y = y + 21.0;
   doc.setFont('helvetica', 'bold');
-  doc.setFontSize(6.4);
+  doc.setFontSize(5.8);
+  doc.setTextColor(themeText.r, themeText.g, themeText.b);
+  doc.text('STUDENT NUMBER', labelX, r0Y);
+  doc.setFont('helvetica', 'bold');
+  doc.setFontSize(8.2);
+  doc.setTextColor(0, 0, 0);
+  doc.text((student.studentNo || student.adminNo || '').toUpperCase(), labelX, r0Y + 3.2);
+
+  doc.setDrawColor(themeBorder.r, themeBorder.g, themeBorder.b);
+  doc.setLineWidth(0.12);
+  doc.line(labelX, r0Y + 4.5, dtX + dtW, r0Y + 4.5);
+
+  // 2. NAME
+  const r1Y = y + 27.2;
+  doc.setFont('helvetica', 'bold');
+  doc.setFontSize(5.8);
   doc.setTextColor(themeText.r, themeText.g, themeText.b);
   doc.text('NAME', labelX, r1Y);
-  doc.text(':', colonX, r1Y);
   doc.setFont('helvetica', 'bold');
-  doc.setFontSize(9.0);
+  doc.setFontSize(8.2);
   doc.setTextColor(0, 0, 0);
-  doc.text((student.name || '').toUpperCase(), valX, r1Y);
+  doc.text((student.name || '').toUpperCase(), labelX, r1Y + 3.2);
 
-  const r2Y = y + 29.5;
+  doc.line(labelX, r1Y + 4.5, dtX + dtW, r1Y + 4.5);
+
+  // 3. CLASS
+  const r2Y = y + 33.4;
   doc.setFont('helvetica', 'bold');
-  doc.setFontSize(6.4);
+  doc.setFontSize(5.8);
   doc.setTextColor(themeText.r, themeText.g, themeText.b);
   doc.text('CLASS', labelX, r2Y);
-  doc.text(':', colonX, r2Y);
   doc.setFont('helvetica', 'bold');
-  doc.setFontSize(9.0);
+  doc.setFontSize(8.2);
   doc.setTextColor(0, 0, 0);
-  doc.text((student.gradeClass || '').toUpperCase(), valX, r2Y);
+  doc.text((student.gradeClass || '').toUpperCase(), labelX, r2Y + 3.2);
 
-  const r3Y = y + 36.0;
+  doc.line(labelX, r2Y + 4.5, dtX + dtW, r2Y + 4.5);
+
+  // 4. STATUS
+  const r3Y = y + 39.6;
   doc.setFont('helvetica', 'bold');
-  doc.setFontSize(6.4);
+  doc.setFontSize(5.8);
   doc.setTextColor(themeText.r, themeText.g, themeText.b);
   doc.text('STATUS', labelX, r3Y);
-  doc.text(':', colonX, r3Y);
   doc.setFont('helvetica', 'bold');
-  doc.setFontSize(9.0);
+  doc.setFontSize(8.2);
   doc.setTextColor(0, 0, 0);
   const boardLabel = (student.boardingStatus === 'Boarder' || student.boardingStatus === 'Hosteller' ? 'HOSTELLER' : 'DAY SCHOLAR').toUpperCase();
-  doc.text(boardLabel, valX, r3Y);
+  doc.text(boardLabel, labelX, r3Y + 3.2);
 
-  const r4Y = y + 42.5;
+  doc.line(labelX, r3Y + 4.5, dtX + dtW, r3Y + 4.5);
+
+  // 5. GENDER
+  const r4Y = y + 45.8;
   doc.setFont('helvetica', 'bold');
-  doc.setFontSize(6.4);
+  doc.setFontSize(5.8);
   doc.setTextColor(themeText.r, themeText.g, themeText.b);
   doc.text('GENDER', labelX, r4Y);
-  doc.text(':', colonX, r4Y);
   doc.setFont('helvetica', 'bold');
-  doc.setFontSize(9.0);
+  doc.setFontSize(8.2);
   doc.setTextColor(0, 0, 0);
-  doc.text((student.gender || 'Male').toUpperCase(), valX, r4Y);
+  doc.text((student.gender || 'Male').toUpperCase(), labelX, r4Y + 3.2);
   
 
 
