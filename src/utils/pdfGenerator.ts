@@ -364,27 +364,30 @@ function drawCardFrontPdf(
   doc.setLineWidth(0.4);
   doc.roundedRect(containerX, containerY, containerW, containerH, 2.0, 2.0, 'FD');
 
-  // Title at top center of container (no separate small box)
+  // Title at top center with thin blue horizontal line across container
   doc.setFont('helvetica', 'bold');
-  doc.setFontSize(7.0);
+  doc.setFontSize(7.5);
   doc.setTextColor(themeText.r, themeText.g, themeText.b);
   doc.text('STUDENT CLEARANCE CARD', x + cw / 2, containerY + 3.8, { align: 'center' });
 
-  // Two columns below title (horizontally aligned, equal height)
-  const colY = containerY + 5.2;
-  const colH = containerH - 6.5;
+  doc.setDrawColor(themePrimary.r, themePrimary.g, themePrimary.b);
+  doc.setLineWidth(0.2);
+  doc.line(containerX + 1.0, containerY + 5.2, containerX + containerW - 1.0, containerY + 5.2);
 
-  // Left Column: Framed Passport Photo with blue/theme border and rounded corners, equal padding
-  const photoFrameX = containerX + 1.5;
-  const photoFrameW = 19.0;
+  // Left Column: Framed Passport Photo with blue/theme border and rounded corners
+  const photoFrameX = containerX + 2.0;
+  const photoFrameY = containerY + 6.5;
+  const photoFrameW = 21.0;
+  const photoFrameH = 22.0;
+
   doc.setDrawColor(themePrimary.r, themePrimary.g, themePrimary.b);
   doc.setLineWidth(0.35);
-  doc.roundedRect(photoFrameX, colY, photoFrameW, colH, 1.2, 1.2, 'D');
+  doc.roundedRect(photoFrameX, photoFrameY, photoFrameW, photoFrameH, 1.2, 1.2, 'D');
 
   const photoImgX = photoFrameX + 0.8;
-  const photoImgY = colY + 0.8;
+  const photoImgY = photoFrameY + 0.8;
   const photoImgW = photoFrameW - 1.6;
-  const photoImgH = colH - 1.6;
+  const photoImgH = photoFrameH - 1.6;
 
   let hasStudentPhotoDrawn = false;
   if (student.photo) {
@@ -403,46 +406,36 @@ function drawCardFrontPdf(
     doc.roundedRect(photoImgX, photoImgY, photoImgW, photoImgH, 0.8, 0.8, 'F');
     doc.setLineWidth(0.2);
     doc.setDrawColor(180, 180, 180);
-    doc.ellipse(photoImgX + photoImgW / 2, photoImgY + 6.0, 2.5, 2.5); // Head
-    doc.ellipse(photoImgX + photoImgW / 2, photoImgY + 14.0, 5.5, 3.0, 'S'); // Shoulders
+    doc.ellipse(photoImgX + photoImgW / 2, photoImgY + 6.0, 2.5, 2.5);
+    doc.ellipse(photoImgX + photoImgW / 2, photoImgY + 14.0, 5.5, 3.0, 'S');
   }
 
-  // Right Column: Bordered Information Panel
-  const infoPanelX = photoFrameX + photoFrameW + 2.0;
-  const infoPanelW = containerX + containerW - 1.5 - infoPanelX;
-  doc.setDrawColor(themeBorder.r, themeBorder.g, themeBorder.b);
-  doc.setLineWidth(0.25);
-  doc.roundedRect(infoPanelX, colY, infoPanelW, colH, 1.2, 1.2, 'D');
-
-  // Inside Information Panel: 5 fields
-  const fieldYStart = colY + 3.2;
-  const fieldSpacing = (colH - 4.0) / 5;
+  // Right Column: Wide Information section extending to right edge (No outer border, No divider lines)
+  const infoX = photoFrameX + photoFrameW + 3.5;
+  const fieldYStart = photoFrameY + 2.2;
+  const fieldSpacing = 4.1;
 
   const fields = [
     { label: 'STUDENT NUMBER', val: (student.studentNo || student.adminNo || '').toUpperCase() },
     { label: 'NAME', val: (student.name || '').toUpperCase() },
     { label: 'CLASS', val: (student.gradeClass || '').toUpperCase() },
-    { label: 'STATUS', val: (student.boardingStatus === 'Hosteller' ? 'HOSTELLER' : 'DAY SCHOLAR').toUpperCase() },
+    { label: 'STATUS', val: (student.boardingStatus === 'Hosteller' || student.boardingStatus === 'Boarder' ? 'HOSTELLER' : 'DAY SCHOLAR').toUpperCase() },
     { label: 'GENDER', val: (student.gender || 'Male').toUpperCase() }
   ];
 
   fields.forEach((f, idx) => {
     const fy = fieldYStart + idx * fieldSpacing;
+    // Blue uppercase smaller label
     doc.setFont('helvetica', 'bold');
-    doc.setFontSize(4.4);
+    doc.setFontSize(4.6);
     doc.setTextColor(themeText.r, themeText.g, themeText.b);
-    doc.text(f.label, infoPanelX + 1.5, fy);
+    doc.text(f.label, infoX, fy);
 
+    // Bold black value directly below label with larger readable font size
     doc.setFont('helvetica', 'bold');
-    doc.setFontSize(6.5);
+    doc.setFontSize(7.2);
     doc.setTextColor(0, 0, 0);
-    doc.text(f.val, infoPanelX + 1.5, fy + 2.5);
-
-    if (idx < 4) {
-      doc.setDrawColor(230, 230, 230);
-      doc.setLineWidth(0.12);
-      doc.line(infoPanelX + 1.5, fy + 3.3, infoPanelX + infoPanelW - 1.5, fy + 3.3);
-    }
+    doc.text(f.val, infoX, fy + 2.4);
   });
 
   // 7. Card Footer band containing return instructions text
