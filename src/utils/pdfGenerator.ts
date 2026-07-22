@@ -345,146 +345,107 @@ function drawCardFrontPdf(
   }
   doc.text('TERM 2, 2026', x + cw / 2, y + 17.7, { align: 'center' });
 
-  // Draw passport photo on the far right of the header
-  const headerPicW = 13.5;
-  const headerPicH = 17.0;
-  const headerPicX = x + cw - 16.5;
-  const headerPicY = y + 3.0; // Centered vertically in 23mm height (with 3mm padding top/bottom)
+  // School logo background watermark
+  if (logoBase64 && showWatermark) {
+    const wmSize = 34.0;
+    const wmX = x + (cw - wmSize) / 2;
+    const wmY = y + (ch - wmSize) / 2 + 1.0;
+    drawSafeWatermark(doc, logoBase64, wmX, wmY, wmSize, wmSize, watermarkOpacityVal);
+  }
 
-  // Thin outer border/mask representing card framing in header
-  doc.setDrawColor(255, 255, 255, 0.5);
-  doc.setFillColor(255, 255, 255, 0.2);
-  doc.setLineWidth(0.15);
-  doc.roundedRect(headerPicX, headerPicY, headerPicW, headerPicH, 0.6, 0.6, 'FD');
+  // 6. Large Container immediately below school header containing everything related to student
+  const containerX = x + 2.5;
+  const containerY = y + 18.0;
+  const containerW = cw - 5.0;
+  const containerH = ch - 23.5;
+
+  doc.setFillColor(255, 255, 255);
+  doc.setDrawColor(themePrimary.r, themePrimary.g, themePrimary.b);
+  doc.setLineWidth(0.4);
+  doc.roundedRect(containerX, containerY, containerW, containerH, 2.0, 2.0, 'FD');
+
+  // Title at top center of container (no separate small box)
+  doc.setFont('helvetica', 'bold');
+  doc.setFontSize(7.0);
+  doc.setTextColor(themeText.r, themeText.g, themeText.b);
+  doc.text('STUDENT CLEARANCE CARD', x + cw / 2, containerY + 3.8, { align: 'center' });
+
+  // Two columns below title (horizontally aligned, equal height)
+  const colY = containerY + 5.2;
+  const colH = containerH - 6.5;
+
+  // Left Column: Framed Passport Photo with blue/theme border and rounded corners, equal padding
+  const photoFrameX = containerX + 1.5;
+  const photoFrameW = 19.0;
+  doc.setDrawColor(themePrimary.r, themePrimary.g, themePrimary.b);
+  doc.setLineWidth(0.35);
+  doc.roundedRect(photoFrameX, colY, photoFrameW, colH, 1.2, 1.2, 'D');
+
+  const photoImgX = photoFrameX + 0.8;
+  const photoImgY = colY + 0.8;
+  const photoImgW = photoFrameW - 1.6;
+  const photoImgH = colH - 1.6;
 
   let hasStudentPhotoDrawn = false;
   if (student.photo) {
     try {
       const fmtMatch = student.photo.match(/^data:image\/([a-zA-Z]+);base64,/);
       const format = fmtMatch ? fmtMatch[1].toUpperCase() : 'JPEG';
-      doc.addImage(student.photo, format, headerPicX + 0.2, headerPicY + 0.2, headerPicW - 0.4, headerPicH - 0.4, undefined, 'NONE');
+      doc.addImage(student.photo, format, photoImgX, photoImgY, photoImgW, photoImgH, undefined, 'NONE');
       hasStudentPhotoDrawn = true;
     } catch (e) {
-      console.warn("Could not draw student passport photo in header:", e);
+      console.warn("Could not draw student passport photo in card front:", e);
     }
   }
 
   if (!hasStudentPhotoDrawn) {
-    doc.setLineWidth(0.25);
-    doc.setDrawColor(255, 255, 255);
-    doc.ellipse(headerPicX + headerPicW / 2, headerPicY + 5.0, 1.8, 1.8); // Head
-    doc.ellipse(headerPicX + headerPicW / 2, headerPicY + 10.5, 4.2, 2.0, 'S'); // Shoulders
+    doc.setFillColor(245, 247, 250);
+    doc.roundedRect(photoImgX, photoImgY, photoImgW, photoImgH, 0.8, 0.8, 'F');
+    doc.setLineWidth(0.2);
+    doc.setDrawColor(180, 180, 180);
+    doc.ellipse(photoImgX + photoImgW / 2, photoImgY + 6.0, 2.5, 2.5); // Head
+    doc.ellipse(photoImgX + photoImgW / 2, photoImgY + 14.0, 5.5, 3.0, 'S'); // Shoulders
   }
 
-  // Draw safe luxury white frame outline over photo
-  doc.setDrawColor(255, 255, 255);
-  doc.setLineWidth(0.3);
-  doc.roundedRect(headerPicX + 0.05, headerPicY + 0.05, headerPicW - 0.1, headerPicH - 0.1, 0.5, 0.5, 'D');
+  // Right Column: Bordered Information Panel
+  const infoPanelX = photoFrameX + photoFrameW + 2.0;
+  const infoPanelW = containerX + containerW - 1.5 - infoPanelX;
+  doc.setDrawColor(themeBorder.r, themeBorder.g, themeBorder.b);
+  doc.setLineWidth(0.25);
+  doc.roundedRect(infoPanelX, colY, infoPanelW, colH, 1.2, 1.2, 'D');
 
-  // School logo background watermark
-  if (logoBase64 && showWatermark) {
-    const wmSize = 34.0;
-    const wmX = x + (cw - wmSize) / 2;
-    const wmY = y + (ch - wmSize) / 2 + 3.0;
-    drawSafeWatermark(doc, logoBase64, wmX, wmY, wmSize, wmSize, watermarkOpacityVal);
-  }
+  // Inside Information Panel: 5 fields
+  const fieldYStart = colY + 3.2;
+  const fieldSpacing = (colH - 4.0) / 5;
 
-  // 6. Main Details Container (Full-width table-like presentation)
-  doc.setFillColor(themeBadgeBg.r, themeBadgeBg.g, themeBadgeBg.b);
-  doc.setDrawColor(themeBorder.r, themeBorder.g, themeBorder.b); // Professional Custom color border
-  doc.setLineWidth(0.3); // Medium border thickness
-  doc.roundedRect(x + 3.0, y + 24.5, cw - 6.0, 5.2, 0.8, 0.8, 'FD'); // Spanning the full width of details panel with rounded corners
+  const fields = [
+    { label: 'STUDENT NUMBER', val: (student.studentNo || student.adminNo || '').toUpperCase() },
+    { label: 'NAME', val: (student.name || '').toUpperCase() },
+    { label: 'CLASS', val: (student.gradeClass || '').toUpperCase() },
+    { label: 'STATUS', val: (student.boardingStatus === 'Hosteller' ? 'HOSTELLER' : 'DAY SCHOLAR').toUpperCase() },
+    { label: 'GENDER', val: (student.gender || 'Male').toUpperCase() }
+  ];
 
-  // Add the student clearance card banner labels
-  doc.setFont('helvetica', 'bold');
-  doc.setFontSize(5.8);
-  doc.setTextColor(themeText.r, themeText.g, themeText.b); // Professional color to match border
-  doc.text('STUDENT CLEARANCE CARD', x + 5.0, y + 28.1);
-  doc.text(`ID: ${student.adminNo}`, x + cw - 5.0, y + 28.1, { align: 'right' });
+  fields.forEach((f, idx) => {
+    const fy = fieldYStart + idx * fieldSpacing;
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(4.4);
+    doc.setTextColor(themeText.r, themeText.g, themeText.b);
+    doc.text(f.label, infoPanelX + 1.5, fy);
 
-  // Two-column layout details values
-  const col1X = x + 5.0;
-  const col2X = x + 46.0;
-  const colonOffset1 = 13.0;
-  const colonOffset2 = 16.0;
-  const valueOffset1 = 15.5;
-  const valueOffset2 = 18.5;
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(6.5);
+    doc.setTextColor(0, 0, 0);
+    doc.text(f.val, infoPanelX + 1.5, fy + 2.5);
 
-  // Row 1: NAME (spans full width)
-  const r1Y = y + 34.0;
-  doc.setFont('helvetica', 'bold');
-  doc.setFontSize(6.4);
-  doc.setTextColor(themeText.r, themeText.g, themeText.b);
-  doc.text('NAME', col1X, r1Y);
-  doc.text(':', col1X + colonOffset1, r1Y);
-  doc.setFont('helvetica', 'bold');
-  doc.setFontSize(9.0);
-  doc.setTextColor(0, 0, 0);
-  doc.text(student.name.toUpperCase(), col1X + valueOffset1, r1Y);
+    if (idx < 4) {
+      doc.setDrawColor(230, 230, 230);
+      doc.setLineWidth(0.12);
+      doc.line(infoPanelX + 1.5, fy + 3.3, infoPanelX + infoPanelW - 1.5, fy + 3.3);
+    }
+  });
 
-  doc.setDrawColor(240, 240, 240);
-  doc.setLineWidth(0.15);
-  doc.line(col1X, y + 36.0, x + cw - 5.0, y + 36.0);
-
-  // Row 2: CLASS & GENDER
-  const r2Y = y + 40.5;
-  doc.setFont('helvetica', 'bold');
-  doc.setFontSize(6.4);
-  doc.setTextColor(themeText.r, themeText.g, themeText.b);
-  doc.text('CLASS', col1X, r2Y);
-  doc.text(':', col1X + colonOffset1, r2Y);
-  doc.setFont('helvetica', 'bold');
-  doc.setFontSize(9.0);
-  doc.setTextColor(0, 0, 0);
-  doc.text(student.gradeClass.toUpperCase(), col1X + valueOffset1, r2Y);
-
-  doc.setFont('helvetica', 'bold');
-  doc.setFontSize(6.4);
-  doc.setTextColor(themeText.r, themeText.g, themeText.b);
-  doc.text('GENDER', col2X, r2Y);
-  doc.text(':', col2X + colonOffset2, r2Y);
-  doc.setFont('helvetica', 'bold');
-  doc.setFontSize(9.0);
-  doc.setTextColor(0, 0, 0);
-  doc.text((student.gender || 'Male').toUpperCase(), col2X + valueOffset2, r2Y);
-
-  doc.line(col1X, y + 42.5, col1X + 38.0, y + 42.5);
-  doc.line(col2X, y + 42.5, x + cw - 5.0, y + 42.5);
-
-  // Row 3: STATUS & ELIGIBILITY
-  const r3Y = y + 47.0;
-  doc.setFont('helvetica', 'bold');
-  doc.setFontSize(6.4);
-  doc.setTextColor(themeText.r, themeText.g, themeText.b);
-  doc.text('STATUS', col1X, r3Y);
-  doc.text(':', col1X + colonOffset1, r3Y);
-  doc.setFont('helvetica', 'bold');
-  doc.setFontSize(9.0);
-  doc.setTextColor(0, 0, 0);
-  const boardLabel = (student.boardingStatus === 'Hosteller' ? 'HOSTELLER' : 'DAY SCHOLAR').toUpperCase();
-  doc.text(boardLabel, col1X + valueOffset1, r3Y);
-
-  doc.setFont('helvetica', 'bold');
-  doc.setFontSize(6.4);
-  doc.setTextColor(themeText.r, themeText.g, themeText.b);
-  doc.text('ELIGIBILITY', col2X, r3Y);
-  doc.text(':', col2X + colonOffset2, r3Y);
-  doc.setFont('helvetica', 'bold');
-  doc.setFontSize(9.0);
-  if (student.isCleared) {
-    doc.setTextColor(16, 120, 60);
-    doc.text('CLEARED', col2X + valueOffset2, r3Y);
-  } else {
-    doc.setTextColor(200, 30, 30);
-    doc.text('ON HOLD', col2X + valueOffset2, r3Y);
-  }
-
-  doc.setDrawColor(240, 240, 240);
-  doc.setLineWidth(0.15);
-  doc.line(col1X, y + 49.0, col1X + 38.0, y + 49.0);
-  doc.line(col2X, y + 49.0, x + cw - 5.0, y + 49.0);
-  
-  // 7. Card Footer band containing return instructions text (User specified)
+  // 7. Card Footer band containing return instructions text
   doc.setDrawColor(180, 180, 180);
   doc.setFillColor(250, 250, 250);
   doc.setLineWidth(0.2);

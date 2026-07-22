@@ -140,82 +140,80 @@ export default function ClearanceCard({
 
       {/* Main Content Area */}
       <div className="flex-1 px-2.5 pt-1.5 pb-1 flex flex-col z-10 select-none animate-fade-in min-h-0 justify-between">
-        {/* ONE LARGE ROUNDED CONTAINER THAT HOLDS EVERYTHING BELOW THE HEADER */}
-        <div className="flex-1 border-[1.8px] border-[var(--theme-primary)] rounded-xl p-2 bg-white/90 flex flex-col justify-between shadow-2xs min-h-0">
-          {/* TITLE INSIDE CONTAINER */}
-          <div className="text-center font-black text-[9px] uppercase tracking-widest text-[var(--theme-text)] border-b border-[var(--theme-border)] pb-1 mb-1.5 leading-none shrink-0">
+        {/* ONE LARGE ROUNDED CONTAINER IMMEDIATELY BELOW SCHOOL HEADER */}
+        <div className="flex-1 border-[1.8px] border-[var(--theme-primary)] rounded-xl p-2 bg-white/95 flex flex-col justify-between shadow-2xs min-h-0">
+          {/* TITLE AT TOP CENTER OF LARGE CONTAINER (NOT IN A SEPARATE SMALL BOX) */}
+          <div className="text-center font-black text-[9.5px] uppercase tracking-widest text-[var(--theme-text)] pb-1 leading-none shrink-0">
             STUDENT CLEARANCE CARD
           </div>
 
-          {/* TWO SECTIONS INSIDE THE CONTAINER: Left (Photo) & Right (Info) */}
-          <div className="flex-1 flex items-center gap-2.5 min-w-0">
-            {/* Left Section: Framed Passport Photo */}
-            <div className="shrink-0 flex items-center justify-center">
-              <div className="bg-white border-[1.8px] border-[var(--theme-primary)] rounded-xl p-[2.5px] shadow-[0_2px_4px_rgba(0,0,0,0.08)] w-[84px] h-[102px] flex items-center justify-center overflow-hidden">
-                <div className="w-full h-full bg-slate-50 rounded-lg flex items-center justify-center overflow-hidden shrink-0">
-                  {photoUrl ? (
-                    <img
-                      src={photoUrl}
-                      alt={student.name}
-                      referrerPolicy="no-referrer"
-                      loading="lazy"
-                      className="w-full h-full object-cover object-center brightness-[1.05] contrast-[1.05]"
-                      style={{ imageRendering: 'auto' }}
-                    />
-                  ) : (
-                    <div className="flex flex-col items-center justify-center text-center p-1">
-                      <svg className="w-5 h-5 text-slate-400" fill="currentColor" viewBox="0 0 20 20">
-                        <path fillRule="evenodd" d="M10 9a3 3 0 100-6 3 3 0 000 6zm-7 9a7 7 0 1114 0H3z" clipRule="evenodd" />
-                      </svg>
-                      <span className="text-[5px] text-slate-500 font-extrabold tracking-widest uppercase mt-0.5 leading-none">NO PHOTO</span>
-                    </div>
-                  )}
-                </div>
+          {/* TWO COLUMNS BELOW THE TITLE (HORIZONTALLY ALIGNED, EQUAL HEIGHT) */}
+          <div className="flex-1 flex items-stretch gap-2.5 min-w-0 pt-0.5">
+            {/* Left Column: Passport photo enclosed inside rectangular frame with blue border and rounded corners. Photo centered with equal padding. */}
+            <div className="w-[84px] shrink-0 border-[1.8px] border-[var(--theme-primary)] rounded-lg p-1 bg-white flex items-center justify-center overflow-hidden shadow-2xs">
+              <div className="w-full h-full bg-slate-50 rounded flex items-center justify-center overflow-hidden shrink-0">
+                {photoUrl ? (
+                  <img
+                    src={photoUrl}
+                    alt={student.name}
+                    referrerPolicy="no-referrer"
+                    loading="lazy"
+                    className="w-full h-full object-cover object-center brightness-[1.05] contrast-[1.05]"
+                    style={{ imageRendering: 'auto' }}
+                  />
+                ) : (
+                  <div className="flex flex-col items-center justify-center text-center p-1">
+                    <svg className="w-5 h-5 text-slate-400" fill="currentColor" viewBox="0 0 20 20">
+                      <path fillRule="evenodd" d="M10 9a3 3 0 100-6 3 3 0 000 6zm-7 9a7 7 0 1114 0H3z" clipRule="evenodd" />
+                    </svg>
+                    <span className="text-[5px] text-slate-500 font-extrabold tracking-widest uppercase mt-0.5 leading-none">NO PHOTO</span>
+                  </div>
+                )}
               </div>
             </div>
 
-            {/* Right Section: Student Information */}
-            <div className="flex-1 flex flex-col justify-between min-w-0 h-[102px]">
+            {/* Right Column: Bordered Information Panel */}
+            <div className="flex-1 border-[1.5px] border-[var(--theme-border)] rounded-lg p-1.5 bg-slate-50/50 flex flex-col justify-between min-w-0">
               {/* 1. STUDENT NUMBER */}
               <div className="flex flex-col justify-center">
-                <span className="text-[6px] font-black text-[var(--theme-text)] uppercase tracking-wider leading-none">STUDENT NUMBER</span>
-                <span className="text-[8px] font-black text-black leading-tight uppercase truncate mt-[0.5px]">
+                <span className="text-[5.5px] font-black text-[var(--theme-text)] uppercase tracking-wider leading-none">STUDENT NUMBER</span>
+                <span className="text-[7.5px] font-black text-black leading-tight uppercase truncate mt-[0.5px]">
                   {student.studentNo || student.adminNo}
                 </span>
-                <div className="border-b border-[var(--theme-border)] mt-[1px]" />
+                <div className="border-b border-slate-200 mt-[0.5px]" />
               </div>
 
               {/* 2. NAME */}
               <div className="flex flex-col justify-center">
-                <span className="text-[6px] font-black text-[var(--theme-text)] uppercase tracking-wider leading-none">NAME</span>
-                <span className="text-[8px] font-black text-black leading-tight uppercase truncate mt-[0.5px]">
+                <span className="text-[5.5px] font-black text-[var(--theme-text)] uppercase tracking-wider leading-none">NAME</span>
+                <span className="text-[7.5px] font-black text-black leading-tight uppercase truncate mt-[0.5px]">
                   {student.name}
                 </span>
-                <div className="border-b border-[var(--theme-border)] mt-[1px]" />
+                <div className="border-b border-slate-200 mt-[0.5px]" />
               </div>
 
               {/* 3. CLASS */}
               <div className="flex flex-col justify-center">
-                <span className="text-[6px] font-black text-[var(--theme-text)] uppercase tracking-wider leading-none">CLASS</span>
-                <span className="text-[8px] font-black text-black leading-tight uppercase truncate mt-[0.5px]">
+                <span className="text-[5.5px] font-black text-[var(--theme-text)] uppercase tracking-wider leading-none">CLASS</span>
+                <span className="text-[7.5px] font-black text-black leading-tight uppercase truncate mt-[0.5px]">
                   {student.gradeClass}
                 </span>
-                <div className="border-b border-[var(--theme-border)] mt-[1px]" />
+                <div className="border-b border-slate-200 mt-[0.5px]" />
               </div>
 
               {/* 4. STATUS */}
               <div className="flex flex-col justify-center">
-                <span className="text-[6px] font-black text-[var(--theme-text)] uppercase tracking-wider leading-none">STATUS</span>
-                <span className="text-[8px] font-black text-black leading-tight uppercase truncate mt-[0.5px]">
+                <span className="text-[5.5px] font-black text-[var(--theme-text)] uppercase tracking-wider leading-none">STATUS</span>
+                <span className="text-[7.5px] font-black text-black leading-tight uppercase truncate mt-[0.5px]">
                   {student.boardingStatus === 'Hosteller' ? 'HOSTELLER' : 'DAY SCHOLAR'}
                 </span>
-                <div className="border-b border-[var(--theme-border)] mt-[1px]" />
+                <div className="border-b border-slate-200 mt-[0.5px]" />
               </div>
 
               {/* 5. GENDER */}
               <div className="flex flex-col justify-center">
-                <span className="text-[6px] font-black text-[var(--theme-text)] uppercase tracking-wider leading-none">GENDER</span>
-                <span className="text-[8px] font-black text-black leading-tight uppercase truncate mt-[0.5px]">
+                <span className="text-[5.5px] font-black text-[var(--theme-text)] uppercase tracking-wider leading-none">GENDER</span>
+                <span className="text-[7.5px] font-black text-black leading-tight uppercase truncate mt-[0.5px]">
                   {(student.gender || 'Male').toUpperCase()}
                 </span>
               </div>
