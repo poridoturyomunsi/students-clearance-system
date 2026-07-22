@@ -22,6 +22,7 @@ CREATE TABLE IF NOT EXISTS students (
   adminNo VARCHAR(50) NOT NULL,
   name VARCHAR(255) NOT NULL,
   gender VARCHAR(10) NOT NULL,
+  dob DATE NULL,
   gradeClass VARCHAR(50) NOT NULL,
   boardingStatus VARCHAR(50) NOT NULL,
   isCleared BOOLEAN NOT NULL DEFAULT FALSE,
@@ -33,6 +34,9 @@ CREATE TABLE IF NOT EXISTS students (
   photoEnhanced LONGTEXT NULL,
   printStatus VARCHAR(20) NOT NULL DEFAULT 'Not Printed',
   uace_combination VARCHAR(50) NULL,
+  parentName VARCHAR(255) NULL,
+  parentContact VARCHAR(50) NULL,
+  verification_token VARCHAR(100) NULL,
   updatedAt TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
   -- Performance indexes for search and filtering
   INDEX idx_name (name(50)),

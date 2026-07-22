@@ -1545,7 +1545,11 @@ async function ensureDbInitialized() {
     // Alter students table to add dob column if missing
     try {
       await pool.query('ALTER TABLE students ADD COLUMN dob DATE NULL AFTER gender');
-    } catch (e) {}
+    } catch (e) {
+      try {
+        await pool.query('ALTER TABLE students ADD COLUMN dob DATE NULL');
+      } catch (err) {}
+    }
 
     // Alter students table to add photoOriginal and photoEnhanced if missing
     try {
