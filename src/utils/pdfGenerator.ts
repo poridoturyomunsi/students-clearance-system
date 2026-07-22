@@ -982,32 +982,147 @@ function drawCardAugustPdf(
   // 5. Main Area: August Calendar on left (Saturday start, 31 days) and Cafeteria notes on right
   drawCalendarPdf(doc, x + 3.0, y + 21.5, 'August', 6, 31, 5.2, 4.0);
 
-  // Cafeteria Rules Box on Right
+  // Ream of Papers Contribution Box on Right
   const bx = x + 44.5;
   const by = y + 21.5;
-  const bw = 42.5; // Optimized to fit the calendar elegantly
+  const bw = 42.5;
   const bh = 25.5;
 
-  doc.setFillColor(250, 250, 250);
-  doc.setDrawColor(themeBorder.r, themeBorder.g, themeBorder.b); // Tie rule box border to class color!
-  doc.setLineWidth(0.2);
+  doc.setFillColor(255, 255, 255);
+  doc.setDrawColor(themeBorder.r, themeBorder.g, themeBorder.b);
+  doc.setLineWidth(0.25);
   doc.roundedRect(bx, by, bw, bh, 1.2, 1.2, 'FD');
 
+  // Heading
   doc.setFont('helvetica', 'bold');
-  doc.setFontSize(6.5);
-  doc.setTextColor(themeText.r, themeText.g, themeText.b); // Tie title to class accent color!
-  doc.text('CAFETERIA GUIDE', bx + 2.0, by + 4.5);
+  doc.setFontSize(5.2);
+  doc.setTextColor(themeText.r, themeText.g, themeText.b);
+  doc.text('REAM OF PAPERS CONTRIBUTION', bx + bw / 2, by + 3.2, { align: 'center' });
 
   doc.setLineWidth(0.18);
-  doc.setDrawColor(themeBorder.r, themeBorder.g, themeBorder.b); // Tie line to class accent color border!
-  doc.line(bx + 2.0, by + 5.8, bx + bw - 2.0, by + 5.8);
+  doc.setDrawColor(themeBorder.r, themeBorder.g, themeBorder.b);
+  doc.line(bx + 1.5, by + 4.2, bx + bw - 1.5, by + 4.2);
 
+  // Stacked Paper Reams Illustration
+  const rx = bx + bw / 2 - 11.0;
+  const ry = by + 4.8;
+  const rw = 22.0;
+  const rh = 2.4;
+
+  // Top Ream
+  doc.setFillColor(245, 247, 250);
+  doc.setDrawColor(180, 180, 180);
+  doc.setLineWidth(0.12);
+  doc.roundedRect(rx, ry, rw, rh, 0.3, 0.3, 'FD');
+  doc.setFillColor(29, 78, 216); // Blue band
+  doc.rect(rx, ry, 5.5, rh, 'F');
+  doc.setTextColor(255, 255, 255);
+  doc.setFontSize(3.0);
   doc.setFont('helvetica', 'bold');
-  doc.setFontSize(5.5);
-  doc.setTextColor(0, 0, 0); // Pitch black content bullets
-  doc.text('• Present card on request.', bx + 2.0, by + 10.5);
-  doc.text('• Strictly non-transferable.', bx + 2.0, by + 15.8);
-  doc.text('• Report loss immediately.', bx + 2.0, by + 21.1);
+  doc.text('A4', rx + 2.7, ry + 1.7, { align: 'center' });
+  doc.setTextColor(70, 80, 95);
+  doc.setFontSize(2.8);
+  doc.text('PREMIUM PAPER 500 SH', rx + 6.2, ry + 1.7);
+
+  // Bottom Ream
+  doc.setFillColor(235, 238, 242);
+  doc.setDrawColor(160, 160, 160);
+  doc.roundedRect(rx, ry + 2.0, rw, rh, 0.3, 0.3, 'FD');
+  doc.setFillColor(30, 58, 138); // Darker blue band
+  doc.rect(rx, ry + 2.0, 5.5, rh, 'F');
+  doc.setTextColor(255, 255, 255);
+  doc.setFontSize(3.0);
+  doc.text('A4', rx + 2.7, ry + 3.7, { align: 'center' });
+  doc.setTextColor(70, 80, 95);
+  doc.setFontSize(2.8);
+  doc.text('PREMIUM PAPER 500 SH', rx + 6.2, ry + 3.7);
+
+  // Table Outer Frame
+  const tx = bx + 1.2;
+  const ty = by + 9.8;
+  const tw = bw - 2.4;
+  const th = 14.5;
+
+  doc.setDrawColor(themeBorder.r, themeBorder.g, themeBorder.b);
+  doc.setLineWidth(0.18);
+  doc.roundedRect(tx, ty, tw, th, 0.6, 0.6, 'D');
+
+  // Header Row
+  doc.setFillColor(themeText.r, themeText.g, themeText.b);
+  doc.rect(tx, ty, tw, 3.2, 'F');
+  doc.setFont('helvetica', 'bold');
+  doc.setFontSize(3.6);
+  doc.setTextColor(255, 255, 255);
+  doc.text('REQUIREMENT', tx + 1.5, ty + 2.2);
+  doc.text('RECEIVED', tx + 16.5, ty + 2.2, { align: 'center' });
+  doc.text('DATE', tx + 24.5, ty + 2.2, { align: 'center' });
+  doc.text("OFFICER'S SIGN", tx + 33.5, ty + 2.2, { align: 'center' });
+
+  // Vertical grid lines in header & rows
+  doc.setDrawColor(210, 210, 210);
+  doc.setLineWidth(0.12);
+  doc.line(tx + 13.0, ty, tx + 13.0, ty + th);
+  doc.line(tx + 20.0, ty, tx + 20.0, ty + th);
+  doc.line(tx + 29.0, ty, tx + 29.0, ty + th);
+
+  // Row 1
+  const r1y = ty + 3.2;
+  const rh1 = 5.6;
+
+  // Number circle 1
+  doc.setFillColor(themeText.r, themeText.g, themeText.b);
+  doc.ellipse(tx + 2.0, r1y + 2.8, 1.0, 1.0, 'F');
+  doc.setTextColor(255, 255, 255);
+  doc.setFontSize(3.4);
+  doc.setFont('helvetica', 'bold');
+  doc.text('1', tx + 2.0, r1y + 3.5, { align: 'center' });
+
+  doc.setTextColor(0, 0, 0);
+  doc.setFontSize(3.6);
+  doc.text('1 REAM', tx + 3.6, r1y + 2.4);
+  doc.setFontSize(3.2);
+  doc.text('OF PAPER', tx + 3.6, r1y + 4.8);
+
+  // Received Checkbox
+  doc.setDrawColor(80, 80, 80);
+  doc.rect(tx + 15.4, r1y + 1.7, 2.2, 2.2, 'D');
+
+  // Date Line
+  doc.line(tx + 21.2, r1y + 4.2, tx + 27.8, r1y + 4.2);
+
+  // Officer Line
+  doc.line(tx + 30.2, r1y + 4.2, tx + 38.8, r1y + 4.2);
+
+  // Row Divider
+  doc.setDrawColor(210, 210, 210);
+  doc.line(tx, r1y + rh1, tx + tw, r1y + rh1);
+
+  // Row 2
+  const r2y = r1y + rh1;
+
+  // Number circle 2
+  doc.setFillColor(themeText.r, themeText.g, themeText.b);
+  doc.ellipse(tx + 2.0, r2y + 2.8, 1.0, 1.0, 'F');
+  doc.setTextColor(255, 255, 255);
+  doc.setFontSize(3.4);
+  doc.setFont('helvetica', 'bold');
+  doc.text('2', tx + 2.0, r2y + 3.5, { align: 'center' });
+
+  doc.setTextColor(0, 0, 0);
+  doc.setFontSize(3.6);
+  doc.text('1 REAM', tx + 3.6, r2y + 2.4);
+  doc.setFontSize(3.2);
+  doc.text('OF PAPER', tx + 3.6, r2y + 4.8);
+
+  // Received Checkbox
+  doc.setDrawColor(80, 80, 80);
+  doc.rect(tx + 15.4, r2y + 1.7, 2.2, 2.2, 'D');
+
+  // Date Line
+  doc.line(tx + 21.2, r2y + 4.2, tx + 27.8, r2y + 4.2);
+
+  // Officer Line
+  doc.line(tx + 30.2, r2y + 4.2, tx + 38.8, r2y + 4.2);
 
   // 6. Gray Footer Band at very bottom
   doc.setDrawColor(180, 180, 180);

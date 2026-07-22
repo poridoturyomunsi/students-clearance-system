@@ -425,26 +425,73 @@ export default function ClearanceCard({
           {renderCalendar('August', 6, 31, true)}
         </div>
 
-        <div className="flex-1 h-full flex flex-col justify-center bg-slate-50 border border-slate-300 rounded-lg p-2 min-w-0">
-          <div>
-            <div className="flex items-center gap-1.5 text-[9.5px] font-black text-[var(--theme-text)] uppercase tracking-wider border-b border-slate-300 pb-1 mb-1.5 select-none font-sans">
-              <Utensils className="w-3 h-3 text-[var(--theme-primary)] shrink-0 stroke-[2.8]" />
-              CAFETERIA GUIDE
+        <div className="flex-1 h-full flex flex-col justify-between bg-white border border-[var(--theme-border)] rounded-lg p-1.5 min-w-0 shadow-2xs">
+          {/* Section Heading */}
+          <div className="text-center font-black text-[8.5px] uppercase tracking-wider text-[var(--theme-text)] border-b border-[var(--theme-border)] pb-0.5 mb-1 leading-none font-sans">
+            REAM OF PAPERS CONTRIBUTION
+          </div>
+
+          {/* Illustration of 2 stacked A4 paper reams */}
+          <div className="flex justify-center items-center my-0.5">
+            <div className="relative w-28 h-8 flex flex-col items-center justify-center">
+              {/* Top Ream */}
+              <div className="absolute top-0 w-26 h-4 bg-slate-50 border border-slate-300 rounded-[2px] shadow-3xs flex items-center justify-between px-1.5 overflow-hidden">
+                <div className="bg-blue-700 text-white px-1 py-0.5 text-[4.5px] font-black tracking-tighter rounded-[1px] leading-none">A4</div>
+                <span className="text-[4.5px] font-extrabold text-slate-700 tracking-tighter">PREMIUM PAPER</span>
+                <span className="text-[4px] font-black text-blue-900 leading-none">500 SH</span>
+              </div>
+              {/* Bottom Ream */}
+              <div className="absolute top-2.5 w-26 h-4 bg-slate-100 border border-slate-400 rounded-[2px] shadow-2xs flex items-center justify-between px-1.5 overflow-hidden">
+                <div className="bg-blue-800 text-white px-1 py-0.5 text-[4.5px] font-black tracking-tighter rounded-[1px] leading-none">A4</div>
+                <span className="text-[4.5px] font-extrabold text-slate-800 tracking-tighter">PREMIUM PAPER</span>
+                <span className="text-[4px] font-black text-blue-900 leading-none">500 SH</span>
+              </div>
             </div>
-            <ul className="space-y-1 text-[8px] text-slate-905 font-bold font-sans">
-              <li className="flex gap-1 items-start">
-                <span className="text-[var(--theme-primary)] shrink-0 font-black text-[9px] leading-none">•</span>
-                <span>Present card on request.</span>
-              </li>
-              <li className="flex gap-1 items-start">
-                <span className="text-[var(--theme-primary)] shrink-0 font-black text-[9px] leading-none">•</span>
-                <span>Strictly non-transferable.</span>
-              </li>
-              <li className="flex gap-1 items-start">
-                <span className="text-[var(--theme-primary)] shrink-0 font-black text-[9px] leading-none">•</span>
-                <span>Report loss immediately.</span>
-              </li>
-            </ul>
+          </div>
+
+          {/* Record Keeping Table */}
+          <div className="border border-[var(--theme-border)] rounded overflow-hidden mt-0.5">
+            {/* Table Header */}
+            <div className="bg-[var(--theme-text)] text-white grid grid-cols-12 gap-0.5 text-center text-[4.8px] font-black uppercase py-0.5 px-0.5 tracking-tighter">
+              <div className="col-span-4 text-left pl-1">REQUIREMENT</div>
+              <div className="col-span-2">RECEIVED</div>
+              <div className="col-span-3">DATE</div>
+              <div className="col-span-3">OFFICER'S SIGN</div>
+            </div>
+
+            {/* Row 1 */}
+            <div className="grid grid-cols-12 gap-0.5 items-center py-1 px-0.5 border-b border-slate-200 bg-white">
+              <div className="col-span-4 flex items-center gap-1 pl-0.5">
+                <span className="w-3 h-3 bg-[var(--theme-text)] text-white rounded-full flex items-center justify-center text-[5px] font-black shrink-0 leading-none">1</span>
+                <span className="text-[5px] font-extrabold text-slate-900 leading-none tracking-tighter">1 REAM OF PAPER</span>
+              </div>
+              <div className="col-span-2 flex justify-center">
+                <div className="w-2.5 h-2.5 border border-slate-700 rounded-[1px] bg-white" />
+              </div>
+              <div className="col-span-3 px-0.5">
+                <div className="border-b border-slate-400 h-1.5" />
+              </div>
+              <div className="col-span-3 px-0.5">
+                <div className="border-b border-slate-400 h-1.5" />
+              </div>
+            </div>
+
+            {/* Row 2 */}
+            <div className="grid grid-cols-12 gap-0.5 items-center py-1 px-0.5 bg-slate-50/50">
+              <div className="col-span-4 flex items-center gap-1 pl-0.5">
+                <span className="w-3 h-3 bg-[var(--theme-text)] text-white rounded-full flex items-center justify-center text-[5px] font-black shrink-0 leading-none">2</span>
+                <span className="text-[5px] font-extrabold text-slate-900 leading-none tracking-tighter">1 REAM OF PAPER</span>
+              </div>
+              <div className="col-span-2 flex justify-center">
+                <div className="w-2.5 h-2.5 border border-slate-700 rounded-[1px] bg-white" />
+              </div>
+              <div className="col-span-3 px-0.5">
+                <div className="border-b border-slate-400 h-1.5" />
+              </div>
+              <div className="col-span-3 px-0.5">
+                <div className="border-b border-slate-400 h-1.5" />
+              </div>
+            </div>
           </div>
         </div>
       </div>
