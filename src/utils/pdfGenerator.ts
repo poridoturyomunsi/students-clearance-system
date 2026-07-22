@@ -314,7 +314,7 @@ function drawCardFrontPdf(
     doc.triangle(logoX + 2.4, logoY + 2.4, logoX + logoSize - 2.4, logoY + 2.4, logoX + logoSize / 2, logoY + logoSize - 3.6, 'FD');
   }
   
-  // Card title centered
+  // School Info left-aligned next to crest logo
   doc.setFont('helvetica', 'bold');
   doc.setFontSize(8.2);
   if (classTheme.isDark) {
@@ -322,7 +322,7 @@ function drawCardFrontPdf(
   } else {
     doc.setTextColor(themeText.r, themeText.g, themeText.b);
   }
-  doc.text('ST. PAUL SECONDARY SCHOOL, NASUTI', x + cw / 2, y + 7.2, { align: 'center' });
+  doc.text('ST. PAUL SECONDARY SCHOOL, NASUTI', x + 16.0, y + 6.8);
   
   doc.setFont('helvetica', 'bold');
   doc.setFontSize(5.2);
@@ -331,19 +331,20 @@ function drawCardFrontPdf(
   } else {
     doc.setTextColor(themeText.r, themeText.g, themeText.b);
   }
-  doc.text('P.O.BOX 678, NASUTI IGANGA', x + cw / 2, y + 11.2, { align: 'center' });
+  doc.text('P.O.BOX 678, NASUTI IGANGA', x + 16.0, y + 10.8);
   
-  // White right badge on Header (centered under details)
-  doc.setFillColor(255, 255, 255, 0.18);
-  doc.roundedRect(x + cw / 2 - 10.5, y + 14.5, 21.0, 4.5, 0.8, 0.8, 'F');
+  // TERM 2, 2026 badge at EXTREME TOP END RIGHT OF THE CARD
+  const termBadgeX = x + cw - 23.5;
+  const termBadgeY = y + 2.8;
+  const termBadgeW = 20.5;
+  const termBadgeH = 6.2;
+
+  doc.setFillColor(11, 25, 66); // Dark navy badge matching mockup
+  doc.roundedRect(termBadgeX, termBadgeY, termBadgeW, termBadgeH, 1.2, 1.2, 'F');
   doc.setFont('helvetica', 'bold');
-  doc.setFontSize(5.8);
-  if (classTheme.isDark) {
-    doc.setTextColor(255, 255, 255);
-  } else {
-    doc.setTextColor(themeText.r, themeText.g, themeText.b);
-  }
-  doc.text('TERM 2, 2026', x + cw / 2, y + 17.7, { align: 'center' });
+  doc.setFontSize(6.2);
+  doc.setTextColor(255, 255, 255);
+  doc.text('TERM 2, 2026', termBadgeX + termBadgeW / 2, termBadgeY + 4.2, { align: 'center' });
 
   // School logo background watermark
   if (logoBase64 && showWatermark) {

@@ -114,25 +114,25 @@ export default function ClearanceCard({
       </div>
 
       {/* Top Header stripe */}
-      <div className="pl-3.5 pr-3.5 text-[var(--theme-title-text)] flex justify-between items-center relative z-10 theme-gradient-bar h-[54px] min-h-[54px] select-none">
+      <div className="pl-3 pr-3 text-[var(--theme-title-text)] flex justify-between items-center relative z-10 theme-gradient-bar h-[54px] min-h-[54px] select-none">
         {/* Left: Crest */}
         <div className="shrink-0 flex items-center justify-center">
           <SchoolLogo className="w-[42px] h-[42px] object-contain" logoBase64={logoBase64} />
         </div>
 
-        {/* Center: School Info */}
-        <div className="flex-1 flex flex-col items-center justify-center text-center px-2 min-w-0">
-          <span className="text-[10px] font-black tracking-wide uppercase leading-tight text-center text-white">
+        {/* Middle: School Info left-aligned next to crest */}
+        <div className="flex-1 flex flex-col items-start justify-center pl-2.5 min-w-0">
+          <span className="text-[10px] font-black tracking-wide uppercase leading-tight text-white">
             ST. PAUL SECONDARY SCHOOL, NASUTI
           </span>
-          <span className="text-[7px] opacity-90 font-medium tracking-wider leading-none uppercase text-center mt-0.5 text-white">
+          <span className="text-[7px] opacity-90 font-medium tracking-wider leading-none uppercase mt-0.5 text-white">
             P.O.BOX 678, NASUTI IGANGA
           </span>
         </div>
 
-        {/* Right: Term Badge */}
+        {/* Right: Term Badge at EXTREME TOP END RIGHT */}
         <div className="shrink-0 flex items-center justify-center">
-          <div className="bg-white/20 text-white border border-white/25 px-2 py-0.5 rounded-[5px] text-[7px] font-mono font-black uppercase shrink-0 tracking-wider text-center shadow-3xs">
+          <div className="bg-[#0b1942] text-white border border-white/20 px-2.5 py-1 rounded-md text-[7.5px] font-mono font-black uppercase shrink-0 tracking-wider text-center shadow-sm">
             TERM 2, 2026
           </div>
         </div>
