@@ -15,9 +15,11 @@ import {
   fetchGateDevices, saveGateDevice, deleteGateDevice,
   fetchAttendanceSettings, saveAttendanceSettings 
 } from '../../utils/api.ts';
+import QRAttendanceSystem from '../QRAttendanceSystem.tsx';
+import { INITIAL_STUDENTS } from '../../data.ts';
 
 export default function AttendanceModule() {
-  const [activeTab, setActiveTab] = useState<'dashboard' | 'gate' | 'monitor' | 'permissions' | 'reports' | 'setup'>('dashboard');
+  const [activeTab, setActiveTab] = useState<'qr-guard' | 'dashboard' | 'gate' | 'monitor' | 'permissions' | 'reports' | 'setup'>('qr-guard');
   
   // Dashboard states
   const [dashboardData, setDashboardData] = useState<any>(null);
@@ -598,7 +600,7 @@ export default function AttendanceModule() {
 
       {/* Tabs */}
       <div className="flex bg-slate-950 p-1 rounded-xl border border-slate-850 overflow-x-auto gap-1">
-        {(['dashboard', 'gate', 'monitor', 'permissions', 'reports', 'setup'] as const).map(tab => (
+        {(['qr-guard', 'dashboard', 'gate', 'monitor', 'permissions', 'reports', 'setup'] as const).map(tab => (
           <button
             key={tab}
             onClick={() => {
@@ -611,7 +613,8 @@ export default function AttendanceModule() {
                 : 'text-slate-400 hover:text-slate-200 hover:bg-slate-900/50'
             }`}
           >
-            {tab === 'dashboard' ? 'Dashboard & Charts' :
+            {tab === 'qr-guard' ? '📷 Guard QR Scanner' :
+             tab === 'dashboard' ? 'Dashboard & Charts' :
              tab === 'gate' ? 'Gate Console' :
              tab === 'monitor' ? 'Live Gate Monitor' :
              tab === 'permissions' ? 'Permissions & Slips' :
@@ -623,6 +626,12 @@ export default function AttendanceModule() {
 
       {/* Contents */}
       <div className="min-h-[50vh]">
+        {activeTab === 'qr-guard' && (
+          <div className="bg-slate-900 p-2 md:p-4 rounded-2xl border border-slate-800">
+            <QRAttendanceSystem students={allStudentsList.length > 0 ? allStudentsList : INITIAL_STUDENTS} />
+          </div>
+        )}
+
         {activeTab === 'dashboard' && (
           <div className="space-y-6">
             {dashLoading ? (

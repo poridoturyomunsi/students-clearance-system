@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import QRCode from 'qrcode';
 import { Student } from '../types.ts';
 import SchoolLogo from './SchoolLogo.tsx';
 import { Utensils } from 'lucide-react';
@@ -25,9 +26,28 @@ export default function ClearanceCard({
   // Read class color configuration dynamically
   const classTheme = getClassTheme(student.gradeClass);
 
-  const photoUrl = student.photo || (student.hasPhoto
+  const [photoUrl, setPhotoUrl] = useState<string | null>(student.photo || (student.hasPhoto
     ? `${getApiBaseUrl()}/api/students/${student.id}/photo?t=${student.updatedAt ? new Date(student.updatedAt).getTime() : ''}`
-    : undefined);
+    : null));
+  const [qrCodeUrl, setQrCodeUrl] = useState<string>('');
+
+  useEffect(() => {
+    let isMounted = true;
+    const stdIdentifier = student.studentNo || student.adminNo || student.id;
+    const secureUrl = `https://stpaulss-eportal.vercel.app/verify/student/${encodeURIComponent(stdIdentifier)}`;
+
+    QRCode.toDataURL(secureUrl, { margin: 1, width: 120, color: { dark: '#000000', light: '#ffffff' } })
+      .then(url => {
+        if (isMounted) setQrCodeUrl(url);
+      })
+      .catch(err => {
+        console.warn("QR code generation error:", err);
+      });
+
+    return () => {
+      isMounted = false;
+    };
+  }, [student]);
 
   // Calendar days helper for 2026
   // June 2026 (Starts Monday, 30 days)
@@ -174,10 +194,10 @@ export default function ClearanceCard({
               </div>
             </div>
 
-            {/* Right Column: Information section moved further right with generous vertical field spacing */}
-            <div className="flex-1 flex flex-col justify-between h-[122px] min-w-0 pl-3.5 pr-1 py-0.5">
+            {/* Right Column: Information section with QR Code Box in Bottom Right Corner */}
+            <div className="flex-1 flex flex-col justify-between h-[122px] min-w-0 pl-3 pr-0.5 py-0.5 relative">
               {/* 1. STUDENT NUMBER */}
-              <div className="flex flex-col justify-center">
+              <div className="flex flex-col justify-center pr-[52px]">
                 <span className="text-[7px] font-black text-[var(--theme-text)] uppercase tracking-wider leading-none">STUDENT NUMBER</span>
                 <span className="text-[11.5px] font-black text-slate-950 leading-tight uppercase truncate mt-[2px]">
                   {student.studentNo || student.adminNo}
@@ -185,7 +205,7 @@ export default function ClearanceCard({
               </div>
 
               {/* 2. NAME */}
-              <div className="flex flex-col justify-center">
+              <div className="flex flex-col justify-center pr-[52px]">
                 <span className="text-[7px] font-black text-[var(--theme-text)] uppercase tracking-wider leading-none">NAME</span>
                 <span className="text-[11.5px] font-black text-slate-950 leading-tight uppercase truncate mt-[2px]">
                   {student.name}
@@ -193,7 +213,7 @@ export default function ClearanceCard({
               </div>
 
               {/* 3. CLASS */}
-              <div className="flex flex-col justify-center">
+              <div className="flex flex-col justify-center pr-[52px]">
                 <span className="text-[7px] font-black text-[var(--theme-text)] uppercase tracking-wider leading-none">CLASS</span>
                 <span className="text-[11.5px] font-black text-slate-950 leading-tight uppercase truncate mt-[2px]">
                   {student.gradeClass}
@@ -201,18 +221,36 @@ export default function ClearanceCard({
               </div>
 
               {/* 4. STATUS */}
-              <div className="flex flex-col justify-center">
+              <div className="flex flex-col justify-center pr-[52px]">
                 <span className="text-[7px] font-black text-[var(--theme-text)] uppercase tracking-wider leading-none">STATUS</span>
                 <span className="text-[11.5px] font-black text-slate-950 leading-tight uppercase truncate mt-[2px]">
-                  {student.boardingStatus === 'Hosteller' || student.boardingStatus === 'Boarder' ? 'HOSTELLER' : 'DAY SCHOLAR'}
+                  {student.boardingStatus === 'Hosteller' || (student.boardingStatus as string) === 'Boarder' ? 'HOSTELLER' : 'DAY SCHOLAR'}
                 </span>
               </div>
 
               {/* 5. GENDER */}
-              <div className="flex flex-col justify-center">
+              <div className="flex flex-col justify-center pr-[52px]">
                 <span className="text-[7px] font-black text-[var(--theme-text)] uppercase tracking-wider leading-none">GENDER</span>
                 <span className="text-[11.5px] font-black text-slate-950 leading-tight uppercase truncate mt-[2px]">
                   {(student.gender || 'Male').toUpperCase()}
+                </span>
+              </div>
+
+              {/* Secure QR Code Box in Bottom Right Corner (Exact match to screenshot mockup) */}
+              <div className="absolute bottom-0 right-0 flex flex-col items-center justify-center border-[1.5px] border-[var(--theme-primary)] rounded-xl p-1 bg-white shadow-2xs z-20">
+                {qrCodeUrl ? (
+                  <img
+                    src={qrCodeUrl}
+                    alt="Scan to Verify QR Code"
+                    className="w-[46px] h-[46px] object-contain"
+                  />
+                ) : (
+                  <div className="w-[46px] h-[46px] bg-slate-50 rounded-md flex items-center justify-center text-[6px] font-bold text-slate-400">
+                    QR CODE
+                  </div>
+                )}
+                <span className="bg-[#1d4ed8] text-white text-[5px] font-mono font-black uppercase px-1.5 py-[1.5px] rounded-[4px] mt-[1.5px] tracking-wider leading-none text-center shadow-3xs">
+                  Scan to Verify
                 </span>
               </div>
             </div>

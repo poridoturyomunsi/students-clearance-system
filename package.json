@@ -26,6 +26,7 @@
     "express": "^4.21.2",
     "express-rate-limit": "^7.5.1",
     "firebase": "^12.13.0",
+    "html5-qrcode": "^2.3.8",
     "jimp": "^1.6.1",
     "jsonwebtoken": "^9.0.2",
     "jspdf": "^4.2.1",

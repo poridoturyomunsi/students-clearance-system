@@ -439,6 +439,40 @@ function drawCardFrontPdf(
     doc.text(f.val, infoX, fy + 2.5);
   });
 
+  // Draw QR Code Frame in Bottom Right Corner of Card Front
+  const qrFrameX = containerX + containerW - 17.5;
+  const qrFrameY = containerY + containerH - 18.5;
+  const qrFrameW = 16.0;
+  const qrFrameH = 17.2;
+
+  doc.setDrawColor(themePrimary.r, themePrimary.g, themePrimary.b);
+  doc.setFillColor(255, 255, 255);
+  doc.setLineWidth(0.3);
+  doc.roundedRect(qrFrameX, qrFrameY, qrFrameW, qrFrameH, 1.0, 1.0, 'FD');
+
+  if (student.qrCodeBase64) {
+    try {
+      doc.addImage(student.qrCodeBase64, 'PNG', qrFrameX + 0.8, qrFrameY + 0.8, 14.4, 14.4, undefined, 'NONE');
+    } catch (e) {
+      console.warn("Could not draw student QR code image:", e);
+    }
+  } else {
+    // Draw placeholder QR code pattern
+    doc.setFillColor(0, 0, 0);
+    doc.rect(qrFrameX + 1.2, qrFrameY + 1.2, 4.0, 4.0, 'F');
+    doc.rect(qrFrameX + 10.8, qrFrameY + 1.2, 4.0, 4.0, 'F');
+    doc.rect(qrFrameX + 1.2, qrFrameY + 9.2, 4.0, 4.0, 'F');
+    doc.rect(qrFrameX + 6.0, qrFrameY + 6.0, 4.0, 4.0, 'F');
+  }
+
+  // Draw "Scan to Verify" badge at bottom of QR Code frame
+  doc.setFillColor(themeText.r, themeText.g, themeText.b);
+  doc.roundedRect(qrFrameX + 1.2, qrFrameY + 14.2, 13.6, 2.4, 0.4, 0.4, 'F');
+  doc.setFont('helvetica', 'bold');
+  doc.setFontSize(3.6);
+  doc.setTextColor(255, 255, 255);
+  doc.text('Scan to Verify', qrFrameX + 8.0, qrFrameY + 15.9, { align: 'center' });
+
   // 7. Card Footer band containing return instructions text
   doc.setDrawColor(180, 180, 180);
   doc.setFillColor(250, 250, 250);
