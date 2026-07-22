@@ -117,15 +117,16 @@ function getDbConfigFromEnv() {
   if (process.env.DATABASE_URL) return process.env.DATABASE_URL;
   if (process.env.MYSQL_PUBLIC_URL) return process.env.MYSQL_PUBLIC_URL;
   if (process.env.MYSQL_URL) return process.env.MYSQL_URL;
+  if (process.env.MYSQL_PRIVATE_URL) return process.env.MYSQL_PRIVATE_URL;
   
-  const host = process.env.DB_HOST || process.env.MYSQLHOST;
+  const host = process.env.DB_HOST || process.env.MYSQLHOST || process.env.MYSQL_HOST;
   if (host) {
     return {
       host: host,
-      port: parseInt(process.env.DB_PORT || process.env.MYSQLPORT || '3306', 10),
-      user: process.env.DB_USER || process.env.MYSQLUSER || 'root',
-      password: process.env.DB_PASSWORD || process.env.MYSQLPASSWORD || '',
-      database: process.env.DB_DATABASE || process.env.MYSQLDATABASE || process.env.DB_NAME || 'school_system'
+      port: parseInt(process.env.DB_PORT || process.env.MYSQLPORT || process.env.MYSQL_PORT || '3306', 10),
+      user: process.env.DB_USER || process.env.MYSQLUSER || process.env.MYSQL_USER || 'root',
+      password: process.env.DB_PASSWORD || process.env.MYSQLPASSWORD || process.env.MYSQL_PASSWORD || '',
+      database: process.env.DB_DATABASE || process.env.MYSQLDATABASE || process.env.MYSQL_DATABASE || process.env.DB_NAME || 'school_system'
     };
   }
   return null;
