@@ -130,8 +130,8 @@ export default function ClearanceCard({
           </span>
         </div>
 
-        {/* Right: Term Badge aligned to top-right corner, lowered by ~15-20px to be vertically centered in header ribbon */}
-        <div className="shrink-0 flex items-center justify-center translate-y-[12px]">
+        {/* Right: Term Badge aligned to top-right corner, pushed down for perfect vertical centering in header ribbon */}
+        <div className="shrink-0 flex items-center justify-center translate-y-[16px]">
           <div className="bg-[#0b1942] text-white border border-white/20 px-2.5 py-1 rounded-md text-[7.5px] font-mono font-black uppercase shrink-0 tracking-wider text-center shadow-sm">
             TERM 2, 2026
           </div>

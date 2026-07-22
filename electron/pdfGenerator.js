@@ -281,9 +281,9 @@ function drawCardFrontPdf(
   }
   doc.text('P.O.BOX 678, NASUTI IGANGA', x + 16.0, y + 10.8);
 
-  // TERM 2, 2026 badge aligned to top-right corner, lowered by ~15-20px to be vertically centered in header
+  // TERM 2, 2026 badge aligned to top-right corner, pushed down for perfect vertical centering in header
   const termBadgeX = x + cw - 23.5;
-  const termBadgeY = y + 6.8;
+  const termBadgeY = y + 7.8;
   const termBadgeW = 20.5;
   const termBadgeH = 6.2;
 
