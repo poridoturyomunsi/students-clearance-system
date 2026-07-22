@@ -1,4 +1,5 @@
 const { jsPDF } = require('jspdf');
+const QRCode = require('qrcode');
 
 function hexToRgb(hex) {
   const clean = hex.replace('#', '').trim();
@@ -403,13 +404,6 @@ function drawCardFrontPdf(
     } catch (e) {
       console.warn("Could not draw student QR code image:", e);
     }
-  } else {
-    // Draw placeholder QR code pattern
-    doc.setFillColor(0, 0, 0);
-    doc.rect(qrFrameX + 1.2, qrFrameY + 1.2, 4.0, 4.0, 'F');
-    doc.rect(qrFrameX + 10.8, qrFrameY + 1.2, 4.0, 4.0, 'F');
-    doc.rect(qrFrameX + 1.2, qrFrameY + 9.2, 4.0, 4.0, 'F');
-    doc.rect(qrFrameX + 6.0, qrFrameY + 6.0, 4.0, 4.0, 'F');
   }
 
   // Draw "Scan to Verify" badge at bottom of QR Code frame
@@ -1063,6 +1057,20 @@ async function generateClearancePdf({
   const marginY = 13;
   const spacingX = 10;
   const spacingY = 13;
+
+  // Pre-generate unique QR codes for every student if not present
+  for (let i = 0; i < students.length; i++) {
+    const student = students[i];
+    if (!student.qrCodeBase64) {
+      try {
+        const stdIdentifier = student.studentNo || student.adminNo || student.id;
+        const secureUrl = `https://stpaulss-eportal.vercel.app/verify/student/${encodeURIComponent(stdIdentifier)}`;
+        student.qrCodeBase64 = await QRCode.toDataURL(secureUrl, { margin: 1, width: 250, errorCorrectionLevel: 'M' });
+      } catch (e) {
+        console.warn(`Could not generate QR code for student ${student.id}:`, e);
+      }
+    }
+  }
 
   if (layoutMode === 'front-back-paired') {
     let studentCounter = 0;
