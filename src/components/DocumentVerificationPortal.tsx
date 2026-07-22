@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { ShieldCheck, ShieldAlert, Award, Calendar, User, Briefcase, FileText, CheckCircle, RefreshCw, XCircle } from 'lucide-react';
+import { ShieldCheck, ShieldAlert, Award, Calendar, User, Briefcase, FileText, CheckCircle, RefreshCw, XCircle, Clock, GraduationCap, Check, AlertCircle } from 'lucide-react';
 import { verifyDocumentToken } from '../utils/api.ts';
 import ParticleBackground from './ParticleBackground.tsx';
 
@@ -10,8 +10,15 @@ interface VerificationResult {
   error?: string;
   metadata?: {
     name: string;
+    studentId?: string;
+    adminNo?: string;
+    studentNo?: string;
     staffId?: string;
     photo: string | null;
+    gradeClass?: string;
+    boardingStatus?: string;
+    gender?: string;
+    isCleared?: boolean;
     category?: string;
     department?: string;
     position?: string;
@@ -19,6 +26,9 @@ interface VerificationResult {
     issueDate?: string;
     expiryDate?: string;
     status?: string;
+    attendanceStatus?: string;
+    timeIn?: string | null;
+    timeOut?: string | null;
     [key: string]: any;
   };
 }
@@ -29,14 +39,23 @@ export default function DocumentVerificationPortal() {
   const [result, setResult] = useState<VerificationResult | null>(null);
 
   useEffect(() => {
-    // Extract token from path: /verify/:token
+    // Extract token from path: /verify/student/:token or /verify/:token
     const path = window.location.pathname;
-    const parts = path.split('/');
-    const tokenFromPath = parts[parts.length - 1] || '';
-    setToken(tokenFromPath);
+    let extracted = '';
+    if (path.includes('/verify/student/')) {
+      extracted = path.split('/verify/student/').pop() || '';
+    } else if (path.includes('/verify/')) {
+      extracted = path.split('/verify/').pop() || '';
+    } else if (path.includes('/staff/verify/')) {
+      extracted = path.split('/staff/verify/').pop() || '';
+    }
+    
+    extracted = decodeURIComponent(extracted.trim());
+    console.log(`[VERIFY-PORTAL-DEBUG] Extracted token from path (${path}):`, extracted);
+    setToken(extracted);
 
-    if (tokenFromPath) {
-      performVerification(tokenFromPath);
+    if (extracted) {
+      performVerification(extracted);
     } else {
       setLoading(false);
     }
@@ -44,10 +63,13 @@ export default function DocumentVerificationPortal() {
 
   const performVerification = async (verifyToken: string) => {
     setLoading(true);
+    console.log(`[VERIFY-PORTAL-DEBUG] Calling verifyDocumentToken for: "${verifyToken}"`);
     try {
       const response = await verifyDocumentToken(verifyToken);
+      console.log(`[VERIFY-PORTAL-DEBUG] Verification API Response:`, response);
       setResult(response);
     } catch (err: any) {
+      console.error(`[VERIFY-PORTAL-ERROR] Verification failed:`, err);
       setResult({
         success: false,
         status: 'Error',
@@ -65,7 +87,7 @@ export default function DocumentVerificationPortal() {
         <div className="z-10 flex flex-col items-center gap-4 bg-[#0a0f24]/50 border border-white/10 backdrop-blur-xl p-8 rounded-2xl shadow-2xl shadow-blue-500/5">
           <RefreshCw className="w-12 h-12 text-blue-500 animate-spin" />
           <h2 className="text-xl font-semibold text-white/90">Authenticating Document...</h2>
-          <p className="text-white/40 text-sm">Verifying digital credentials</p>
+          <p className="text-white/40 text-sm">Verifying digital credentials in St. Paul Database</p>
         </div>
       </div>
     );
@@ -73,7 +95,9 @@ export default function DocumentVerificationPortal() {
 
   const isVerified = result?.success;
   const statusLabel = result?.status || 'Unknown';
-  const isStaffCard = result?.documentType === 'Staff ID';
+  const docType = result?.documentType || 'Student Clearance Card';
+  const isStaffCard = docType === 'Staff ID';
+  const isStudentCard = docType.includes('Student');
 
   return (
     <div className="relative min-h-screen w-full bg-[#05070f] flex flex-col items-center justify-center p-4 font-sans antialiased overflow-y-auto py-12">
@@ -93,9 +117,9 @@ export default function DocumentVerificationPortal() {
                 <ShieldCheck className="w-12 h-12" />
               </div>
               <div className="space-y-1">
-                <div className="bg-emerald-950/80 border border-emerald-500/30 text-emerald-450 px-4 py-1.5 rounded-full text-xs font-black uppercase tracking-wider flex items-center gap-1.5 shadow-sm mx-auto">
-                  <span className="w-2 h-2 rounded-full bg-emerald-450 animate-ping" />
-                  🟢 VALID STAFF ID
+                <div className="bg-emerald-950/80 border border-emerald-500/30 text-emerald-400 px-4 py-1.5 rounded-full text-xs font-black uppercase tracking-wider flex items-center gap-1.5 shadow-sm mx-auto">
+                  <span className="w-2 h-2 rounded-full bg-emerald-400 animate-ping" />
+                  {isStaffCard ? '🟢 VALID STAFF ID' : '🟢 VALID STUDENT CLEARANCE CARD'}
                 </div>
                 <h1 className="text-3xl font-black text-white tracking-tight mt-3">
                   ✔ VERIFIED
@@ -111,15 +135,15 @@ export default function DocumentVerificationPortal() {
                 <ShieldAlert className="w-12 h-12" />
               </div>
               <div className="space-y-1">
-                <div className="bg-rose-950/80 border border-rose-500/30 text-rose-450 px-4 py-1.5 rounded-full text-xs font-black uppercase tracking-wider flex items-center gap-1.5 shadow-sm mx-auto">
-                  <span className="w-2 h-2 rounded-full bg-rose-450" />
-                  🔴 INVALID OR REVOKED STAFF ID
+                <div className="bg-rose-950/80 border border-rose-500/30 text-rose-400 px-4 py-1.5 rounded-full text-xs font-black uppercase tracking-wider flex items-center gap-1.5 shadow-sm mx-auto">
+                  <span className="w-2 h-2 rounded-full bg-rose-400" />
+                  {isStaffCard ? '🔴 INVALID OR REVOKED STAFF ID' : '🔴 STUDENT RECORD NOT FOUND'}
                 </div>
                 <h1 className="text-2xl font-black text-white tracking-tight mt-3">
-                  ❌ INVALID STAFF ID
+                  {isStaffCard ? '❌ INVALID STAFF ID' : '❌ STUDENT RECORD NOT FOUND'}
                 </h1>
-                <p className="text-xs text-rose-350 max-w-xs font-bold leading-normal mt-2">
-                  This card has been revoked, expired, or does not exist. Please contact St. Paul Secondary School Administration.
+                <p className="text-xs text-rose-300 max-w-xs font-bold leading-normal mt-2">
+                  {result?.error || 'Student record not found. Please register the student first.'}
                 </p>
               </div>
             </>
@@ -130,9 +154,9 @@ export default function DocumentVerificationPortal() {
         <div className="p-8 space-y-6">
           {!result || !result.metadata ? (
             <div className="text-center py-6">
-              <p className="text-red-400/95 font-bold text-sm mb-2">{result?.error || 'Credential not registered'}</p>
+              <p className="text-red-400 font-bold text-sm mb-2">{result?.error || 'Student record not found. Please register the student first.'}</p>
               <p className="text-white/40 text-xs max-w-xs mx-auto leading-relaxed">
-                The scanned ID credential does not match any registered records in the St. Paul Clearance Database.
+                The scanned clearance card identifier <span className="font-mono text-indigo-400">"{token}"</span> does not match any active student record in St. Paul Secondary School Registry.
               </p>
             </div>
           ) : (
@@ -152,27 +176,76 @@ export default function DocumentVerificationPortal() {
                 )}
                 <div className="text-center sm:text-left space-y-2 py-1 flex-1 min-w-0">
                   <span className="px-2.5 py-0.5 rounded bg-indigo-950/80 border border-indigo-500/20 text-[9px] uppercase font-bold text-indigo-400 tracking-wider">
-                    {isStaffCard ? 'OFFICIAL STAFF MEMBER' : (result.documentType || 'System Credential')}
+                    {isStaffCard ? 'OFFICIAL STAFF MEMBER' : 'REGISTERED STUDENT'}
                   </span>
                   <h2 className="text-xl font-bold text-white leading-tight uppercase truncate">
                     {result.metadata.name}
                   </h2>
                   <div className="text-white/70 text-xs font-semibold space-y-1">
-                    <p className="flex justify-center sm:justify-start gap-1">
-                      <span className="text-white/40 font-normal">Staff ID:</span>
-                      <span className="font-mono text-indigo-400">{result.metadata.staffId || token}</span>
-                    </p>
-                    <p className="flex justify-center sm:justify-start gap-1">
-                      <span className="text-white/40 font-normal">Designation:</span>
-                      <span>{result.metadata.position || 'N/A'}</span>
-                    </p>
-                    <p className="flex justify-center sm:justify-start gap-1">
-                      <span className="text-white/40 font-normal">Department:</span>
-                      <span>{result.metadata.department || 'N/A'}</span>
-                    </p>
+                    {isStaffCard ? (
+                      <>
+                        <p className="flex justify-center sm:justify-start gap-1">
+                          <span className="text-white/40 font-normal">Staff ID:</span>
+                          <span className="font-mono text-indigo-400">{result.metadata.staffId || token}</span>
+                        </p>
+                        <p className="flex justify-center sm:justify-start gap-1">
+                          <span className="text-white/40 font-normal">Designation:</span>
+                          <span>{result.metadata.position || 'N/A'}</span>
+                        </p>
+                        <p className="flex justify-center sm:justify-start gap-1">
+                          <span className="text-white/40 font-normal">Department:</span>
+                          <span>{result.metadata.department || 'N/A'}</span>
+                        </p>
+                      </>
+                    ) : (
+                      <>
+                        <p className="flex justify-center sm:justify-start gap-1">
+                          <span className="text-white/40 font-normal">Student Number:</span>
+                          <span className="font-mono text-indigo-400 font-bold">{result.metadata.adminNo || result.metadata.studentNo || token}</span>
+                        </p>
+                        <p className="flex justify-center sm:justify-start gap-1">
+                          <span className="text-white/40 font-normal">Class:</span>
+                          <span className="text-amber-300 font-bold">{result.metadata.gradeClass || 'N/A'}</span>
+                        </p>
+                        <p className="flex justify-center sm:justify-start gap-1">
+                          <span className="text-white/40 font-normal">Boarding Status:</span>
+                          <span>{result.metadata.boardingStatus || 'Day Scholar'}</span>
+                        </p>
+                      </>
+                    )}
                   </div>
                 </div>
               </div>
+
+              {/* Attendance Clock In / Out Banner for Students */}
+              {isStudentCard && (
+                <div className="bg-slate-900/90 border border-indigo-500/20 p-4 rounded-xl flex items-center justify-between shadow-inner">
+                  <div className="flex items-center gap-3">
+                    <Clock className="w-5 h-5 text-indigo-400" />
+                    <div>
+                      <p className="text-[10px] text-white/40 uppercase tracking-wider font-bold">Today's Gate Attendance</p>
+                      <p className="text-xs font-bold text-white">
+                        {result.metadata.attendanceStatus === 'PRESENT' && (
+                          <span className="text-emerald-400 flex items-center gap-1">
+                            🟢 Clocked In ({result.metadata.timeIn || 'Today'})
+                          </span>
+                        )}
+                        {result.metadata.attendanceStatus === 'CHECKED OUT' && (
+                          <span className="text-amber-400 flex items-center gap-1">
+                            🚪 Clocked Out ({result.metadata.timeOut || 'Today'})
+                          </span>
+                        )}
+                        {(!result.metadata.attendanceStatus || result.metadata.attendanceStatus === 'ABSENT') && (
+                          <span className="text-slate-400">⚪ Not Checked In Today</span>
+                        )}
+                      </p>
+                    </div>
+                  </div>
+                  <span className="text-[10px] font-bold px-2 py-0.5 rounded bg-indigo-500/10 text-indigo-300 border border-indigo-500/20">
+                    Live Gate Sync
+                  </span>
+                </div>
+              )}
 
               {/* Credential Data List */}
               <div className="space-y-4">
@@ -180,54 +253,98 @@ export default function DocumentVerificationPortal() {
                   Card Authentication Details
                 </h3>
 
-                <div className="grid grid-cols-2 gap-4">
-                  <div className="space-y-1">
-                    <div className="flex items-center gap-1.5 text-white/40 text-xs">
-                      <Award className="w-3.5 h-3.5 text-blue-400" />
-                      Category
+                {isStaffCard ? (
+                  <div className="grid grid-cols-2 gap-4">
+                    <div className="space-y-1">
+                      <div className="flex items-center gap-1.5 text-white/40 text-xs">
+                        <Award className="w-3.5 h-3.5 text-blue-400" />
+                        Category
+                      </div>
+                      <p className="text-white/90 text-sm font-semibold">
+                        {result.metadata.category || 'Staff'}
+                      </p>
                     </div>
-                    <p className="text-white/90 text-sm font-semibold">
-                      {result.metadata.category || 'Staff'}
-                    </p>
-                  </div>
 
-                  <div className="space-y-1">
-                    <div className="flex items-center gap-1.5 text-white/40 text-xs">
-                      <Briefcase className="w-3.5 h-3.5 text-blue-400" />
-                      Employment Status
+                    <div className="space-y-1">
+                      <div className="flex items-center gap-1.5 text-white/40 text-xs">
+                        <Briefcase className="w-3.5 h-3.5 text-blue-400" />
+                        Employment Status
+                      </div>
+                      <p className="text-white/90 text-sm font-semibold">
+                        {result.metadata.employmentStatus || 'Permanent'}
+                      </p>
                     </div>
-                    <p className="text-white/90 text-sm font-semibold">
-                      {result.metadata.employmentStatus || 'Permanent'}
-                    </p>
-                  </div>
 
-                  <div className="space-y-1">
-                    <div className="flex items-center gap-1.5 text-white/40 text-xs">
-                      <Calendar className="w-3.5 h-3.5 text-blue-400" />
-                      Issue Date
+                    <div className="space-y-1">
+                      <div className="flex items-center gap-1.5 text-white/40 text-xs">
+                        <Calendar className="w-3.5 h-3.5 text-blue-400" />
+                        Issue Date
+                      </div>
+                      <p className="text-white/90 text-sm font-semibold">
+                        {result.metadata.issueDate || 'N/A'}
+                      </p>
                     </div>
-                    <p className="text-white/90 text-sm font-semibold">
-                      {result.metadata.issueDate || 'N/A'}
-                    </p>
-                  </div>
 
-                  <div className="space-y-1">
-                    <div className="flex items-center gap-1.5 text-white/40 text-xs">
-                      <Calendar className="w-3.5 h-3.5 text-blue-400" />
-                      Expiry Date
+                    <div className="space-y-1">
+                      <div className="flex items-center gap-1.5 text-white/40 text-xs">
+                        <Calendar className="w-3.5 h-3.5 text-blue-400" />
+                        Expiry Date
+                      </div>
+                      <p className="text-white/90 text-sm font-semibold">
+                        {result.metadata.expiryDate || 'N/A'}
+                      </p>
                     </div>
-                    <p className="text-white/90 text-sm font-semibold">
-                      {result.metadata.expiryDate || 'N/A'}
-                    </p>
                   </div>
-                </div>
+                ) : (
+                  <div className="grid grid-cols-2 gap-4">
+                    <div className="space-y-1">
+                      <div className="flex items-center gap-1.5 text-white/40 text-xs">
+                        <GraduationCap className="w-3.5 h-3.5 text-blue-400" />
+                        Class & Stream
+                      </div>
+                      <p className="text-white/90 text-sm font-semibold">
+                        {result.metadata.gradeClass || 'N/A'}
+                      </p>
+                    </div>
+
+                    <div className="space-y-1">
+                      <div className="flex items-center gap-1.5 text-white/40 text-xs">
+                        <User className="w-3.5 h-3.5 text-blue-400" />
+                        Gender
+                      </div>
+                      <p className="text-white/90 text-sm font-semibold">
+                        {result.metadata.gender || 'N/A'}
+                      </p>
+                    </div>
+
+                    <div className="space-y-1">
+                      <div className="flex items-center gap-1.5 text-white/40 text-xs">
+                        <Award className="w-3.5 h-3.5 text-blue-400" />
+                        Boarding Type
+                      </div>
+                      <p className="text-white/90 text-sm font-semibold">
+                        {result.metadata.boardingStatus || 'Day Scholar'}
+                      </p>
+                    </div>
+
+                    <div className="space-y-1">
+                      <div className="flex items-center gap-1.5 text-white/40 text-xs">
+                        <ShieldCheck className="w-3.5 h-3.5 text-blue-400" />
+                        Clearance Status
+                      </div>
+                      <p className="text-emerald-400 text-sm font-bold">
+                        {result.metadata.isCleared ? 'Cleared' : (result.metadata.status || 'Pending')}
+                      </p>
+                    </div>
+                  </div>
+                )}
 
                 <div className="bg-white/5 border border-white/5 p-4 rounded-xl flex items-center justify-between">
                   <span className="text-xs text-white/40">Credential Status:</span>
                   <span className={`text-xs font-black uppercase px-2.5 py-0.5 rounded ${
                     isVerified 
-                      ? 'bg-emerald-950 text-emerald-450 border border-emerald-500/20' 
-                      : 'bg-rose-950 text-rose-450 border border-rose-500/20'
+                      ? 'bg-emerald-950 text-emerald-400 border border-emerald-500/20' 
+                      : 'bg-rose-950 text-rose-400 border border-rose-500/20'
                   }`}>
                     {result.metadata.status || statusLabel}
                   </span>
@@ -236,7 +353,7 @@ export default function DocumentVerificationPortal() {
                 <div className="space-y-1 pt-2">
                   <div className="flex items-center gap-1.5 text-white/40 text-xs">
                     <FileText className="w-3.5 h-3.5 text-blue-400" />
-                    Secure Card Reference ID
+                    Secure Verification Token / Reference
                   </div>
                   <p className="text-white/50 text-[10px] font-mono break-all bg-black/30 p-2.5 rounded-lg border border-white/5 select-all">
                     {token}

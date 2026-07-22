@@ -105,22 +105,28 @@ export function processQRScan(
   
   cleaned = cleaned.replace(/^Student ID:\s*/i, '').replace(/^STUDENT:\s*/i, '').trim();
 
-  // Find matching student by studentNo, adminNo, or ID
+  console.log(`[QR-SCAN-DEBUG] Input raw scan: "${query}", cleaned identifier: "${cleaned}"`);
+
+  // Find matching student by studentNo, adminNo, ID, or verification_token
   const student = studentsList.find(s => {
     const stdNo = (s.studentNo || s.adminNo || '').toLowerCase();
     const stdId = (s.id || '').toLowerCase();
+    const vToken = ((s as any).verification_token || '').toLowerCase();
     const target = cleaned.toLowerCase();
-    return stdNo === target || stdId === target || stdNo.includes(target) || target.includes(stdNo);
+    return stdNo === target || stdId === target || (vToken && vToken === target) || stdNo.includes(target) || target.includes(stdNo);
   });
 
   if (!student) {
+    console.warn(`[QR-SCAN-DEBUG] Scan match failed. Student record not found for query "${cleaned}"`);
     return {
       verified: false,
       status: 'INVALID',
-      message: '❌ INVALID QR CODE - Student record not found.',
+      message: '❌ Student record not found. Please register the student first.',
       dateStr: todayStr
     };
   }
+
+  console.log(`[QR-SCAN-DEBUG] Scan matched student: "${student.name}" (${student.studentNo || student.adminNo})`);
 
   // Fetch current attendance history
   const allRecords = getStoredAttendance();

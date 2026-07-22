@@ -28,6 +28,7 @@ export interface Student {
   photoOriginal?: string; // Original uploaded image base64
   photoEnhanced?: string; // Optimized enhanced image base64
   printStatus?: PrintStatus;
+  verification_token?: string;
   hasPhoto?: boolean;
   updatedAt?: string;
 }

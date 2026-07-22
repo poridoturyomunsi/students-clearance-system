@@ -982,6 +982,53 @@ async function runStaffMigrations(conn) {
       }
     }
   }
+
+  // Ensure verification_token exists on students table and sync verifications
+  try {
+    const [stCols] = await conn.query('DESCRIBE students');
+    const existingStCols = stCols.map(c => c.Field);
+    if (!existingStCols.includes('verification_token')) {
+      console.log('[MIGRATION] Adding column students.verification_token...');
+      await conn.query('ALTER TABLE students ADD COLUMN `verification_token` VARCHAR(100) NULL');
+    }
+
+    const [activeStudents] = await conn.query('SELECT id, adminNo, name, gender, gradeClass, boardingStatus, isCleared, photo, verification_token FROM students');
+    const crypto = require('crypto');
+    for (const s of activeStudents) {
+      let vToken = s.verification_token;
+      if (!vToken) {
+        vToken = `STP-STD-${s.id}`;
+        await conn.query('UPDATE students SET verification_token = ? WHERE id = ?', [vToken, s.id]);
+      }
+      const [vRows] = await conn.query('SELECT token FROM verifications WHERE token = ? OR (reference_id = ? AND document_type = "Student Clearance Card")', [vToken, s.id]);
+      if (vRows.length === 0) {
+        const metadata = {
+          name: s.name,
+          adminNo: s.adminNo,
+          studentNo: s.adminNo,
+          studentId: s.id,
+          gradeClass: s.gradeClass,
+          boardingStatus: s.boardingStatus,
+          gender: s.gender,
+          isCleared: !!s.isCleared,
+          photo: s.photo || null,
+          issueDate: new Date().toISOString().split('T')[0],
+          expiryDate: new Date(Date.now() + 365*24*60*60*1000).toISOString().split('T')[0],
+          status: s.isCleared ? 'Cleared' : 'Pending Clearance'
+        };
+        await conn.query('INSERT INTO verifications (token, document_type, reference_id, metadata, status, expiresAt) VALUES (?, ?, ?, ?, ?, ?)', [
+          vToken,
+          'Student Clearance Card',
+          s.id,
+          JSON.stringify(metadata),
+          'Active',
+          metadata.expiryDate
+        ]);
+      }
+    }
+  } catch (e) {
+    console.warn('[MIGRATION] Syncing students with verifications table error:', e.message);
+  }
 }
 
 async function ensurePerformanceIndexes(dbPool) {
@@ -3010,6 +3057,42 @@ async function ensureStudentAccount(connectionOrPool, studentId) {
   );
 }
 
+// Helper to automatically store and sync student verification record
+async function syncStudentVerification(connectionOrPool, student) {
+  try {
+    if (!student || !student.id) return;
+    const vToken = student.verification_token || `STP-STD-${student.id}`;
+    await connectionOrPool.query(
+      'UPDATE students SET verification_token = ? WHERE id = ? AND (verification_token IS NULL OR verification_token = "")',
+      [vToken, student.id]
+    );
+
+    const metadata = {
+      name: student.name,
+      adminNo: student.adminNo,
+      studentNo: student.adminNo,
+      studentId: student.id,
+      gradeClass: student.gradeClass,
+      boardingStatus: student.boardingStatus,
+      gender: student.gender,
+      isCleared: !!student.isCleared,
+      photo: student.photo || null,
+      issueDate: new Date().toISOString().split('T')[0],
+      expiryDate: new Date(Date.now() + 365*24*60*60*1000).toISOString().split('T')[0],
+      status: student.isCleared ? 'Cleared' : 'Pending Clearance'
+    };
+
+    await connectionOrPool.query(
+      `INSERT INTO verifications (token, document_type, reference_id, metadata, status, expiresAt)
+       VALUES (?, 'Student Clearance Card', ?, ?, 'Active', ?)
+       ON DUPLICATE KEY UPDATE reference_id = VALUES(reference_id), metadata = VALUES(metadata), status = VALUES(status)`,
+      [vToken, student.id, JSON.stringify(metadata), metadata.expiryDate]
+    );
+  } catch (e) {
+    console.warn('[syncStudentVerification] Warning:', e.message);
+  }
+}
+
 function normalizeText(value) {
   return value === null || value === undefined ? '' : String(value).trim();
 }
@@ -3206,6 +3289,7 @@ app.post('/api/students', async (req, res) => {
 
     // Non-blocking background side effects
     ensureStudentAccount(pool, s.id).catch(e => console.warn('Account setup warning:', e.message));
+    syncStudentVerification(pool, s).catch(e => console.warn('Verification sync warning:', e.message));
     writeAuditLog('Save Student', `Saved student "${s.name}" (${s.adminNo})`).catch(e => console.warn('Audit log warning:', e.message));
     statsCache = null;
 
@@ -3267,6 +3351,7 @@ app.put('/api/students/:id', async (req, res) => {
     );
 
     ensureStudentAccount(pool, req.params.id).catch(e => console.warn('Account setup warning:', e.message));
+    syncStudentVerification(pool, { ...s, id: req.params.id }).catch(e => console.warn('Verification sync warning:', e.message));
     writeAuditLog('Update Student', `Updated student "${s.name}" (${s.adminNo})`).catch(e => console.warn('Audit log warning:', e.message));
     statsCache = null;
 
@@ -3814,14 +3899,26 @@ app.post('/api/attendance/scan', async (req, res) => {
       return res.status(400).json({ error: 'Scan value (Student Number / QR / ID) is required.' });
     }
 
-    // 1. Find the student
+    // Clean and unwrap scanValue if embedded in URL or prefix
+    let cleanedValue = String(scanValue).trim();
+    if (cleanedValue.includes('/verify/student/')) {
+      cleanedValue = decodeURIComponent(cleanedValue.split('/verify/student/').pop());
+    } else if (cleanedValue.includes('/verify/')) {
+      cleanedValue = decodeURIComponent(cleanedValue.split('/verify/').pop());
+    }
+    cleanedValue = cleanedValue.replace(/^Student ID:\s*/i, '').replace(/^STUDENT:\s*/i, '').trim();
+
+    console.log(`[ATTENDANCE-SCAN-DEBUG] Processing scan for rawValue: "${scanValue}", cleanedValue: "${cleanedValue}"`);
+
+    // 1. Find the student by adminNo, id, or verification_token
     const [stRows] = await pool.query(
-      'SELECT id, adminNo, name, gender, gradeClass, boardingStatus, photo FROM students WHERE adminNo = ? OR id = ?',
-      [scanValue.trim(), scanValue.trim()]
+      'SELECT id, adminNo, name, gender, gradeClass, boardingStatus, photo FROM students WHERE adminNo = ? OR id = ? OR verification_token = ? LIMIT 1',
+      [cleanedValue, cleanedValue, cleanedValue]
     );
 
     if (stRows.length === 0) {
-      return res.status(404).json({ error: `Student record with barcode/ID "${scanValue}" not found.` });
+      console.warn(`[ATTENDANCE-SCAN-DEBUG] Student record not found for scan query "${cleanedValue}"`);
+      return res.status(404).json({ error: `Student record with barcode/ID "${cleanedValue}" not found. Please register the student first.` });
     }
 
     const student = stRows[0];
@@ -8134,52 +8231,138 @@ app.get('/api/reports/staff', async (req, res) => {
 // --- PUBLIC SECURE VERIFICATION ENDPOINT ---
 app.get('/api/verify/:token', async (req, res) => {
   try {
-    const { token } = req.params;
-    let [vRows] = await pool.query('SELECT * FROM verifications WHERE token = ?', [token]);
-    
-    // Fallback: If not found by verification token, check if the token is a staff employee number or ID
-    if (vRows.length === 0) {
-      const [sRows] = await pool.query('SELECT * FROM staff WHERE employee_number = ? OR id = ?', [token, token]);
-      if (sRows.length > 0) {
-        const staff = sRows[0];
-        if (staff.verification_token) {
-          [vRows] = await pool.query('SELECT * FROM verifications WHERE token = ?', [staff.verification_token]);
+    let rawToken = req.params.token || '';
+    if (rawToken.includes('/verify/student/')) {
+      rawToken = rawToken.split('/verify/student/').pop();
+    } else if (rawToken.includes('/verify/')) {
+      rawToken = rawToken.split('/verify/').pop();
+    }
+    const token = decodeURIComponent(rawToken.trim());
+    console.log(`[VERIFY-BACKEND-DEBUG] Processing verification request for token/ID: "${token}"`);
+
+    // 1. Check verifications table first
+    let [vRows] = await pool.query('SELECT * FROM verifications WHERE token = ? OR reference_id = ?', [token, token]);
+
+    // 2. Check students table directly (by id, adminNo, or verification_token)
+    let studentRecord = null;
+    let [sRows] = await pool.query(
+      'SELECT id, adminNo, name, gender, gradeClass, boardingStatus, isCleared, photo, verification_token, updatedAt FROM students WHERE id = ? OR adminNo = ? OR verification_token = ? LIMIT 1',
+      [token, token, token]
+    );
+    if (sRows.length > 0) {
+      studentRecord = sRows[0];
+      console.log(`[VERIFY-BACKEND-DEBUG] Found matching student in students table: ${studentRecord.name} (${studentRecord.adminNo})`);
+    }
+
+    // 3. Check staff table directly
+    let staffRecord = null;
+    let [stRows] = await pool.query(
+      'SELECT * FROM staff WHERE id = ? OR employee_number = ? OR verification_token = ? LIMIT 1',
+      [token, token, token]
+    );
+    if (stRows.length > 0) {
+      staffRecord = stRows[0];
+      console.log(`[VERIFY-BACKEND-DEBUG] Found matching staff in staff table: ${staffRecord.name}`);
+    }
+
+    // Handle STUDENT verification response
+    if (studentRecord || (vRows.length > 0 && vRows[0].document_type.includes('Student'))) {
+      const refStudentId = studentRecord ? studentRecord.id : (vRows.length > 0 ? vRows[0].reference_id : null);
+      
+      let fullStudent = studentRecord;
+      if (!fullStudent && refStudentId) {
+        const [fullRows] = await pool.query('SELECT * FROM students WHERE id = ?', [refStudentId]);
+        if (fullRows.length > 0) fullStudent = fullRows[0];
+      }
+
+      if (!fullStudent) {
+        console.warn(`[VERIFY-BACKEND-DEBUG] Student reference ID ${refStudentId} not found in students table.`);
+        return res.json({
+          success: false,
+          status: 'Not Found',
+          documentType: 'Student Clearance Card',
+          error: 'Student record not found. Please register the student first.'
+        });
+      }
+
+      // Fetch latest attendance status for today
+      const today = new Date().toISOString().split('T')[0];
+      const [attRows] = await pool.query('SELECT * FROM attendance_logs WHERE student_id = ? AND date = ?', [fullStudent.id, today]);
+      const attLog = attRows[0] || null;
+
+      let attendanceStatus = 'ABSENT';
+      let timeIn = null;
+      let timeOut = null;
+      if (attLog) {
+        if (attLog.time_out) {
+          attendanceStatus = 'CHECKED OUT';
+          timeIn = attLog.time_in;
+          timeOut = attLog.time_out;
+        } else if (attLog.time_in) {
+          attendanceStatus = 'PRESENT';
+          timeIn = attLog.time_in;
         }
       }
+
+      const issueDate = vRows.length > 0 && vRows[0].createdAt ? new Date(vRows[0].createdAt).toISOString().split('T')[0] : '2026-01-01';
+      const expiryDate = vRows.length > 0 && vRows[0].expiresAt ? new Date(vRows[0].expiresAt).toISOString().split('T')[0] : '2026-12-31';
+
+      const metadata = {
+        name: fullStudent.name,
+        studentId: fullStudent.id,
+        adminNo: fullStudent.adminNo,
+        studentNo: fullStudent.adminNo,
+        gradeClass: fullStudent.gradeClass,
+        boardingStatus: fullStudent.boardingStatus,
+        gender: fullStudent.gender || 'N/A',
+        isCleared: !!fullStudent.isCleared,
+        photo: fullStudent.photo || null,
+        status: fullStudent.isCleared ? 'Cleared' : 'Pending Clearance',
+        attendanceStatus,
+        timeIn,
+        timeOut,
+        issueDate,
+        expiryDate
+      };
+
+      console.log(`[VERIFY-BACKEND-DEBUG] Returning verified student profile for "${fullStudent.name}" (${fullStudent.adminNo})`);
+      return res.json({
+        success: true,
+        status: 'Verified',
+        documentType: 'Student Clearance Card',
+        metadata
+      });
     }
 
-    if (vRows.length === 0) {
-      return res.json({ success: false, status: 'Invalid ID', error: 'Document not found or invalid verification token.' });
-    }
+    // Handle STAFF verification response
+    if (staffRecord || (vRows.length > 0 && vRows[0].document_type === 'Staff ID')) {
+      const staff = staffRecord || null;
+      const refId = staff ? staff.id : (vRows[0] ? vRows[0].reference_id : null);
+      const [staffQueryRows] = staff ? [[staff]] : await pool.query('SELECT * FROM staff WHERE id = ?', [refId]);
 
-    const verification = vRows[0];
-    const docType = verification.document_type;
-    const refId = verification.reference_id;
-
-    if (docType === 'Staff ID') {
-      const [sRows] = await pool.query('SELECT * FROM staff WHERE id = ?', [refId]);
-      if (sRows.length === 0) {
+      if (staffQueryRows.length === 0) {
         return res.json({ success: false, status: 'Invalid ID', error: 'Staff member does not exist in active records.' });
       }
 
-      const staff = sRows[0];
-      const expiryDate = new Date(verification.expiresAt);
+      const activeStaff = staffQueryRows[0];
+      const expiryDate = vRows.length > 0 && vRows[0].expiresAt ? new Date(vRows[0].expiresAt) : new Date(Date.now() + 365*24*60*60*1000);
       const isExpired = expiryDate < new Date();
 
-      let status = staff.status;
+      let status = activeStaff.status || 'Active';
       if (isExpired) {
         status = 'Expired';
       }
 
       const metadata = {
-        name: staff.name,
-        photo: staff.photo || null,
-        category: staff.category,
-        department: staff.department || 'N/A',
-        position: staff.position || 'N/A',
-        employmentStatus: staff.employment_status,
-        issueDate: verification.createdAt ? new Date(verification.createdAt).toISOString().split('T')[0] : 'N/A',
-        expiryDate: verification.expiresAt ? new Date(verification.expiresAt).toISOString().split('T')[0] : 'N/A',
+        name: activeStaff.name,
+        staffId: activeStaff.employee_number || activeStaff.id,
+        photo: activeStaff.photo || null,
+        category: activeStaff.category || 'Teaching',
+        department: activeStaff.department || 'N/A',
+        position: activeStaff.position || 'N/A',
+        employmentStatus: activeStaff.employment_status || 'Permanent',
+        issueDate: vRows.length > 0 && vRows[0].createdAt ? new Date(vRows[0].createdAt).toISOString().split('T')[0] : 'N/A',
+        expiryDate: expiryDate.toISOString().split('T')[0],
         status: status
       };
 
@@ -8192,6 +8375,7 @@ app.get('/api/verify/:token', async (req, res) => {
         });
       }
 
+      console.log(`[VERIFY-BACKEND-DEBUG] Returning verified staff profile for "${activeStaff.name}"`);
       return res.json({
         success: true,
         status: 'Verified',
@@ -8200,14 +8384,26 @@ app.get('/api/verify/:token', async (req, res) => {
       });
     }
 
-    let meta = typeof verification.metadata === 'string' ? JSON.parse(verification.metadata) : verification.metadata;
-    res.json({
-      success: verification.status === 'Active',
-      status: verification.status === 'Active' ? 'Verified' : verification.status,
-      documentType: docType,
-      metadata: meta
+    // Generic verification row
+    if (vRows.length > 0) {
+      let meta = typeof vRows[0].metadata === 'string' ? JSON.parse(vRows[0].metadata) : vRows[0].metadata;
+      return res.json({
+        success: vRows[0].status === 'Active',
+        status: vRows[0].status === 'Active' ? 'Verified' : vRows[0].status,
+        documentType: vRows[0].document_type,
+        metadata: meta
+      });
+    }
+
+    console.warn(`[VERIFY-BACKEND-DEBUG] Verification failed: No student or staff record found for token "${token}"`);
+    return res.json({
+      success: false,
+      status: 'Not Found',
+      documentType: 'Student Clearance Card',
+      error: 'Student record not found. Please register the student first.'
     });
   } catch (err) {
+    console.error('[VERIFY-BACKEND-ERROR] Exception in /api/verify/:token:', err);
     res.status(500).json({ error: err.message });
   }
 });
