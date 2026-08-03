@@ -33,6 +33,7 @@ export default function ClearanceCard({
 
   useEffect(() => {
     let isMounted = true;
+    const stdIdentifier = student.studentNo || student.adminNo || student.id;
     const baseUrl = typeof window !== 'undefined' ? window.location.origin : 'https://stpaulss-eportal.vercel.app';
     const secureUrl = `${baseUrl}/verify/student/${encodeURIComponent(stdIdentifier)}`;
 
