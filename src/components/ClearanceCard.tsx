@@ -216,7 +216,7 @@ export default function ClearanceCard({
               )}
 
               {/* 1. STUDENT SUREPAY CODE */}
-              <div className="flex flex-col justify-center pr-[52px] relative z-10">
+              <div className="flex flex-col justify-center pr-[52px] relative z-10 mb-[10px]" style={{ marginBottom: '10px' }}>
                 <span 
                   className="text-[7px] font-[700] text-[var(--theme-text)] uppercase tracking-wider leading-none"
                   style={{ fontFamily: "'Inter', sans-serif", fontWeight: 700 }}
@@ -232,7 +232,7 @@ export default function ClearanceCard({
               </div>
 
               {/* 2. NAME */}
-              <div className="flex flex-col justify-center pr-[52px] relative z-10">
+              <div className="flex flex-col justify-center pr-[52px] relative z-10 mb-[10px]" style={{ marginBottom: '10px' }}>
                 <span 
                   className="text-[7px] font-[700] text-[var(--theme-text)] uppercase tracking-wider leading-none"
                   style={{ fontFamily: "'Inter', sans-serif", fontWeight: 700 }}
@@ -248,7 +248,7 @@ export default function ClearanceCard({
               </div>
 
               {/* 3. CLASS */}
-              <div className="flex flex-col justify-center pr-[52px] relative z-10">
+              <div className="flex flex-col justify-center pr-[52px] relative z-10 mb-[10px]" style={{ marginBottom: '10px' }}>
                 <span 
                   className="text-[7px] font-[700] text-[var(--theme-text)] uppercase tracking-wider leading-none"
                   style={{ fontFamily: "'Inter', sans-serif", fontWeight: 700 }}
@@ -264,7 +264,7 @@ export default function ClearanceCard({
               </div>
 
               {/* 4. STATUS */}
-              <div className="flex flex-col justify-center pr-[52px] relative z-10">
+              <div className="flex flex-col justify-center pr-[52px] relative z-10 mb-[10px]" style={{ marginBottom: '10px' }}>
                 <span 
                   className="text-[7px] font-[700] text-[var(--theme-text)] uppercase tracking-wider leading-none"
                   style={{ fontFamily: "'Inter', sans-serif", fontWeight: 700 }}

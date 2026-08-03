@@ -414,7 +414,7 @@ function drawCardFrontPdf(
   // Right Column: Information section with school logo watermark at 4% opacity behind Student SurePay Code
   const infoX = photoFrameX + photoFrameW + 5.0;
   const fieldYStart = photoFrameY + 2.0;
-  const fieldSpacing = 5.0;
+  const fieldSpacing = 5.8;
 
   if (logoBase64 && showWatermark) {
     drawSafeWatermark(doc, logoBase64, infoX + 2.0, photoFrameY - 1.0, 26.0, 26.0, 0.04);
