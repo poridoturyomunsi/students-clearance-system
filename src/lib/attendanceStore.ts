@@ -93,17 +93,22 @@ export function processQRScan(
     };
   }
 
-  // Clean query text (extract student number or ID if embedded in URL or prefix)
+  // Clean query text (extract student/staff number or ID if embedded in URL or prefix)
   let cleaned = query.trim();
+  cleaned = cleaned.split('?')[0].split('#')[0]; // Strip query parameters and hashes
+  
   if (cleaned.includes('/verify/student/')) {
     const parts = cleaned.split('/verify/student/');
+    cleaned = decodeURIComponent(parts[parts.length - 1]);
+  } else if (cleaned.includes('/staff/verify/')) {
+    const parts = cleaned.split('/staff/verify/');
     cleaned = decodeURIComponent(parts[parts.length - 1]);
   } else if (cleaned.includes('/verify/')) {
     const parts = cleaned.split('/verify/');
     cleaned = decodeURIComponent(parts[parts.length - 1]);
   }
   
-  cleaned = cleaned.replace(/^Student ID:\s*/i, '').replace(/^STUDENT:\s*/i, '').trim();
+  cleaned = cleaned.replace(/^Student ID:\s*/i, '').replace(/^Staff ID:\s*/i, '').replace(/^STUDENT:\s*/i, '').replace(/^STAFF:\s*/i, '').trim();
 
   console.log(`[QR-SCAN-DEBUG] Input raw scan: "${query}", cleaned identifier: "${cleaned}"`);
 

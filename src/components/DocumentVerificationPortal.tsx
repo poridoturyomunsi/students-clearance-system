@@ -44,12 +44,13 @@ export default function DocumentVerificationPortal() {
     let extracted = '';
     if (path.includes('/verify/student/')) {
       extracted = path.split('/verify/student/').pop() || '';
-    } else if (path.includes('/verify/')) {
-      extracted = path.split('/verify/').pop() || '';
     } else if (path.includes('/staff/verify/')) {
       extracted = path.split('/staff/verify/').pop() || '';
+    } else if (path.includes('/verify/')) {
+      extracted = path.split('/verify/').pop() || '';
     }
     
+    extracted = extracted.split('?')[0].split('#')[0]; // Strip query parameters
     extracted = decodeURIComponent(extracted.trim());
     console.log(`[VERIFY-PORTAL-DEBUG] Extracted token from path (${path}):`, extracted);
     setToken(extracted);

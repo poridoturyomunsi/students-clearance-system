@@ -1277,8 +1277,8 @@ export async function generateClearancePdf({
       }
       if (!student.qrCodeBase64) {
         try {
-          const stdIdentifier = student.studentNo || student.adminNo || student.id;
-          const secureUrl = `https://stpaulss-eportal.vercel.app/verify/student/${encodeURIComponent(stdIdentifier)}`;
+          const baseUrl = typeof window !== 'undefined' && window.location ? window.location.origin : 'https://stpaulss-eportal.vercel.app';
+          const secureUrl = `${baseUrl}/verify/student/${encodeURIComponent(stdIdentifier)}`;
           student.qrCodeBase64 = await QRCode.toDataURL(secureUrl, { margin: 1, width: 250, errorCorrectionLevel: 'M' });
         } catch (e) {
           console.warn(`Could not pre-generate QR code for student ${student.id}:`, e);

@@ -33,8 +33,8 @@ export default function ClearanceCard({
 
   useEffect(() => {
     let isMounted = true;
-    const stdIdentifier = student.studentNo || student.adminNo || student.id;
-    const secureUrl = `https://stpaulss-eportal.vercel.app/verify/student/${encodeURIComponent(stdIdentifier)}`;
+    const baseUrl = typeof window !== 'undefined' ? window.location.origin : 'https://stpaulss-eportal.vercel.app';
+    const secureUrl = `${baseUrl}/verify/student/${encodeURIComponent(stdIdentifier)}`;
 
     QRCode.toDataURL(secureUrl, { margin: 1, width: 120, color: { dark: '#000000', light: '#ffffff' } })
       .then(url => {

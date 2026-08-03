@@ -8237,8 +8237,11 @@ app.get('/api/reports/staff', async (req, res) => {
 app.get('/api/verify/:token', async (req, res) => {
   try {
     let rawToken = req.params.token || '';
+    rawToken = rawToken.split('?')[0].split('#')[0]; // Strip query parameters
     if (rawToken.includes('/verify/student/')) {
       rawToken = rawToken.split('/verify/student/').pop();
+    } else if (rawToken.includes('/staff/verify/')) {
+      rawToken = rawToken.split('/staff/verify/').pop();
     } else if (rawToken.includes('/verify/')) {
       rawToken = rawToken.split('/verify/').pop();
     }
@@ -8248,11 +8251,11 @@ app.get('/api/verify/:token', async (req, res) => {
     // 1. Check verifications table first
     let [vRows] = await pool.query('SELECT * FROM verifications WHERE token = ? OR reference_id = ?', [token, token]);
 
-    // 2. Check students table directly (by id, adminNo, or verification_token)
+    // 2. Check students table directly (by id, adminNo, studentNo or verification_token)
     let studentRecord = null;
     let [sRows] = await pool.query(
-      'SELECT id, adminNo, name, gender, gradeClass, boardingStatus, isCleared, photo, verification_token, updatedAt FROM students WHERE id = ? OR adminNo = ? OR verification_token = ? LIMIT 1',
-      [token, token, token]
+      'SELECT id, adminNo, name, gender, gradeClass, boardingStatus, isCleared, photo, verification_token, updatedAt FROM students WHERE id = ? OR adminNo = ? OR adminNo LIKE ? OR verification_token = ? LIMIT 1',
+      [token, token, `%${token}%`, token]
     );
     if (sRows.length > 0) {
       studentRecord = sRows[0];
@@ -8262,8 +8265,8 @@ app.get('/api/verify/:token', async (req, res) => {
     // 3. Check staff table directly
     let staffRecord = null;
     let [stRows] = await pool.query(
-      'SELECT * FROM staff WHERE id = ? OR employee_number = ? OR verification_token = ? LIMIT 1',
-      [token, token, token]
+      'SELECT * FROM staff WHERE id = ? OR employee_number = ? OR employee_number LIKE ? OR username = ? OR verification_token = ? LIMIT 1',
+      [token, token, `%${token}%`, token, token]
     );
     if (stRows.length > 0) {
       staffRecord = stRows[0];
