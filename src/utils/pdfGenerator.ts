@@ -375,11 +375,11 @@ function drawCardFrontPdf(
   doc.setLineWidth(0.2);
   doc.line(containerX + 1.0, containerY + 5.2, containerX + containerW - 1.0, containerY + 5.2);
 
-  // Left Column: Framed Passport Photo with blue/theme border and rounded corners (Enlarged by ~18%)
+  // Left Column: Framed Passport Photo with blue/theme border and rounded corners (Stretched to sit on bottom line)
   const photoFrameX = containerX + 2.0;
   const photoFrameY = containerY + 6.0;
   const photoFrameW = 23.5;
-  const photoFrameH = 26.5;
+  const photoFrameH = 23.2;
 
   doc.setDrawColor(themePrimary.r, themePrimary.g, themePrimary.b);
   doc.setLineWidth(0.35);
@@ -417,10 +417,10 @@ function drawCardFrontPdf(
   const fieldSpacing = 5.0;
 
   const fields = [
-    { label: 'STUDENT NUMBER', val: (student.studentNo || student.adminNo || '').toUpperCase() },
+    { label: 'STUDENT SUREPAY CODE', val: (student.studentNo || student.adminNo || '').toUpperCase() },
     { label: 'NAME', val: (student.name || '').toUpperCase() },
     { label: 'CLASS', val: (student.gradeClass || '').toUpperCase() },
-    { label: 'STATUS', val: (student.boardingStatus === 'Hosteller' || student.boardingStatus === 'Boarder' ? 'HOSTELLER' : 'DAY SCHOLAR').toUpperCase() },
+    { label: 'STATUS', val: (student.boardingStatus === 'Hosteller' || (student.boardingStatus as string) === 'Boarder' ? 'HOSTELLER' : 'DAY SCHOLAR').toUpperCase() },
     { label: 'GENDER', val: (student.gender || 'Male').toUpperCase() }
   ];
 

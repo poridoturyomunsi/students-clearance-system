@@ -586,6 +586,7 @@ async function compileReportsPdf({
       doc.setFontSize(8.5);
       doc.setTextColor(71, 85, 105);
       doc.text('Name:', 15, 59);
+      doc.text('Student SurePay Code:', 115, 59);
       doc.text('Class:', 15, 65);
       doc.text('Year:', 115, 65);
       doc.text('Term:', 160, 65);
@@ -593,6 +594,7 @@ async function compileReportsPdf({
       doc.setFont('helvetica', 'bold');
       doc.setTextColor(15, 23, 42); // Dark slate
       doc.text(student.name.toUpperCase(), 30, 59);
+      doc.text(String(student.studentNo || student.adminNo || 'N/A').toUpperCase(), 154, 59);
       doc.text(`${student.gradeClass} (Senior Five)`, 30, 65);
       doc.text(String(year), 127, 65);
       
@@ -620,7 +622,7 @@ async function compileReportsPdf({
 
       // Left Column labels
       doc.text('Student Name:', 18, infoY + 6);
-      doc.text('Reg No:', 18, infoY + 12.5);
+      doc.text('Student SurePay Code:', 18, infoY + 12.5);
       doc.text('Class/Stream:', 18, infoY + 19);
       doc.text('Class Teacher:', 18, infoY + 25.5);
 
@@ -634,7 +636,7 @@ async function compileReportsPdf({
       doc.setFont('helvetica', 'bold');
       doc.setTextColor(15, 23, 42); // Slate 900
       doc.text(student.name.toUpperCase(), 45, infoY + 6);
-      doc.text(student.adminNo, 45, infoY + 12.5);
+      doc.text(String(student.studentNo || student.adminNo || 'N/A'), 57, infoY + 12.5);
       doc.text(student.gradeClass, 45, infoY + 19);
       doc.text(classTeacherName, 45, infoY + 25.5);
 

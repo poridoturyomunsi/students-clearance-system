@@ -365,7 +365,7 @@ function drawCardFrontPdf(
   const fieldSpacing = 5.0;
 
   const fields = [
-    { label: 'STUDENT NUMBER', val: (student.studentNo || student.adminNo || '').toUpperCase() },
+    { label: 'STUDENT SUREPAY CODE', val: (student.studentNo || student.adminNo || '').toUpperCase() },
     { label: 'NAME', val: (student.name || '').toUpperCase() },
     { label: 'CLASS', val: (student.gradeClass || '').toUpperCase() },
     { label: 'STATUS', val: (student.boardingStatus === 'Hosteller' || student.boardingStatus === 'Boarder' ? 'HOSTELLER' : 'DAY SCHOLAR').toUpperCase() },

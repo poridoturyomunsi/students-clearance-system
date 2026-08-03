@@ -170,9 +170,9 @@ export default function ClearanceCard({
           </div>
 
           {/* TWO COLUMNS: Left Framed Photo, Right Wide Info Area */}
-          <div className="flex-1 flex items-center justify-between gap-2 min-w-0 pt-0.5">
-            {/* Left Column: Passport Photo framed inside rectangular box (Enlarged by ~18%) */}
-            <div className="w-[102px] h-[122px] shrink-0 border-[1.8px] border-[var(--theme-primary)] rounded-xl p-1 bg-white flex items-center justify-center overflow-hidden shadow-2xs">
+          <div className="flex-1 flex items-stretch justify-between gap-2 min-w-0 pt-0.5">
+            {/* Left Column: Passport Photo framed inside rectangular box stretched to bottom line */}
+            <div className="w-[102px] h-full shrink-0 border-[1.8px] border-[var(--theme-primary)] rounded-xl p-1 bg-white flex items-center justify-center overflow-hidden shadow-2xs">
               <div className="w-full h-full bg-slate-50 rounded-lg flex items-center justify-center overflow-hidden shrink-0">
                 {photoUrl ? (
                   <img
@@ -195,10 +195,10 @@ export default function ClearanceCard({
             </div>
 
             {/* Right Column: Information section with QR Code Box in Bottom Right Corner */}
-            <div className="flex-1 flex flex-col justify-between h-[122px] min-w-0 pl-3 pr-0.5 py-0.5 relative">
-              {/* 1. STUDENT NUMBER */}
+            <div className="flex-1 flex flex-col justify-between h-full min-w-0 pl-3 pr-0.5 py-0.5 relative">
+              {/* 1. STUDENT SUREPAY CODE */}
               <div className="flex flex-col justify-center pr-[52px]">
-                <span className="text-[7px] font-black text-[var(--theme-text)] uppercase tracking-wider leading-none">STUDENT NUMBER</span>
+                <span className="text-[7px] font-black text-[var(--theme-text)] uppercase tracking-wider leading-none">STUDENT SUREPAY CODE</span>
                 <span className="text-[11.5px] font-black text-slate-950 leading-tight uppercase truncate mt-[2px]">
                   {student.studentNo || student.adminNo}
                 </span>

@@ -156,6 +156,55 @@ export const INITIAL_STUDENTS: Student[] = [
 
 const LOCAL_STORAGE_KEY = 'clearance_printer_students';
 
+// IndexedDB Helper for high-capacity persistent storage in browser mode (prevents 5MB localStorage quota resets)
+function getIndexedDb(): Promise<IDBDatabase> {
+  return new Promise((resolve, reject) => {
+    if (typeof window === 'undefined' || !window.indexedDB) {
+      return reject(new Error('IndexedDB not available'));
+    }
+    const request = window.indexedDB.open('ClearancePrinterDB', 1);
+    request.onupgradeneeded = () => {
+      const db = request.result;
+      if (!db.objectStoreNames.contains('store')) {
+        db.createObjectStore('store');
+      }
+    };
+    request.onsuccess = () => resolve(request.result);
+    request.onerror = () => reject(request.error);
+  });
+}
+
+async function setIndexedDbItem(key: string, value: string): Promise<void> {
+  try {
+    const db = await getIndexedDb();
+    return new Promise((resolve, reject) => {
+      const tx = db.transaction('store', 'readwrite');
+      const store = tx.objectStore('store');
+      const req = store.put(value, key);
+      req.onsuccess = () => resolve();
+      req.onerror = () => reject(req.error);
+    });
+  } catch (err) {
+    console.warn('IndexedDB write failed:', err);
+  }
+}
+
+async function getIndexedDbItem(key: string): Promise<string | null> {
+  try {
+    const db = await getIndexedDb();
+    return new Promise((resolve, reject) => {
+      const tx = db.transaction('store', 'readonly');
+      const store = tx.objectStore('store');
+      const req = store.get(key);
+      req.onsuccess = () => resolve(req.result || null);
+      req.onerror = () => reject(req.error);
+    });
+  } catch (err) {
+    console.warn('IndexedDB read failed:', err);
+    return null;
+  }
+}
+
 function readStudentsFromStorage(): string | null {
   try {
     if (typeof window !== 'undefined' && (window as any).electron?.readDataSync) {
@@ -204,15 +253,27 @@ async function readStudentsFromStorageAsync(): Promise<string | null> {
     // fallback
   }
 
+  // Check localStorage first
   try {
-    return localStorage.getItem(LOCAL_STORAGE_KEY) ?? sessionStorage.getItem(LOCAL_STORAGE_KEY);
+    const local = localStorage.getItem(LOCAL_STORAGE_KEY);
+    if (local) return local;
   } catch (e) {
-    console.warn('Unable to access localStorage; trying sessionStorage fallback.', e);
-    try {
-      return sessionStorage.getItem(LOCAL_STORAGE_KEY);
-    } catch (sessionErr) {
-      console.error('Unable to access sessionStorage fallback for student data.', sessionErr);
-    }
+    // ignore
+  }
+
+  // Check IndexedDB next (high capacity persistent browser storage)
+  try {
+    const idbData = await getIndexedDbItem(LOCAL_STORAGE_KEY);
+    if (idbData) return idbData;
+  } catch (e) {
+    // ignore
+  }
+
+  // Check sessionStorage fallback
+  try {
+    return sessionStorage.getItem(LOCAL_STORAGE_KEY);
+  } catch (sessionErr) {
+    console.error('Unable to access sessionStorage fallback for student data.', sessionErr);
   }
   return null;
 }
@@ -273,9 +334,9 @@ function sanitizeForStorage(students: Student[]): string {
     let po = s.photoOriginal;
     let pe = s.photoEnhanced;
 
-    if (po && po.startsWith('data:image') && po.length > 50000) po = undefined;
-    if (pe && pe.startsWith('data:image') && pe.length > 50000) pe = undefined;
-    if (p && p.startsWith('data:image') && p.length > 250000) p = p.substring(0, 250000);
+    // Remove excessive temporary photo variants if too large, but keep main photo intact
+    if (po && po.startsWith('data:image') && po.length > 500000) po = undefined;
+    if (pe && pe.startsWith('data:image') && pe.length > 500000) pe = undefined;
 
     return {
       ...s,
@@ -297,6 +358,9 @@ export function saveStudents(students: Student[]): void {
     console.warn('Unable to save students to Electron store:', err);
   }
 
+  // Save asynchronously to IndexedDB in background
+  setIndexedDbItem(LOCAL_STORAGE_KEY, payload).catch(e => console.warn('IndexedDB background sync failed:', e));
+
   try {
     localStorage.setItem(LOCAL_STORAGE_KEY, payload);
     return;
@@ -306,7 +370,6 @@ export function saveStudents(students: Student[]): void {
 
   try {
     sessionStorage.setItem(LOCAL_STORAGE_KEY, payload);
-    console.warn('Student data persisted to sessionStorage fallback. This will last until the browser tab is closed.');
   } catch (sessionErr) {
     console.error('Failed to save students to both localStorage and sessionStorage:', sessionErr);
   }
@@ -322,6 +385,9 @@ export async function saveStudentsAsync(students: Student[]): Promise<void> {
     console.warn('Unable to save students to Electron store asynchronously:', err);
   }
 
+  // Always persist to IndexedDB for browser mode (supports hundreds of MBs, won't reset on tab refresh)
+  await setIndexedDbItem(LOCAL_STORAGE_KEY, payload).catch(e => console.warn('IndexedDB save failed:', e));
+
   try {
     localStorage.setItem(LOCAL_STORAGE_KEY, payload);
     return;
@@ -335,3 +401,4 @@ export async function saveStudentsAsync(students: Student[]): Promise<void> {
     console.error('Failed to save students to both localStorage and sessionStorage:', sessionErr);
   }
 }
+

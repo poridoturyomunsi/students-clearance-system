@@ -676,18 +676,26 @@ function AppContent() {
       
       const isCentralized = dbConfig && (dbConfig.mode === 'network' || dbConfig.mode === 'client' || dbConfig.mode === 'cloud' || dbConfig.host);
       
-      if (!isCentralized) {
-        try {
-          const local = await getStudentsAsync();
-          setStudents(Array.isArray(local) ? local : INITIAL_STUDENTS);
-          setTotalStudentsCount(Array.isArray(local) ? local.length : INITIAL_STUDENTS.length);
-        } catch (e) {
+      try {
+        const local = await getStudentsAsync();
+        if (Array.isArray(local) && local.length > 0) {
+          setStudents(local);
+          setTotalStudentsCount(local.length);
+        } else if (!isCentralized) {
           setStudents(INITIAL_STUDENTS);
           setTotalStudentsCount(INITIAL_STUDENTS.length);
+        } else {
+          setStudents([]);
+          setTotalStudentsCount(0);
         }
-      } else {
-        setStudents([]);
-        setTotalStudentsCount(0);
+      } catch (e) {
+        if (!isCentralized) {
+          setStudents(INITIAL_STUDENTS);
+          setTotalStudentsCount(INITIAL_STUDENTS.length);
+        } else {
+          setStudents([]);
+          setTotalStudentsCount(0);
+        }
       }
       const isAuthError = err?.message && (
         err.message.includes('token') ||
