@@ -68,7 +68,7 @@ function drawPdfBarcode(doc, x, y, value, height, scaleWidth) {
   }
 }
 
-function drawSafeWatermark(doc, logoBase64, x, y, w, h, opacity = 0.08) {
+function drawSafeWatermark(doc, logoBase64, x, y, w, h, opacity = 0.04) {
   if (!logoBase64) return;
   try {
     const isSvg = logoBase64.includes('svg+xml');
@@ -359,10 +359,14 @@ function drawCardFrontPdf(
     doc.ellipse(photoImgX + photoImgW / 2, photoImgY + 14.0, 5.5, 3.0, 'S');
   }
 
-  // Right Column: Information section moved further right with generous vertical field spacing
+  // Right Column: Information section with school logo watermark at 4% opacity behind Student SurePay Code
   const infoX = photoFrameX + photoFrameW + 5.0;
   const fieldYStart = photoFrameY + 2.0;
   const fieldSpacing = 5.0;
+
+  if (logoBase64 && showWatermark) {
+    drawSafeWatermark(doc, logoBase64, infoX + 2.0, photoFrameY - 1.0, 26.0, 26.0, 0.04);
+  }
 
   const fields = [
     { label: 'STUDENT SUREPAY CODE', val: (student.studentNo || student.adminNo || '').toUpperCase() },

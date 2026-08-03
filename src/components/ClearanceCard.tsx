@@ -21,7 +21,7 @@ export default function ClearanceCard({
   interactive = false,
   logoBase64,
   showWatermark = true,
-  watermarkOpacity = 0.08,
+  watermarkOpacity = 0.04,
 }: ClearanceCardProps) {
   // Read class color configuration dynamically
   const classTheme = getClassTheme(student.gradeClass);
@@ -195,9 +195,19 @@ export default function ClearanceCard({
             </div>
 
             {/* Right Column: Information section with QR Code Box in Bottom Right Corner */}
-            <div className="flex-1 flex flex-col justify-between h-full min-w-0 pl-3 pr-0.5 py-0.5 relative">
+            <div className="flex-1 flex flex-col justify-between h-full min-w-0 pl-3 pr-0.5 py-0.5 relative overflow-hidden">
+              {/* School Logo Watermark behind Student SurePay Code section at 4% opacity */}
+              {showWatermark && (
+                <div 
+                  className="absolute inset-0 flex items-center justify-center pointer-events-none select-none overflow-hidden z-[0]"
+                  style={{ opacity: 0.04 }}
+                >
+                  <SchoolLogo className="w-28 h-28 object-contain scale-110 rotate-6" logoBase64={logoBase64} />
+                </div>
+              )}
+
               {/* 1. STUDENT SUREPAY CODE */}
-              <div className="flex flex-col justify-center pr-[52px]">
+              <div className="flex flex-col justify-center pr-[52px] relative z-10">
                 <span className="text-[7px] font-black text-[var(--theme-text)] uppercase tracking-wider leading-none">STUDENT SUREPAY CODE</span>
                 <span className="text-[11.5px] font-black text-slate-950 leading-tight uppercase truncate mt-[2px]">
                   {student.studentNo || student.adminNo}
@@ -205,7 +215,7 @@ export default function ClearanceCard({
               </div>
 
               {/* 2. NAME */}
-              <div className="flex flex-col justify-center pr-[52px]">
+              <div className="flex flex-col justify-center pr-[52px] relative z-10">
                 <span className="text-[7px] font-black text-[var(--theme-text)] uppercase tracking-wider leading-none">NAME</span>
                 <span className="text-[11.5px] font-black text-slate-950 leading-tight uppercase truncate mt-[2px]">
                   {student.name}
@@ -213,7 +223,7 @@ export default function ClearanceCard({
               </div>
 
               {/* 3. CLASS */}
-              <div className="flex flex-col justify-center pr-[52px]">
+              <div className="flex flex-col justify-center pr-[52px] relative z-10">
                 <span className="text-[7px] font-black text-[var(--theme-text)] uppercase tracking-wider leading-none">CLASS</span>
                 <span className="text-[11.5px] font-black text-slate-950 leading-tight uppercase truncate mt-[2px]">
                   {student.gradeClass}
@@ -221,7 +231,7 @@ export default function ClearanceCard({
               </div>
 
               {/* 4. STATUS */}
-              <div className="flex flex-col justify-center pr-[52px]">
+              <div className="flex flex-col justify-center pr-[52px] relative z-10">
                 <span className="text-[7px] font-black text-[var(--theme-text)] uppercase tracking-wider leading-none">STATUS</span>
                 <span className="text-[11.5px] font-black text-slate-950 leading-tight uppercase truncate mt-[2px]">
                   {student.boardingStatus === 'Hosteller' || (student.boardingStatus as string) === 'Boarder' ? 'HOSTELLER' : 'DAY SCHOLAR'}
@@ -229,7 +239,7 @@ export default function ClearanceCard({
               </div>
 
               {/* 5. GENDER */}
-              <div className="flex flex-col justify-center pr-[52px]">
+              <div className="flex flex-col justify-center pr-[52px] relative z-10">
                 <span className="text-[7px] font-black text-[var(--theme-text)] uppercase tracking-wider leading-none">GENDER</span>
                 <span className="text-[11.5px] font-black text-slate-950 leading-tight uppercase truncate mt-[2px]">
                   {(student.gender || 'Male').toUpperCase()}
