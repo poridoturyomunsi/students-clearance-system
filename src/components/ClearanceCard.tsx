@@ -142,17 +142,23 @@ export default function ClearanceCard({
 
         {/* Middle: School Info left-aligned next to crest */}
         <div className="flex-1 flex flex-col items-start justify-center pl-2.5 pr-2 min-w-0">
-          <span className="text-[9.5px] font-black tracking-wide uppercase leading-tight text-white truncate max-w-[190px]">
+          <span 
+            className="tracking-wide uppercase leading-tight text-white truncate max-w-[190px] text-[9.5px] font-[800]"
+            style={{ fontFamily: "'Inter', sans-serif", fontWeight: 800 }}
+          >
             ST. PAUL SECONDARY SCHOOL, NASUTI
           </span>
-          <span className="text-[6.5px] opacity-90 font-medium tracking-wider leading-none uppercase mt-0.5 text-white truncate w-full">
+          <span 
+            className="opacity-90 tracking-wider leading-none uppercase mt-0.5 text-white truncate w-full text-[6.5px] font-[500]"
+            style={{ fontFamily: "'Inter', sans-serif", fontWeight: 500 }}
+          >
             P.O.BOX 678, NASUTI IGANGA
           </span>
         </div>
 
         {/* Right: Term Badge aligned to top-right corner, pushed down for perfect vertical centering in header ribbon */}
         <div className="shrink-0 flex items-center justify-center translate-y-[16px]">
-          <div className="bg-[#0b1942] text-white border border-white/20 px-2.5 py-1 rounded-md text-[7.5px] font-mono font-black uppercase shrink-0 tracking-wider text-center shadow-sm">
+          <div className="bg-[#0b1942] text-white border border-white/20 px-2.5 py-1 rounded-md text-[7.5px] font-mono font-[800] uppercase shrink-0 tracking-wider text-center shadow-sm">
             TERM 2, 2026
           </div>
         </div>
@@ -164,7 +170,10 @@ export default function ClearanceCard({
         <div className="flex-1 border-[1.8px] border-[var(--theme-primary)] rounded-xl p-2.5 bg-white/95 flex flex-col justify-between shadow-2xs min-h-0">
           {/* TITLE AT TOP CENTER WITH BLUE DIVIDER LINE */}
           <div className="border-b-[1.5px] border-[var(--theme-primary)] pb-1 mb-1 leading-none shrink-0">
-            <div className="text-center font-black text-[11px] uppercase tracking-wider text-[var(--theme-text)]">
+            <div 
+              className="text-center uppercase tracking-wider text-[var(--theme-text)] text-[11px] font-[800]"
+              style={{ fontFamily: "'Inter', sans-serif", fontWeight: 800 }}
+            >
               STUDENT CLEARANCE CARD
             </div>
           </div>
@@ -208,40 +217,80 @@ export default function ClearanceCard({
 
               {/* 1. STUDENT SUREPAY CODE */}
               <div className="flex flex-col justify-center pr-[52px] relative z-10">
-                <span className="text-[7px] font-black text-[var(--theme-text)] uppercase tracking-wider leading-none">STUDENT SUREPAY CODE</span>
-                <span className="text-[11.5px] font-black text-slate-950 leading-tight uppercase truncate mt-[2px]">
+                <span 
+                  className="text-[7px] font-[700] text-[var(--theme-text)] uppercase tracking-wider leading-none"
+                  style={{ fontFamily: "'Inter', sans-serif", fontWeight: 700 }}
+                >
+                  STUDENT SUREPAY CODE
+                </span>
+                <span 
+                  className="text-[11.5px] font-[800] text-slate-950 leading-tight uppercase truncate mt-[2px]"
+                  style={{ fontFamily: "'Inter', sans-serif", fontWeight: 800 }}
+                >
                   {student.studentNo || student.adminNo}
                 </span>
               </div>
 
               {/* 2. NAME */}
               <div className="flex flex-col justify-center pr-[52px] relative z-10">
-                <span className="text-[7px] font-black text-[var(--theme-text)] uppercase tracking-wider leading-none">NAME</span>
-                <span className="text-[11.5px] font-black text-slate-950 leading-tight uppercase truncate mt-[2px]">
+                <span 
+                  className="text-[7px] font-[700] text-[var(--theme-text)] uppercase tracking-wider leading-none"
+                  style={{ fontFamily: "'Inter', sans-serif", fontWeight: 700 }}
+                >
+                  NAME
+                </span>
+                <span 
+                  className="text-[11.5px] font-[800] text-slate-950 leading-tight uppercase truncate mt-[2px]"
+                  style={{ fontFamily: "'Inter', sans-serif", fontWeight: 800 }}
+                >
                   {student.name}
                 </span>
               </div>
 
               {/* 3. CLASS */}
               <div className="flex flex-col justify-center pr-[52px] relative z-10">
-                <span className="text-[7px] font-black text-[var(--theme-text)] uppercase tracking-wider leading-none">CLASS</span>
-                <span className="text-[11.5px] font-black text-slate-950 leading-tight uppercase truncate mt-[2px]">
+                <span 
+                  className="text-[7px] font-[700] text-[var(--theme-text)] uppercase tracking-wider leading-none"
+                  style={{ fontFamily: "'Inter', sans-serif", fontWeight: 700 }}
+                >
+                  CLASS
+                </span>
+                <span 
+                  className="text-[11.5px] font-[700] text-slate-950 leading-tight uppercase truncate mt-[2px]"
+                  style={{ fontFamily: "'Inter', sans-serif", fontWeight: 700 }}
+                >
                   {student.gradeClass}
                 </span>
               </div>
 
               {/* 4. STATUS */}
               <div className="flex flex-col justify-center pr-[52px] relative z-10">
-                <span className="text-[7px] font-black text-[var(--theme-text)] uppercase tracking-wider leading-none">STATUS</span>
-                <span className="text-[11.5px] font-black text-slate-950 leading-tight uppercase truncate mt-[2px]">
+                <span 
+                  className="text-[7px] font-[700] text-[var(--theme-text)] uppercase tracking-wider leading-none"
+                  style={{ fontFamily: "'Inter', sans-serif", fontWeight: 700 }}
+                >
+                  STATUS
+                </span>
+                <span 
+                  className="text-[11.5px] font-[700] text-slate-950 leading-tight uppercase truncate mt-[2px]"
+                  style={{ fontFamily: "'Inter', sans-serif", fontWeight: 700 }}
+                >
                   {student.boardingStatus === 'Hosteller' || (student.boardingStatus as string) === 'Boarder' ? 'HOSTELLER' : 'DAY SCHOLAR'}
                 </span>
               </div>
 
               {/* 5. GENDER */}
               <div className="flex flex-col justify-center pr-[52px] relative z-10">
-                <span className="text-[7px] font-black text-[var(--theme-text)] uppercase tracking-wider leading-none">GENDER</span>
-                <span className="text-[11.5px] font-black text-slate-950 leading-tight uppercase truncate mt-[2px]">
+                <span 
+                  className="text-[7px] font-[700] text-[var(--theme-text)] uppercase tracking-wider leading-none"
+                  style={{ fontFamily: "'Inter', sans-serif", fontWeight: 700 }}
+                >
+                  GENDER
+                </span>
+                <span 
+                  className="text-[11.5px] font-[700] text-slate-950 leading-tight uppercase truncate mt-[2px]"
+                  style={{ fontFamily: "'Inter', sans-serif", fontWeight: 700 }}
+                >
                   {(student.gender || 'Male').toUpperCase()}
                 </span>
               </div>
@@ -268,7 +317,10 @@ export default function ClearanceCard({
         </div>
 
         {/* Footer Remaining Unchanged Below Container */}
-        <div className="mt-1 bg-slate-50 border border-slate-300 rounded-md py-0.5 px-2 flex justify-center items-center text-[7px] font-bold text-slate-600 relative z-10 select-none italic shrink-0">
+        <div 
+          className="mt-1 bg-slate-50 border border-slate-300 rounded-md py-0.5 px-2 flex justify-center items-center text-[7px] font-[600] text-slate-600 relative z-10 select-none italic shrink-0"
+          style={{ fontFamily: "'Inter', sans-serif", fontWeight: 600 }}
+        >
           If found, please return to the above address.
         </div>
       </div>
