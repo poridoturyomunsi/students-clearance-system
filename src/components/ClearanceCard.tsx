@@ -21,7 +21,7 @@ export default function ClearanceCard({
   interactive = false,
   logoBase64,
   showWatermark = true,
-  watermarkOpacity = 0.04,
+  watermarkOpacity = 0.05,
 }: ClearanceCardProps) {
   // Read class color configuration dynamically
   const classTheme = getClassTheme(student.gradeClass);

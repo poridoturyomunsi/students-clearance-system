@@ -107,7 +107,7 @@ function drawSafeWatermark(
   y: number, 
   w: number, 
   h: number, 
-  opacity = 0.04
+  opacity = 0.05
 ) {
   if (!logoBase64) return;
   try {
@@ -418,7 +418,7 @@ function drawCardFrontPdf(
   const fieldSpacing = 5.8;
 
   if (logoBase64 && showWatermark) {
-    drawSafeWatermark(doc, logoBase64, infoX + 2.0, photoFrameY - 1.0, 26.0, 26.0, 0.04);
+    drawSafeWatermark(doc, logoBase64, infoX + 2.0, photoFrameY - 1.0, 26.0, 26.0, 0.05);
   }
 
   const rawCode = (student.studentNo || student.adminNo || '').toUpperCase();
