@@ -381,8 +381,9 @@ function drawCardFrontPdf(
   const photoFrameW = 23.5;
   const photoFrameH = 23.2;
 
-  doc.setDrawColor(themePrimary.r, themePrimary.g, themePrimary.b);
-  doc.setLineWidth(0.35);
+  // Left Column: Framed Passport Photo with gold outer border & white inner frame
+  doc.setDrawColor(212, 175, 55); // Metallic Gold border (#d4af37)
+  doc.setLineWidth(0.45);
   doc.roundedRect(photoFrameX, photoFrameY, photoFrameW, photoFrameH, 1.2, 1.2, 'D');
 
   const photoImgX = photoFrameX + 0.8;
@@ -420,8 +421,11 @@ function drawCardFrontPdf(
     drawSafeWatermark(doc, logoBase64, infoX + 2.0, photoFrameY - 1.0, 26.0, 26.0, 0.04);
   }
 
+  const rawCode = (student.studentNo || student.adminNo || '').toUpperCase();
+  const formattedSurePay = rawCode.length >= 6 ? rawCode.replace(/(.{4})/g, '$1  ').trim() : rawCode;
+
   const fields = [
-    { label: 'STUDENT SUREPAY CODE', val: (student.studentNo || student.adminNo || '').toUpperCase() },
+    { label: 'STUDENT SUREPAY CODE', val: formattedSurePay },
     { label: 'NAME', val: (student.name || '').toUpperCase() },
     { label: 'CLASS', val: (student.gradeClass || '').toUpperCase() },
     { label: 'STATUS', val: (student.boardingStatus === 'Hosteller' || (student.boardingStatus as string) === 'Boarder' ? 'HOSTELLER' : 'DAY SCHOLAR').toUpperCase() },

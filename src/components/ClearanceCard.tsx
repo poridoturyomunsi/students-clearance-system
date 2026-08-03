@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 import QRCode from 'qrcode';
 import { Student } from '../types.ts';
 import SchoolLogo from './SchoolLogo.tsx';
-import { Utensils } from 'lucide-react';
+import { Utensils, ShieldCheck, Lock, Shield } from 'lucide-react';
 import { getClassTheme } from '../utils/classColors.ts';
 import { getApiBaseUrl } from '../utils/api.ts';
 
@@ -120,11 +120,30 @@ export default function ClearanceCard({
 
   const serialNo = `SPSSN-2026-${(student.adminNo || student.id || "0000").replace(/[^0-9]/g, "").slice(0, 5).padStart(5, "0")}`;
 
+  const formatSurePayCode = (codeStr: string) => {
+    const cleaned = (codeStr || '').replace(/\s+/g, '').toUpperCase();
+    if (cleaned.length >= 6) {
+      return cleaned.replace(/(.{4})/g, '$1  ').trim();
+    }
+    return cleaned;
+  };
+
   const renderFrontCard = () => (
     <div
       id={`card-front-${student.id}`}
       className="relative w-full max-w-[340px] h-[230px] print:w-full print:h-full bg-white rounded-xl shadow-sm border-[1.8px] border-[var(--theme-border)] flex flex-col justify-between overflow-hidden shrink-0 select-none shadow-[var(--theme-badge-bg)] mx-auto"
     >
+      {/* SVG Guilloché Security Pattern Background */}
+      <svg className="absolute inset-0 w-full h-full opacity-[0.035] pointer-events-none z-[0]" xmlns="http://www.w3.org/2000/svg">
+        <defs>
+          <pattern id={`guilloche-${student.id}`} width="40" height="40" patternUnits="userSpaceOnUse">
+            <path d="M 0 20 Q 10 0, 20 20 T 40 20" fill="none" stroke="#d4af37" strokeWidth="0.8"/>
+            <path d="M 0 20 Q 10 40, 20 20 T 40 20" fill="none" stroke="#07153d" strokeWidth="0.8"/>
+          </pattern>
+        </defs>
+        <rect width="100%" height="100%" fill={`url(#guilloche-${student.id})`} />
+      </svg>
+
       {/* Watermark Logo behind content */}
       <div 
         className="absolute inset-0 flex items-center justify-center pointer-events-none select-none overflow-hidden z-[0]"
@@ -133,11 +152,11 @@ export default function ClearanceCard({
         <SchoolLogo className="w-40 h-40 scale-[1.2] rotate-12" logoBase64={logoBase64} />
       </div>
 
-      {/* Top Header stripe */}
-      <div className="pl-3 pr-3 text-[var(--theme-title-text)] flex justify-between items-center relative z-10 theme-gradient-bar h-[52px] min-h-[52px] select-none">
+      {/* Top Header stripe with metallic gold divider line */}
+      <div className="pl-3 pr-3 text-[var(--theme-title-text)] flex justify-between items-center relative z-10 theme-gradient-bar h-[52px] min-h-[52px] select-none border-b border-[#d4af37]/40 shadow-xs">
         {/* Left: Crest */}
         <div className="shrink-0 flex items-center justify-center">
-          <SchoolLogo className="w-[40px] h-[40px] object-contain" logoBase64={logoBase64} />
+          <SchoolLogo className="w-[40px] h-[40px] object-contain drop-shadow-xs" logoBase64={logoBase64} />
         </div>
 
         {/* Middle: School Info left-aligned next to crest */}
@@ -156,9 +175,9 @@ export default function ClearanceCard({
           </span>
         </div>
 
-        {/* Right: Term Badge aligned to top-right corner, pushed down for perfect vertical centering in header ribbon */}
+        {/* Right: Term Badge aligned to top-right corner */}
         <div className="shrink-0 flex items-center justify-center translate-y-[16px]">
-          <div className="bg-[#0b1942] text-white border border-white/20 px-2.5 py-1 rounded-md text-[7.5px] font-mono font-[800] uppercase shrink-0 tracking-wider text-center shadow-sm">
+          <div className="bg-[#0b1942] text-[#d4af37] border border-[#d4af37]/60 px-2.5 py-1 rounded-md text-[7.5px] font-mono font-[800] uppercase shrink-0 tracking-wider text-center shadow-xs">
             TERM 2, 2026
           </div>
         </div>
@@ -167,11 +186,11 @@ export default function ClearanceCard({
       {/* Main Content Area */}
       <div className="flex-1 px-2.5 pt-1.5 pb-1 flex flex-col z-10 select-none animate-fade-in min-h-0 justify-between">
         {/* ONE LARGE ROUNDED CONTAINER IMMEDIATELY BELOW SCHOOL HEADER */}
-        <div className="flex-1 border-[1.8px] border-[var(--theme-primary)] rounded-xl p-2.5 bg-white/95 flex flex-col justify-between shadow-2xs min-h-0">
-          {/* TITLE AT TOP CENTER WITH BLUE DIVIDER LINE */}
-          <div className="border-b-[1.5px] border-[var(--theme-primary)] pb-1 mb-1 leading-none shrink-0">
+        <div className="flex-1 border-[1.8px] border-[var(--theme-primary)] rounded-xl p-2.5 bg-white/95 flex flex-col justify-between shadow-2xs min-h-0 relative">
+          {/* TITLE AT TOP CENTER WITH GOLD/BLUE DIVIDER LINE */}
+          <div className="border-b-[1.5px] border-[var(--theme-primary)] pb-1 mb-1 leading-none shrink-0 flex items-center justify-between">
             <div 
-              className="text-center uppercase tracking-wider text-[var(--theme-text)] text-[11px] font-[800]"
+              className="text-center w-full uppercase tracking-wider text-[var(--theme-text)] text-[11px] font-[800]"
               style={{ fontFamily: "'Inter', sans-serif", fontWeight: 800 }}
             >
               STUDENT CLEARANCE CARD
@@ -180,9 +199,9 @@ export default function ClearanceCard({
 
           {/* TWO COLUMNS: Left Framed Photo, Right Wide Info Area */}
           <div className="flex-1 flex items-stretch justify-between gap-2 min-w-0 pt-0.5">
-            {/* Left Column: Passport Photo framed inside rectangular box stretched to bottom line */}
-            <div className="w-[102px] h-full shrink-0 border-[1.8px] border-[var(--theme-primary)] rounded-xl p-1 bg-white flex items-center justify-center overflow-hidden shadow-2xs">
-              <div className="w-full h-full bg-slate-50 rounded-lg flex items-center justify-center overflow-hidden shrink-0">
+            {/* Left Column: Passport Photo framed inside rectangular box with gold outer border & white inner border */}
+            <div className="w-[102px] h-full shrink-0 border-[1.5px] border-[#d4af37] rounded-xl p-[2px] bg-gradient-to-b from-amber-200 via-yellow-100 to-amber-300 flex items-center justify-center overflow-hidden shadow-sm">
+              <div className="w-full h-full bg-white border border-slate-200 rounded-lg flex items-center justify-center overflow-hidden shrink-0 shadow-inner">
                 {photoUrl ? (
                   <img
                     src={photoUrl}
@@ -215,7 +234,7 @@ export default function ClearanceCard({
                 </div>
               )}
 
-              {/* 1. STUDENT SUREPAY CODE */}
+              {/* 1. STUDENT SUREPAY CODE (Formatted Bank Card Grouped Style) */}
               <div className="flex flex-col justify-center pr-[52px] relative z-10 mb-[10px]" style={{ marginBottom: '10px' }}>
                 <span 
                   className="text-[7px] font-[700] text-[var(--theme-text)] uppercase tracking-wider leading-none"
@@ -224,10 +243,10 @@ export default function ClearanceCard({
                   STUDENT SUREPAY CODE
                 </span>
                 <span 
-                  className="text-[11.5px] font-[800] text-slate-950 leading-tight uppercase truncate mt-[2px]"
+                  className="text-[11.5px] font-[800] text-slate-950 leading-tight uppercase truncate mt-[2px] tracking-[0.05em]"
                   style={{ fontFamily: "'Inter', sans-serif", fontWeight: 800 }}
                 >
-                  {student.studentNo || student.adminNo}
+                  {formatSurePayCode(student.studentNo || student.adminNo || '')}
                 </span>
               </div>
 
@@ -295,22 +314,23 @@ export default function ClearanceCard({
                 </span>
               </div>
 
-              {/* Secure QR Code Box in Bottom Right Corner (Exact match to screenshot mockup) */}
-              <div className="absolute bottom-0 right-0 flex flex-col items-center justify-center border-[1.5px] border-[var(--theme-primary)] rounded-xl p-1 bg-white shadow-2xs z-20">
+              {/* Secure Digital Verification QR Feature (Smart Card Badge) */}
+              <div className="absolute bottom-0 right-0 flex flex-col items-center justify-center border-[1.5px] border-[#d4af37] rounded-xl p-1 bg-gradient-to-b from-slate-900 via-slate-950 to-[#07153d] shadow-sm z-20">
                 {qrCodeUrl ? (
                   <img
                     src={qrCodeUrl}
                     alt="Scan to Verify QR Code"
-                    className="w-[46px] h-[46px] object-contain"
+                    className="w-[46px] h-[46px] object-contain rounded-md bg-white p-0.5"
                   />
                 ) : (
                   <div className="w-[46px] h-[46px] bg-slate-50 rounded-md flex items-center justify-center text-[6px] font-bold text-slate-400">
                     QR CODE
                   </div>
                 )}
-                <span className="bg-[#1d4ed8] text-white text-[5px] font-mono font-black uppercase px-1.5 py-[1.5px] rounded-[4px] mt-[1.5px] tracking-wider leading-none text-center shadow-3xs">
-                  Scan to Verify
-                </span>
+                <div className="flex items-center gap-0.5 bg-[#d4af37] text-[#07153d] text-[5.5px] font-extrabold uppercase px-1.5 py-[1.5px] rounded-[4px] mt-[1.5px] tracking-wider leading-none text-center shadow-3xs">
+                  <ShieldCheck className="w-2 h-2 text-[#07153d]" />
+                  <span>SECURE VERIFY</span>
+                </div>
               </div>
             </div>
           </div>
@@ -318,10 +338,11 @@ export default function ClearanceCard({
 
         {/* Footer Remaining Unchanged Below Container */}
         <div 
-          className="mt-1 bg-slate-50 border border-slate-300 rounded-md py-0.5 px-2 flex justify-center items-center text-[7px] font-[600] text-slate-600 relative z-10 select-none italic shrink-0"
+          className="mt-1 bg-slate-50 border border-slate-300 rounded-md py-0.5 px-2 flex justify-between items-center text-[7px] font-[600] text-slate-600 relative z-10 select-none shrink-0"
           style={{ fontFamily: "'Inter', sans-serif", fontWeight: 600 }}
         >
-          If found, please return to the above address.
+          <span className="italic truncate max-w-[210px]">If found, please return to the above address.</span>
+          <span className="font-mono text-[6px] font-bold text-slate-400 tracking-wider uppercase shrink-0">{serialNo}</span>
         </div>
       </div>
     </div>

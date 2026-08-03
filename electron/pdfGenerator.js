@@ -368,8 +368,11 @@ function drawCardFrontPdf(
     drawSafeWatermark(doc, logoBase64, infoX + 2.0, photoFrameY - 1.0, 26.0, 26.0, 0.04);
   }
 
+  const rawCode = (student.studentNo || student.adminNo || '').toUpperCase();
+  const formattedSurePay = rawCode.length >= 6 ? rawCode.replace(/(.{4})/g, '$1  ').trim() : rawCode;
+
   const fields = [
-    { label: 'STUDENT SUREPAY CODE', val: (student.studentNo || student.adminNo || '').toUpperCase() },
+    { label: 'STUDENT SUREPAY CODE', val: formattedSurePay },
     { label: 'NAME', val: (student.name || '').toUpperCase() },
     { label: 'CLASS', val: (student.gradeClass || '').toUpperCase() },
     { label: 'STATUS', val: (student.boardingStatus === 'Hosteller' || student.boardingStatus === 'Boarder' ? 'HOSTELLER' : 'DAY SCHOLAR').toUpperCase() },
