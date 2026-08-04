@@ -2404,18 +2404,20 @@ function AppContent() {
       }
       
       const errMsg = err.message || '';
+      const isUnauthorized = errMsg.toLowerCase().includes('token') || errMsg.toLowerCase().includes('log in') || errMsg.toLowerCase().includes('unauthorized') || errMsg.toLowerCase().includes('401') || errMsg.toLowerCase().includes('403');
       const isConnectionError = 
-        errMsg.toLowerCase().includes('connect') || 
-        errMsg.toLowerCase().includes('timeout') || 
-        errMsg.toLowerCase().includes('time out') || 
-        errMsg.toLowerCase().includes('network') || 
-        errMsg.toLowerCase().includes('fetch') || 
-        errMsg.toLowerCase().includes('abort') || 
-        errMsg.toLowerCase().includes('sql') || 
-        errMsg.toLowerCase().includes('database');
+        !isUnauthorized && (
+          errMsg.toLowerCase().includes('connect') || 
+          errMsg.toLowerCase().includes('timeout') || 
+          errMsg.toLowerCase().includes('time out') || 
+          errMsg.toLowerCase().includes('network error') || 
+          errMsg.toLowerCase().includes('failed to fetch')
+        );
 
-      if (isConnectionError) {
-        alert("Unable to connect to the database. Please try again in a few seconds.");
+      if (isUnauthorized) {
+        alert("Session expired or permission required. Please log out and log in again.");
+      } else if (isConnectionError) {
+        alert("Unable to connect to the database server. Please check your network and try again.");
       } else {
         alert(`Failed to save student: ${err.message || 'Unknown error'}`);
       }
