@@ -2018,11 +2018,16 @@ async function initDb(config) {
 const app = express();
 app.set('trust proxy', 1);
 
-const corsOptions = {
-  origin: process.env.ALLOWED_ORIGINS ? process.env.ALLOWED_ORIGINS.split(',') : '*',
-  credentials: true
-};
-app.use(cors(corsOptions));
+app.use(cors({
+  origin: (origin, callback) => {
+    // Dynamically allow requesting origin for credentials compatibility
+    callback(null, true);
+  },
+  credentials: true,
+  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
+  allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With', 'Accept']
+}));
+app.options('*', cors());
 app.use(express.json({ limit: '100mb' }));
 
 // Rate Limiters
