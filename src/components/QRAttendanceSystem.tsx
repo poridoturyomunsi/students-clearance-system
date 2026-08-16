@@ -612,58 +612,97 @@ export default function QRAttendanceSystem({ students, onSelectStudent }: QRAtte
       {/* VIEW 2: ATTENDANCE DASHBOARD */}
       {activeTab === 'dashboard' && (
         <div className="space-y-6">
-          {/* Top 4 Stat Summary Cards (Exact Match to Screenshot Mockup!) */}
+          {/* Top 4 Hero Stat Summary Cards */}
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-            {/* 1. PRESENT */}
+            {/* 1. TOTAL CLOCKED IN TODAY */}
             <div className="bg-white p-5 rounded-2xl border border-slate-200 shadow-sm flex items-center justify-between">
               <div>
-                <span className="text-[10px] font-black text-slate-500 uppercase tracking-wider">PRESENT</span>
-                <p className="text-3xl font-black text-emerald-600 mt-1">{stats.presentCount}</p>
+                <span className="text-[10px] font-black text-slate-500 uppercase tracking-wider">TOTAL CLOCKED IN TODAY</span>
+                <p className="text-3xl font-black text-emerald-600 mt-1">{stats.totalClockedIn}</p>
+                <p className="text-[10px] text-slate-400 font-bold mt-0.5">Students who entered campus</p>
               </div>
               <div className="w-12 h-12 bg-emerald-100 rounded-2xl flex items-center justify-center text-emerald-600">
                 <UserCheck className="w-6 h-6" />
               </div>
             </div>
 
-            {/* 2. CHECKED OUT */}
+            {/* 2. CURRENTLY ON CAMPUS */}
             <div className="bg-white p-5 rounded-2xl border border-slate-200 shadow-sm flex items-center justify-between">
               <div>
-                <span className="text-[10px] font-black text-slate-500 uppercase tracking-wider">CHECKED OUT</span>
+                <span className="text-[10px] font-black text-slate-500 uppercase tracking-wider">CURRENTLY ON CAMPUS</span>
+                <p className="text-3xl font-black text-blue-600 mt-1">{stats.currentlyInside}</p>
+                <p className="text-[10px] text-slate-400 font-bold mt-0.5">Active inside school grounds</p>
+              </div>
+              <div className="w-12 h-12 bg-blue-100 rounded-2xl flex items-center justify-center text-blue-600">
+                <Users className="w-6 h-6" />
+              </div>
+            </div>
+
+            {/* 3. CLOCKED OUT */}
+            <div className="bg-white p-5 rounded-2xl border border-slate-200 shadow-sm flex items-center justify-between">
+              <div>
+                <span className="text-[10px] font-black text-slate-500 uppercase tracking-wider">CLOCKED OUT</span>
                 <p className="text-3xl font-black text-amber-600 mt-1">{stats.checkedOutCount}</p>
+                <p className="text-[10px] text-slate-400 font-bold mt-0.5">Departed campus today</p>
               </div>
               <div className="w-12 h-12 bg-amber-100 rounded-2xl flex items-center justify-center text-amber-600">
                 <Clock className="w-6 h-6" />
               </div>
             </div>
 
-            {/* 3. NOT YET ARRIVED */}
+            {/* 4. NOT YET ARRIVED */}
             <div className="bg-white p-5 rounded-2xl border border-slate-200 shadow-sm flex items-center justify-between">
               <div>
                 <span className="text-[10px] font-black text-slate-500 uppercase tracking-wider">NOT YET ARRIVED</span>
-                <p className="text-3xl font-black text-blue-600 mt-1">{stats.notArrivedCount}</p>
-              </div>
-              <div className="w-12 h-12 bg-blue-100 rounded-2xl flex items-center justify-center text-blue-600">
-                <UserX className="w-6 h-6" />
-              </div>
-            </div>
-
-            {/* 4. TOTAL STUDENTS */}
-            <div className="bg-white p-5 rounded-2xl border border-slate-200 shadow-sm flex items-center justify-between">
-              <div>
-                <span className="text-[10px] font-black text-slate-500 uppercase tracking-wider">TOTAL STUDENTS</span>
-                <p className="text-3xl font-black text-purple-600 mt-1">{stats.totalStudents}</p>
+                <p className="text-3xl font-black text-purple-600 mt-1">{stats.notArrivedCount}</p>
+                <p className="text-[10px] text-slate-400 font-bold mt-0.5">Out of {stats.totalStudents} registered</p>
               </div>
               <div className="w-12 h-12 bg-purple-100 rounded-2xl flex items-center justify-center text-purple-600">
-                <Users className="w-6 h-6" />
+                <UserX className="w-6 h-6" />
               </div>
             </div>
           </div>
 
-          {/* Dashboard Table & Filters */}
+          {/* Class & Stream Attendance Breakdown Matrix Table */}
+          <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden p-6 space-y-4">
+            <div className="flex items-center justify-between">
+              <div>
+                <h3 className="text-base font-black text-slate-900 uppercase">Class & Stream Attendance Breakdown</h3>
+                <p className="text-xs text-slate-500 font-medium">Real-time attendance numbers by Class and Stream for {formatDisplayDate(selectedDate)}</p>
+              </div>
+            </div>
+
+            <div className="overflow-x-auto rounded-xl border border-slate-200">
+              <table className="w-full text-left text-xs border-collapse">
+                <thead>
+                  <tr className="bg-slate-100 text-slate-700 font-black uppercase border-b border-slate-200">
+                    <th className="p-3">CLASS</th>
+                    <th className="p-3">STREAM</th>
+                    <th className="p-3 text-center">CLOCKED IN TODAY</th>
+                    <th className="p-3 text-center">CURRENTLY INSIDE</th>
+                    <th className="p-3 text-center">CLOCKED OUT</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-200">
+                  {stats.streamBreakdown && stats.streamBreakdown.map((row, idx) => (
+                    <tr key={idx} className="hover:bg-slate-50 transition-colors">
+                      <td className="p-3 font-black text-slate-900">{row.grade}</td>
+                      <td className="p-3 font-bold text-slate-700">STREAM {row.stream}</td>
+                      <td className="p-3 text-center font-black text-emerald-700">{row.clockedIn}</td>
+                      <td className="p-3 text-center font-black text-blue-700">{row.inside}</td>
+                      <td className="p-3 text-center font-black text-amber-700">{row.clockedOut}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </div>
+
+          {/* Recent Gate Activity Feed & Detailed Log Table */}
           <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden p-6 space-y-4">
             <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
               <div>
-                <h3 className="text-lg font-black text-slate-900 uppercase">Recent Scans & Attendance Log</h3>
+                <h3 className="text-lg font-black text-slate-900 uppercase">Recent Gate Activity & Attendance Log</h3>
                 <p className="text-xs text-slate-500 font-medium">Real-time gate scan records for {formatDisplayDate(selectedDate)}</p>
               </div>
 
@@ -707,11 +746,21 @@ export default function QRAttendanceSystem({ students, onSelectStudent }: QRAtte
               >
                 <option value="ALL">All Classes</option>
                 <option value="S.1 A">S.1 A</option>
+                <option value="S.1 B">S.1 B</option>
+                <option value="S.1 C">S.1 C</option>
+                <option value="S.2 A">S.2 A</option>
                 <option value="S.2 B">S.2 B</option>
+                <option value="S.2 C">S.2 C</option>
+                <option value="S.3 A">S.3 A</option>
+                <option value="S.3 B">S.3 B</option>
                 <option value="S.3 C">S.3 C</option>
+                <option value="S.4 A">S.4 A</option>
+                <option value="S.4 B">S.4 B</option>
                 <option value="S.4 C">S.4 C</option>
-                <option value="S.5 ARTS">S.5 ARTS</option>
-                <option value="S.6 SCI">S.6 SCI</option>
+                <option value="S.5 A (ARTS)">S.5 A (ARTS)</option>
+                <option value="S.5 B (SCIENCES)">S.5 B (SCIENCES)</option>
+                <option value="S.6 A (ARTS)">S.6 A (ARTS)</option>
+                <option value="S.6 B (SCIENCES)">S.6 B (SCIENCES)</option>
               </select>
 
               {/* Status Filter */}
@@ -786,7 +835,6 @@ export default function QRAttendanceSystem({ students, onSelectStudent }: QRAtte
                         </td>
                         <td className="p-3 font-mono font-bold text-slate-800">{rec.timeIn || '-'}</td>
                         <td className="p-3 font-mono font-bold text-slate-800">{rec.timeOut || '-'}</td>
-                        <td className="p-3 font-mono text-slate-600">{formatDisplayDate(rec.date)}</td>
                       </tr>
                     ))
                   )}

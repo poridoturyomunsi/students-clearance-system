@@ -122,11 +122,12 @@ export default function LoginGateway({ onLogin, schoolLogo, dbConnectionError }:
         <form onSubmit={handleSubmit} className="space-y-4">
           <div className="space-y-1">
             <label className="text-[10px] text-slate-400 font-bold uppercase tracking-wider">
-              {role === 'student' || role === 'parent' ? 'Student Number' : 'Username'}
+              {role === 'teacher' ? 'Staff ID, Full Name, Email or Username' : role === 'student' || role === 'parent' ? 'Student Number' : 'Username'}
             </label>
             <input
               type="text"
               placeholder={
+                role === 'teacher' ? 'e.g. musenze, STP-37-2026, or TURYOMUNSI PORIDO' :
                 role === 'student' ? 'e.g. STU-2026-001 or student' :
                 role === 'parent' ? 'e.g. ADM-2026-001' :
                 'e.g. admin or teacher'

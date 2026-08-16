@@ -32,10 +32,14 @@ export function getStoredAttendance(): AttendanceRecord[] {
 export function saveAttendanceRecords(records: AttendanceRecord[]): void {
   try {
     localStorage.setItem(STORAGE_KEY, JSON.stringify(records));
+    if (typeof window !== 'undefined') {
+      window.dispatchEvent(new CustomEvent('attendance-updated', { detail: records }));
+    }
   } catch (e) {
     console.error("Failed to save attendance records:", e);
   }
 }
+
 
 export function formatCurrentTime(dateObj = new Date()): string {
   return dateObj.toLocaleTimeString('en-US', {
@@ -131,6 +135,16 @@ export function processQRScan(
     };
   }
 
+  // Check if student is active
+  if (student.status === 'Archived' || student.status === 'Inactive') {
+    return {
+      verified: false,
+      status: 'INVALID',
+      message: '🚫 STUDENT NOT ACTIVE — This student is currently not active in the school registry.',
+      dateStr: todayStr
+    };
+  }
+
   console.log(`[QR-SCAN-DEBUG] Scan matched student: "${student.name}" (${student.studentNo || student.adminNo})`);
 
   // Fetch current attendance history
@@ -146,17 +160,17 @@ export function processQRScan(
 
   if (existingRecordIndex >= 0) {
     const existing = todayRecords[existingRecordIndex];
+    const timeSinceLastScan = Date.now() - (existing.timestamp || 0);
+    const DEBOUNCE_WINDOW_MS = 30000; // 30 seconds protection
 
     if (actionMode === 'CHECK_IN') {
       if (existing.status === 'PRESENT') {
-        isDuplicate = true;
-        message = `⚠️ Student already checked in today at ${existing.timeIn}.`;
         return {
           verified: true,
           student,
           record: existing,
           status: 'DUPLICATE_WARNING',
-          message,
+          message: `⚠️ ALREADY CLOCKED IN — ${student.name} is already clocked in today at ${existing.timeIn}.`,
           timeIn: existing.timeIn,
           timeOut: existing.timeOut,
           dateStr: todayStr,
@@ -170,14 +184,12 @@ export function processQRScan(
       }
     } else if (actionMode === 'CHECK_OUT') {
       if (existing.status === 'CHECKED OUT') {
-        isDuplicate = true;
-        message = `⚠️ Student already checked out today at ${existing.timeOut}.`;
         return {
           verified: true,
           student,
           record: existing,
           status: 'DUPLICATE_WARNING',
-          message,
+          message: `⚠️ ALREADY CLOCKED OUT — ${student.name} already clocked out today at ${existing.timeOut}.`,
           timeIn: existing.timeIn,
           timeOut: existing.timeOut,
           dateStr: todayStr,
@@ -187,21 +199,44 @@ export function processQRScan(
         finalStatus = 'CHECKED OUT';
         timeIn = existing.timeIn || nowTime;
         timeOut = nowTime;
-        message = `✔ CHECK OUT - Student checked out at ${nowTime}.`;
+        message = `✔ CHECK OUT - ${student.name} clocked out at ${nowTime}.`;
       }
     } else {
-      // AUTO mode: Toggle between Check In and Check Out
+      // AUTO mode:
       if (existing.status === 'PRESENT') {
+        // Check 30-second duplicate scan protection window
+        if (timeSinceLastScan < DEBOUNCE_WINDOW_MS) {
+          return {
+            verified: true,
+            student,
+            record: existing,
+            status: 'DUPLICATE_WARNING',
+            message: `⚠️ ALREADY CLOCKED IN — ${student.name} is already clocked in today at ${existing.timeIn}.`,
+            timeIn: existing.timeIn,
+            timeOut: existing.timeOut,
+            dateStr: todayStr,
+            isDuplicate: true
+          };
+        }
+
+        // Clock Out after 30 seconds
         finalStatus = 'CHECKED OUT';
         timeIn = existing.timeIn || nowTime;
         timeOut = nowTime;
-        message = `✔ CHECK OUT - Student checked out at ${nowTime}.`;
+        message = `✔ CHECK OUT - ${student.name} clocked out at ${nowTime}.`;
       } else {
-        finalStatus = 'PRESENT';
-        timeIn = existing.timeIn || nowTime;
-        timeOut = existing.timeOut;
-        isDuplicate = true;
-        message = `⚠️ Student already checked out today at ${existing.timeOut}.`;
+        // Already checked out
+        return {
+          verified: true,
+          student,
+          record: existing,
+          status: 'DUPLICATE_WARNING',
+          message: `⚠️ ALREADY CLOCKED OUT — ${student.name} already clocked out today at ${existing.timeOut}.`,
+          timeIn: existing.timeIn,
+          timeOut: existing.timeOut,
+          dateStr: todayStr,
+          isDuplicate: true
+        };
       }
     }
   } else {
@@ -255,18 +290,53 @@ export function getAttendanceStats(studentsList: Student[], dateStr: string = fo
   const checkedOutRecords = todayRecords.filter(r => r.status === 'CHECKED OUT');
 
   const totalStudents = studentsList.length;
-  const presentCount = presentRecords.length;
-  const checkedOutCount = checkedOutRecords.length;
+  const currentlyInside = presentRecords.length;
+  const clockedOutCount = checkedOutRecords.length;
+  const totalClockedIn = currentlyInside + clockedOutCount;
   
   // Students who have not scanned in today
   const scannedStudentIds = new Set(todayRecords.map(r => r.studentId || r.studentNo));
   const notArrivedCount = Math.max(0, totalStudents - scannedStudentIds.size);
 
+  // Class and Stream Breakdown
+  const classes = ['S.1', 'S.2', 'S.3', 'S.4', 'S.5', 'S.6'];
+  const streamBreakdown: Array<{ grade: string; stream: string; clockedIn: number; inside: number; clockedOut: number }> = [];
+
+  classes.forEach(grade => {
+    const streams = grade === 'S.5' || grade === 'S.6'
+      ? ['A (ARTS)', 'B (SCIENCES)', 'C']
+      : ['A', 'B', 'C'];
+
+    streams.forEach(stream => {
+      const fullClassName = `${grade} ${stream}`.toLowerCase();
+      
+      const streamRecords = todayRecords.filter(r => {
+        const cls = (r.gradeClass || '').toLowerCase();
+        return cls === fullClassName || cls.startsWith(fullClassName) || (cls.includes(grade.toLowerCase()) && cls.includes(stream.toLowerCase()));
+      });
+
+      const inside = streamRecords.filter(r => r.status === 'PRESENT').length;
+      const out = streamRecords.filter(r => r.status === 'CHECKED OUT').length;
+      const clockedIn = inside + out;
+
+      streamBreakdown.push({
+        grade,
+        stream,
+        clockedIn,
+        inside,
+        clockedOut: out
+      });
+    });
+  });
+
   return {
     totalStudents,
-    presentCount,
-    checkedOutCount,
+    totalClockedIn,
+    currentlyInside,
+    presentCount: currentlyInside,
+    checkedOutCount: clockedOutCount,
     notArrivedCount,
-    todayRecords
+    todayRecords,
+    streamBreakdown
   };
 }

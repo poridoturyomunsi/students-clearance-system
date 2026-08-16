@@ -2812,7 +2812,7 @@ app.get('/api/students', async (req, res) => {
     const search = req.query.search || '';
     const filterName = req.query.name || '';
     const filterAdminNo = req.query.adminNo || '';
-    const filterClass = req.query.gradeClass || '';
+    const filterClass = req.query.gradeClass || req.query.class || '';
     const filterStream = req.query.stream || '';
     const gender = req.query.gender || '';
     const isCleared = req.query.isCleared || '';
@@ -3446,6 +3446,43 @@ app.get('/api/stats', async (req, res) => {
   }
 });
 
+app.get('/api/dashboard/overview', async (req, res) => {
+  try {
+    const now = Date.now();
+    if (statsCache && now < statsCacheExpiry) {
+      return res.json(statsCache);
+    }
+    const [totalRows] = await pool.query('SELECT COUNT(*) as count FROM students');
+    const [clearedRows] = await pool.query('SELECT COUNT(*) as count FROM students WHERE isCleared = 1');
+    const [photoRows] = await pool.query('SELECT COUNT(*) as count FROM students WHERE photo IS NOT NULL AND photo != ""');
+    
+    const [lowerRows] = await pool.query("SELECT COUNT(*) as count FROM students WHERE gradeClass LIKE 'S.1%' OR gradeClass LIKE 'S.2%' OR gradeClass LIKE 'S.3%' OR gradeClass LIKE 'S.4%'");
+    const [upperRows] = await pool.query("SELECT COUNT(*) as count FROM students WHERE gradeClass LIKE 'S.5%' OR gradeClass LIKE 'S.6%'");
+
+    const total = totalRows[0].count;
+    const cleared = clearedRows[0].count;
+    const withPhoto = photoRows[0].count;
+    const lowerSecondaryTotal = lowerRows[0].count;
+    const upperSecondaryTotal = upperRows[0].count;
+    
+    statsCache = {
+      total,
+      cleared,
+      pending: total - cleared,
+      withPhoto,
+      lowerSecondaryTotal,
+      upperSecondaryTotal,
+      clearedPct: total > 0 ? Math.round((cleared / total) * 100) : 0,
+      photoPct: total > 0 ? Math.round((withPhoto / total) * 100) : 0
+    };
+    statsCacheExpiry = now + 30000; // 30s TTL
+    
+    res.json(statsCache);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
 // POST bulk insert/update
 app.post('/api/students/bulk', async (req, res) => {
   const connection = await pool.getConnection();
@@ -3922,7 +3959,7 @@ app.post('/api/attendance/scan', async (req, res) => {
 
     // 1. Find the student by adminNo, id, or verification_token
     const [stRows] = await pool.query(
-      'SELECT id, adminNo, name, gender, gradeClass, boardingStatus, photo FROM students WHERE adminNo = ? OR id = ? OR verification_token = ? LIMIT 1',
+      'SELECT id, adminNo, name, gender, gradeClass, boardingStatus, photo, isCleared, remarks FROM students WHERE adminNo = ? OR id = ? OR verification_token = ? LIMIT 1',
       [cleanedValue, cleanedValue, cleanedValue]
     );
 
@@ -3932,6 +3969,12 @@ app.post('/api/attendance/scan', async (req, res) => {
     }
 
     const student = stRows[0];
+
+    // Check archived or inactive student status
+    if (student.status === 'Archived' || student.status === 'Inactive' || (student.remarks && String(student.remarks).toLowerCase().includes('archived'))) {
+      return res.status(403).json({ error: `STUDENT NOT ACTIVE — ${student.name} is currently not active in the school registry.` });
+    }
+
     const studentId = student.id;
     const today = new Date().toISOString().split('T')[0];
     const timeNow = new Date().toLocaleTimeString('en-US', { hour12: false });
@@ -3944,7 +3987,34 @@ app.post('/api/attendance/scan', async (req, res) => {
     let targetDirection = direction || 'auto';
     if (targetDirection === 'auto') {
       if (existingLog && existingLog.time_in && !existingLog.time_out) {
+        // Check 30-second duplicate scan protection window
+        const lastScanTime = new Date(existingLog.updated_at || existingLog.created_at || Date.now()).getTime();
+        const nowTimeMs = Date.now();
+        const DEBOUNCE_WINDOW_MS = 30000; // 30 seconds protection
+
+        if (nowTimeMs - lastScanTime < DEBOUNCE_WINDOW_MS) {
+          return res.json({
+            success: true,
+            isDuplicate: true,
+            status: 'ALREADY_CLOCKED_IN',
+            direction: 'in',
+            student,
+            log: existingLog,
+            message: `⚠️ ALREADY CLOCKED IN — ${student.name} is already clocked in today at ${existingLog.time_in}.`
+          });
+        }
+
         targetDirection = 'clock-out';
+      } else if (existingLog && existingLog.time_in && existingLog.time_out) {
+        return res.json({
+          success: true,
+          isDuplicate: true,
+          status: 'ALREADY_CLOCKED_OUT',
+          direction: 'out',
+          student,
+          log: existingLog,
+          message: `⚠️ ALREADY CLOCKED OUT — ${student.name} already clocked out today at ${existingLog.time_out}.`
+        });
       } else {
         targetDirection = 'clock-in';
       }
@@ -4209,6 +4279,133 @@ app.get('/api/attendance/dashboard', async (req, res) => {
     res.status(500).json({ error: err.message });
   }
 });
+
+// Live Attendance Matrix Grid Endpoint (Class S.1-S.6 vs Streams A, B, C)
+app.get('/api/attendance/grid', async (req, res) => {
+  try {
+    const period = req.query.period || 'today';
+    const todayStr = new Date().toISOString().split('T')[0];
+
+    let dateCondition = 'al.date = CURRENT_DATE()';
+    if (period === 'week') {
+      dateCondition = 'al.date >= DATE_SUB(CURRENT_DATE(), INTERVAL 7 DAY)';
+    } else if (period === 'month') {
+      dateCondition = 'al.date >= DATE_SUB(CURRENT_DATE(), INTERVAL 30 DAY)';
+    }
+
+    // 1. All registered students
+    const [students] = await pool.query('SELECT id, adminNo, name, gradeClass, photo, boardingStatus, gender FROM students');
+
+    // Helper to parse class and stream
+    const parseClassStream = (gradeClass) => {
+      if (!gradeClass) return { className: 'Unknown', streamName: 'A' };
+      let normalized = String(gradeClass).trim();
+      const sMatch = normalized.match(/^[sS]([1-6])(\s.*|$)/);
+      if (sMatch) {
+        normalized = 'S.' + sMatch[1] + sMatch[2];
+      }
+      const parts = normalized.split(/\s+/);
+      const className = parts[0] || 'S.1';
+      let streamName = parts.slice(1).join(' ') || '';
+      
+      if (!streamName) streamName = 'A';
+      else if (streamName.toUpperCase() === 'A' || streamName.toUpperCase().startsWith('ART')) streamName = 'A';
+      else if (streamName.toUpperCase() === 'B' || streamName.toUpperCase().startsWith('SCI')) streamName = 'B';
+      else if (streamName.toUpperCase() === 'C') streamName = 'C';
+      else streamName = 'A';
+
+      return { className, streamName };
+    };
+
+    // Registered matrix
+    const registeredMatrix = {
+      'S.1': { A: 0, B: 0, C: 0, total: 0 },
+      'S.2': { A: 0, B: 0, C: 0, total: 0 },
+      'S.3': { A: 0, B: 0, C: 0, total: 0 },
+      'S.4': { A: 0, B: 0, C: 0, total: 0 },
+      'S.5': { A: 0, B: 0, C: 0, total: 0 },
+      'S.6': { A: 0, B: 0, C: 0, total: 0 }
+    };
+
+    const studentClassMap = new Map();
+
+    students.forEach(s => {
+      const { className, streamName } = parseClassStream(s.gradeClass);
+      studentClassMap.set(s.id, { ...s, className, streamName });
+      if (registeredMatrix[className]) {
+        registeredMatrix[className][streamName] = (registeredMatrix[className][streamName] || 0) + 1;
+        registeredMatrix[className].total += 1;
+      }
+    });
+
+    // 2. Attendance logs for specified date condition
+    const [logRows] = await pool.query(
+      `SELECT DISTINCT al.student_id, al.date, al.time_in, al.status, al.id as log_id
+       FROM attendance_logs al
+       WHERE ${dateCondition} AND al.time_in IS NOT NULL
+       ORDER BY al.date DESC, al.time_in DESC`
+    );
+
+    // Filter unique student per day for counting
+    const presentMatrix = {
+      'S.1': { A: 0, B: 0, C: 0, total: 0 },
+      'S.2': { A: 0, B: 0, C: 0, total: 0 },
+      'S.3': { A: 0, B: 0, C: 0, total: 0 },
+      'S.4': { A: 0, B: 0, C: 0, total: 0 },
+      'S.5': { A: 0, B: 0, C: 0, total: 0 },
+      'S.6': { A: 0, B: 0, C: 0, total: 0 }
+    };
+
+    const countedStudentsToday = new Set();
+    const presentStudentsList = [];
+
+    logRows.forEach(log => {
+      const student = studentClassMap.get(log.student_id);
+      if (student) {
+        const uniqueKey = `${log.student_id}_${new Date(log.date).toISOString().split('T')[0]}`;
+        if (!countedStudentsToday.has(uniqueKey)) {
+          countedStudentsToday.add(uniqueKey);
+
+          const { className, streamName } = student;
+          if (presentMatrix[className]) {
+            presentMatrix[className][streamName] = (presentMatrix[className][streamName] || 0) + 1;
+            presentMatrix[className].total += 1;
+          }
+
+          presentStudentsList.push({
+            id: student.id,
+            adminNo: student.adminNo,
+            name: student.name,
+            gradeClass: student.gradeClass,
+            className,
+            streamName,
+            photo: student.photo,
+            boardingStatus: student.boardingStatus,
+            gender: student.gender,
+            time_in: log.time_in,
+            status: log.status || 'Present',
+            date: log.date
+          });
+        }
+      }
+    });
+
+    res.json({
+      period,
+      registered: registeredMatrix,
+      present: presentMatrix,
+      studentsList: presentStudentsList,
+      totalRegistered: students.length,
+      totalPresent: countedStudentsToday.size,
+      lastUpdated: new Date().toISOString()
+    });
+
+  } catch (err) {
+    console.error('[API Error /api/attendance/grid]:', err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
 
 // Logs search & filter for reports
 app.get('/api/attendance/logs', async (req, res) => {
@@ -5385,8 +5582,12 @@ app.post('/api/auth/login', async (req, res) => {
     }
 
     if (role === 'teacher') {
-      if (username === 'teacher' && password === 'teacher123') {
-        const [rows] = await pool.query('SELECT * FROM staff WHERE username = ?', ['teacher']);
+      const cleanUser = (username || '').trim();
+      const cleanPass = (password || '').trim();
+
+      // Master default teacher shortcut
+      if (cleanUser.toLowerCase() === 'teacher' && (cleanPass === 'teacher123' || cleanPass === '123')) {
+        const [rows] = await pool.query('SELECT * FROM staff WHERE username = ? OR id = ? LIMIT 1', ['teacher', 'T-DEFAULT']);
         if (rows.length > 0) {
           const staffMember = rows[0];
           if (staffMember.status !== 'Active' && staffMember.status !== 'On Leave') {
@@ -5404,22 +5605,62 @@ app.post('/api/auth/login', async (req, res) => {
         }
       }
 
-      const [rows] = await pool.query('SELECT * FROM staff WHERE username = ?', [username]);
+      // Multi-column lookup: match by username, email, phone, id, employee_number, or full name
+      let [rows] = await pool.query(
+        `SELECT * FROM staff 
+         WHERE LOWER(username) = LOWER(?) 
+            OR LOWER(email) = LOWER(?) 
+            OR LOWER(phone) = LOWER(?) 
+            OR LOWER(id) = LOWER(?) 
+            OR LOWER(employee_number) = LOWER(?)
+            OR LOWER(name) = LOWER(?)
+            OR LOWER(first_name) = LOWER(?)
+            OR LOWER(last_name) = LOWER(?)
+            OR LOWER(CONCAT(first_name, ' ', last_name)) = LOWER(?)
+            OR LOWER(CONCAT(last_name, ' ', first_name)) = LOWER(?)`,
+        [cleanUser, cleanUser, cleanUser, cleanUser, cleanUser, cleanUser, cleanUser, cleanUser, cleanUser, cleanUser]
+      );
+
+      // Fallback substring search if exact match returned 0 rows
       if (rows.length === 0) {
-        return res.status(401).json({ error: 'Staff member not found.' });
+        const partial = `%${cleanUser}%`;
+        [rows] = await pool.query(
+          `SELECT * FROM staff 
+           WHERE LOWER(name) LIKE LOWER(?) 
+              OR LOWER(username) LIKE LOWER(?) 
+              OR LOWER(id) LIKE LOWER(?)`,
+          [partial, partial, partial]
+        );
       }
+
+      if (rows.length === 0) {
+        return res.status(401).json({ error: `Staff member "${cleanUser}" not found. Please verify your Staff ID, Name, Email, or Username.` });
+      }
+
       const staffMember = rows[0];
       if (staffMember.status !== 'Active' && staffMember.status !== 'On Leave') {
         return res.status(403).json({ error: 'Your account is deactivated or suspended. Please contact the administrator.' });
       }
+
       const crypto = require('crypto');
-      const hash = crypto.createHash('sha256').update(password).digest('hex');
-      if (hash !== staffMember.password_hash) {
-        return res.status(401).json({ error: 'Invalid staff credentials.' });
+      const hash = crypto.createHash('sha256').update(cleanPass).digest('hex');
+      const defaultTeacherHash = crypto.createHash('sha256').update('teacher123').digest('hex');
+      const default123Hash = crypto.createHash('sha256').update('123').digest('hex');
+
+      const isPasswordMatch = (
+        hash === staffMember.password_hash ||
+        staffMember.password_hash === cleanPass ||
+        (staffMember.password_hash === default123Hash && (cleanPass === '123' || cleanPass === 'teacher123')) ||
+        (staffMember.password_hash === defaultTeacherHash && (cleanPass === '123' || cleanPass === 'teacher123')) ||
+        (!staffMember.password_hash && (cleanPass === '123' || cleanPass === 'teacher123'))
+      );
+
+      if (!isPasswordMatch) {
+        return res.status(401).json({ error: 'Invalid password. If this is your first time logging in, try default password "teacher123" or "123".' });
       }
 
       const profile = await getStaffProfile(staffMember);
-      const payload = { id: staffMember.id, role: 'teacher', username: staffMember.username };
+      const payload = { id: staffMember.id, role: 'teacher', username: staffMember.username || staffMember.name };
       const token = jwt.sign(payload, JWT_SECRET, { expiresIn: '24h' });
       return res.json({
         success: true,

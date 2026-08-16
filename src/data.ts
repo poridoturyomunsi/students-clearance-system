@@ -25,7 +25,7 @@ export const INITIAL_STUDENTS: Student[] = [
     isCleared: true,
     gateClearanceDate: '2026-05-18',
     mealsClearanceDate: '2026-05-18',
-    remarks: 'Full fees paid. Cleared for Term 2.',
+    remarks: 'Full fees paid. Cleared for Term 3.',
   },
   {
     id: 'stud-2',

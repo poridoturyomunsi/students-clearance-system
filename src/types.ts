@@ -30,6 +30,7 @@ export interface Student {
   printStatus?: PrintStatus;
   verification_token?: string;
   hasPhoto?: boolean;
+  status?: 'Active' | 'Inactive' | 'Archived';
   updatedAt?: string;
 }
 

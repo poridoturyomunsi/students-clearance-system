@@ -517,7 +517,7 @@ export default function StaffPortal({
     setError(null);
     setSuccessMessage(null);
     try {
-      const records = Object.values(marksMap).map(r => ({
+      const records = Object.values(marksMap).map((r: any) => ({
         ...r,
         status: submitFlag ? 'Approved' : 'Draft',
         teacher_id: staffId

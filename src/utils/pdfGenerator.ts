@@ -333,7 +333,7 @@ function drawCardFrontPdf(
   }
   doc.text('P.O.BOX 678, NASUTI IGANGA', x + 16.0, y + 10.8);
   
-  // TERM 2, 2026 badge aligned to top-right corner, pushed down for perfect vertical centering in header
+  // TERM 3, 2026 badge aligned to top-right corner, pushed down for perfect vertical centering in header
   const termBadgeX = x + cw - 23.5;
   const termBadgeY = y + 7.8;
   const termBadgeW = 20.5;
@@ -344,7 +344,7 @@ function drawCardFrontPdf(
   doc.setFont('helvetica', 'bold');
   doc.setFontSize(6.2);
   doc.setTextColor(255, 255, 255);
-  doc.text('TERM 2, 2026', termBadgeX + termBadgeW / 2, termBadgeY + 4.2, { align: 'center' });
+  doc.text('TERM 3, 2026', termBadgeX + termBadgeW / 2, termBadgeY + 4.2, { align: 'center' });
 
   // School logo background watermark
   if (logoBase64 && showWatermark) {
@@ -458,9 +458,9 @@ function drawCardFrontPdf(
   doc.setLineWidth(0.3);
   doc.roundedRect(qrFrameX, qrFrameY, qrFrameW, qrFrameH, 1.0, 1.0, 'FD');
 
-  if (student.qrCodeBase64) {
+  if ((student as any).qrCodeBase64) {
     try {
-      doc.addImage(student.qrCodeBase64, 'PNG', qrFrameX + 0.8, qrFrameY + 0.8, 14.4, 14.4, undefined, 'NONE');
+      doc.addImage((student as any).qrCodeBase64, 'PNG', qrFrameX + 0.8, qrFrameY + 0.8, 14.4, 14.4, undefined, 'NONE');
     } catch (e) {
       console.warn("Could not draw student QR code image:", e);
     }
@@ -1275,11 +1275,12 @@ export async function generateClearancePdf({
           console.error("Failed to pre-fetch photo for student", student.id, e);
         }
       }
-      if (!student.qrCodeBase64) {
+      if (!(student as any).qrCodeBase64) {
         try {
+          const stdIdentifier = student.adminNo || student.id;
           const baseUrl = typeof window !== 'undefined' && window.location ? window.location.origin : 'https://stpaulss-eportal.vercel.app';
           const secureUrl = `${baseUrl}/verify/student/${encodeURIComponent(stdIdentifier)}`;
-          student.qrCodeBase64 = await QRCode.toDataURL(secureUrl, { margin: 1, width: 250, errorCorrectionLevel: 'M' });
+          (student as any).qrCodeBase64 = await QRCode.toDataURL(secureUrl, { margin: 1, width: 250, errorCorrectionLevel: 'M' });
         } catch (e) {
           console.warn(`Could not pre-generate QR code for student ${student.id}:`, e);
         }

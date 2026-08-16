@@ -43,6 +43,9 @@ import {
   Clock
 } from 'lucide-react';
 import { Student, ClearanceStatus, BoardingStatus } from './types.ts';
+import EnterpriseHeader from './components/layout/EnterpriseHeader.tsx';
+import EnterpriseSidebar from './components/layout/EnterpriseSidebar.tsx';
+import ExecutiveDashboard from './components/dashboard/ExecutiveDashboard.tsx';
 import { getStudentsAsync, saveStudentsAsync, SCHOOL_CLASSES, INITIAL_STUDENTS } from './data.ts';
 import { 
   loadStudentsFromFirestore, 
@@ -74,6 +77,9 @@ import * as XLSX from 'xlsx';
 import SchoolLogo, { DEFAULT_SCHOOL_LOGO } from './components/SchoolLogo.tsx';
 import { generateClearancePdf } from './utils/pdfGenerator.ts';
 import { removeLogoBackground, processStudentPhoto, analyzeImageQuality, compressStudentPhoto, BackgroundQualityReport } from './utils/imageProcessor.ts';
+import DuplicateManagerModal from './components/DuplicateManagerModal.tsx';
+import { LiveAttendanceDashboard } from './components/LiveAttendanceDashboard.tsx';
+
 // Lazy-load Dashboard to keep startup light
 import SidebarLayout from './components/SidebarLayout.tsx';
 import AiAssistantPopup from './components/AiAssistantPopup.tsx';
@@ -199,7 +205,7 @@ const orderStreams = (streams: string[]) => {
 };
 
 function resolveInitialModule(): string {
-  return 'clearance';
+  return 'dashboard';
 }
 
 function clearLegacyClearanceRouteCache() {
@@ -225,6 +231,7 @@ function chunkArray<T>(array: T[], size: number): T[][] {
 
 function AppContent() {
   const [activeModule, setActiveModule] = useState<string | null>(resolveInitialModule());
+  const [sidebarCollapsed, setSidebarCollapsed] = useState<boolean>(false);
   // Ensure `schoolLogo` state is initialized early to avoid TDZ errors
   const [schoolLogo, setSchoolLogo] = useState<string>(() => {
     if (typeof window !== 'undefined') {
@@ -284,8 +291,10 @@ function AppContent() {
   const [exportPreset, setExportPreset] = useState<'None' | 'New' | 'WithPhotos' | 'NewWithPhotos'>('None');
   const [printNewOnly, setPrintNewOnly] = useState<boolean>(false);
   const [sortBy, setSortBy] = useState<string>('name');
-  const [viewMode, setViewMode] = useState<'list' | 'board'>('list');
-  const [activeBoardClass, setActiveBoardClass] = useState<string>('S.4');
+  const [viewMode, setViewMode] = useState<'list' | 'board'>('board');
+  const [showDuplicateModal, setShowDuplicateModal] = useState<boolean>(false);
+  const [activeBoardClass, setActiveBoardClass] = useState<string>('S.1');
+  const [activeBoardStream, setActiveBoardStream] = useState<'A' | 'B' | 'C'>('A');
   const [currentPage, setCurrentPage] = useState<number>(1);
   const [pageSize, setPageSize] = useState<number>(20);
 
@@ -642,14 +651,14 @@ function AppContent() {
     setIsTableLoading(true);
     setTableError(null);
     try {
-      const shouldFetchAll = viewMode === 'board' || pageSize === -1;
+      const isBoard = viewMode === 'board';
       const params: any = {
-        page: shouldFetchAll ? 1 : currentPage,
-        limit: shouldFetchAll ? -1 : pageSize,
+        page: isBoard ? 1 : currentPage,
+        limit: isBoard ? 250 : (pageSize === -1 ? -1 : pageSize),
         search: searchQuery,
         level: filterLevel === 'All' ? undefined : filterLevel,
-        gradeClass: viewMode === 'board' ? activeBoardClass : (filterClass === 'All' ? undefined : filterClass),
-        stream: filterStream === 'All' ? undefined : filterStream,
+        gradeClass: isBoard ? activeBoardClass : (filterClass === 'All' ? undefined : filterClass),
+        stream: isBoard ? activeBoardStream : (filterStream === 'All' ? undefined : filterStream),
         gender: filterGender === 'All' ? undefined : filterGender,
         isCleared: filterClearance === 'All' ? undefined : filterClearance,
         boardingStatus: filterBoarding === 'All' ? undefined : filterBoarding,
@@ -659,7 +668,7 @@ function AppContent() {
         sortBy
       };
 
-      if (shouldFetchAll) {
+      if (pageSize === -1 && !isBoard) {
         params.limit = -1;
       }
 
@@ -714,7 +723,7 @@ function AppContent() {
     } finally {
       setIsTableLoading(false);
     }
-  }, [dbConnectionError, viewMode, pageSize, currentPage, searchQuery, filterLevel, filterClass, filterStream, filterGender, filterClearance, filterBoarding, filterPhoto, printNewOnly, filterAcademicYear, sortBy, activeBoardClass]);
+  }, [dbConnectionError, viewMode, pageSize, currentPage, searchQuery, filterLevel, filterClass, filterStream, filterGender, filterClearance, filterBoarding, filterPhoto, printNewOnly, filterAcademicYear, sortBy, activeBoardClass, activeBoardStream]);
 
   const handleExportScopeCsv = async () => {
     try {
@@ -1442,30 +1451,23 @@ function AppContent() {
     dbConnectionError
   ]);
 
-  // --- HIGH-PERFORMANCE BOARD VIEW MEMOIZATION (Avoids recalculating in render loops) ---
+  // --- HIGH-PERFORMANCE BOARD VIEW MEMOIZATION (1 Class + 1 Stream Layout) ---
   const boardViewData = useMemo(() => {
     if (viewMode !== 'board') {
-      return { streams: [], studentsByStream: {}, maxRows: 0, boardStudentsLength: 0 };
+      return {
+        streams: ['A', 'B', 'C'],
+        studentsByStream: { 'A': [], 'B': [], 'C': [] },
+        activeStreamStudents: [],
+        activeStreamStats: { total: 0, present: 0, cleared: 0, hold: 0, missingPhotos: 0 },
+        maxRows: 0,
+        boardStudentsLength: 0,
+        boardStudentIds: []
+      };
     }
 
-    const defaults = ['S.5', 'S.6'].includes(activeBoardClass)
-      ? ['Arts', 'Sciences']
-      : ['A', 'B', 'C'];
-    
-    // Get streams for this class
-    const registeredInClass = Array.isArray(students) ? students.filter(s => {
-      const parts = (s.gradeClass || '').trim().split(/\s+/);
-      return parts[0] === activeBoardClass;
-    }) : [];
-    
-    const customStreams = Array.from(new Set<string>(Array.isArray(registeredInClass) ? registeredInClass.map(s => {
-      const parts = (s.gradeClass || '').trim().split(/\s+/);
-      return parts.slice(1).join(' ') || 'A';
-    }) : [])).filter(sn => sn && !defaults.includes(sn));
-    
-    const streams = [...defaults, ...customStreams];
+    const streams = ['A', 'B', 'C'];
 
-    // Filter board students
+    // Filter board students for activeBoardClass
     const boardStudents = Array.isArray(students) ? students.filter(s => {
       const parsed = parseClassAndStream(s.gradeClass);
       if (parsed.className !== activeBoardClass) return false;
@@ -1473,13 +1475,11 @@ function AppContent() {
       const query = searchQuery.trim().toLowerCase();
       const matchesQuery = !query ? true : (
         s.name.toLowerCase().includes(query) ||
-        s.adminNo.toLowerCase().includes(query) ||
+        (s.adminNo || s.studentNo || '').toLowerCase().includes(query) ||
         s.gradeClass.toLowerCase().includes(query)
       );
       
-      const matchesStream = filterStream === 'All' || parsed.streamName === filterStream;
       const matchesGender = filterGender === 'All' || s.gender === filterGender;
-      
       const matchesClearance =
         filterClearance === 'All' ||
         (filterClearance === 'Cleared' && s.isCleared) ||
@@ -1494,7 +1494,6 @@ function AppContent() {
       
       return (
         matchesQuery &&
-        matchesStream &&
         matchesGender &&
         matchesClearance &&
         matchesBoarding &&
@@ -1504,21 +1503,49 @@ function AppContent() {
       );
     }) : [];
 
-    // Group boardStudents by stream
-    const studentsByStream: Record<string, Student[]> = {};
-    streams.forEach(stream => {
-      studentsByStream[stream] = Array.isArray(boardStudents) ? boardStudents.filter(s => {
-        const parsed = parseClassAndStream(s.gradeClass);
-        return parsed.streamName === stream;
-      }) : [];
+    // Helper to map student to target stream key ('A', 'B', 'C')
+    const getStreamKey = (s: Student): 'A' | 'B' | 'C' => {
+      const parsed = parseClassAndStream(s.gradeClass);
+      const str = (parsed.streamName || '').trim().toUpperCase();
+      if (str === 'B' || str === 'SCIENCES' || str === 'SCIENCE') return 'B';
+      if (str === 'C') return 'C';
+      return 'A'; // 'A', 'ARTS', or default fallback
+    };
+
+    const studentsByStream: Record<string, Student[]> = {
+      'A': [],
+      'B': [],
+      'C': []
+    };
+
+    boardStudents.forEach(s => {
+      const key = getStreamKey(s);
+      studentsByStream[key].push(s);
     });
 
-    // Find max rows across streams
-    const maxRows = Math.max(...streams.map(stream => studentsByStream[stream]?.length || 0), 5);
+    // Sort students vertically A-Z inside each stream
+    streams.forEach(st => {
+      studentsByStream[st].sort((a, b) => a.name.localeCompare(b.name));
+    });
+
+    const activeStreamStudents = studentsByStream[activeBoardStream] || [];
+    
+    // Live statistics for active stream
+    const activeStreamStats = {
+      total: activeStreamStudents.length,
+      present: activeStreamStudents.filter(s => (s as any).isPresent !== false).length,
+      cleared: activeStreamStudents.filter(s => s.isCleared).length,
+      hold: activeStreamStudents.filter(s => !s.isCleared).length,
+      missingPhotos: activeStreamStudents.filter(s => !s.hasPhoto && !s.photo).length
+    };
+
+    const maxRows = Math.max(...streams.map(st => studentsByStream[st].length), 5);
 
     return {
       streams,
       studentsByStream,
+      activeStreamStudents,
+      activeStreamStats,
       maxRows,
       boardStudentsLength: boardStudents.length,
       boardStudentIds: Array.isArray(boardStudents) ? boardStudents.map(s => s.id) : []
@@ -1526,13 +1553,13 @@ function AppContent() {
   }, [
     students,
     activeBoardClass,
+    activeBoardStream,
     searchQuery,
     filterClearance,
     filterBoarding,
     filterPhoto,
     viewMode,
     printNewOnly,
-    filterStream,
     filterGender,
     filterAcademicYear
   ]);
@@ -2545,105 +2572,12 @@ function AppContent() {
       handleSaveAndSync(newList);
       setBulkInput('');
       setShowBulkImporter(false);
-      alert(`Successfully registered ${parsedStudents.length} students in Term 2 database!`);
+      alert(`Successfully registered ${parsedStudents.length} students in Term 3 database!`);
     }
   };
 
   const handleRemoveDuplicates = async () => {
-    // 1. Group students by normalized name
-    const grouped = new Map<string, Student[]>();
-    students.forEach((s) => {
-      const normName = s.name.trim().toLowerCase().replace(/\s+/g, ' ');
-      if (!grouped.has(normName)) {
-        grouped.set(normName, []);
-      }
-      grouped.get(normName)!.push(s);
-    });
-
-    // 2. Separate into those to keep and those to delete, while building merge groups
-    const toKeep: Student[] = [];
-    const toDeleteIds: string[] = [];
-    const duplicateGroups: Array<{ keep: Student; duplicateIds: string[] }> = [];
-    let duplicateCount = 0;
-
-    for (const [name, list] of grouped.entries()) {
-      if (list.length === 1) {
-        toKeep.push(list[0]);
-      } else {
-        // We have duplicates!
-        duplicateCount += (list.length - 1);
-        // Find the best candidate to keep:
-        // Priority 1: Has photo
-        // Priority 2: First in the array
-        let keepIndex = 0;
-        for (let i = 1; i < list.length; i++) {
-          if (!list[keepIndex].photo && list[i].photo) {
-            keepIndex = i;
-          }
-        }
-
-        const duplicateIds: string[] = [];
-        list.forEach((s, idx) => {
-          if (idx === keepIndex) {
-            toKeep.push(s);
-          } else {
-            toDeleteIds.push(s.id);
-            duplicateIds.push(s.id);
-          }
-        });
-
-        duplicateGroups.push({ keep: list[keepIndex], duplicateIds });
-      }
-    }
-
-    if (duplicateCount === 0) {
-      alert("No duplicate student names found in the active registry database!");
-      return;
-    }
-
-    const confirmed = window.confirm(
-      `Found ${duplicateCount} duplicate student record(s) by name grouped into ${duplicateGroups.length} duplicate set(s).\n\n` +
-      `We will keep the record with passport photos if available, or the first recorded entry, and merge all duplicate records into that student where possible.\n\n` +
-      `Do you want to proceed?`
-    );
-
-    if (!confirmed) {
-      return;
-    }
-
-    let successfulMerge = false;
-    if (!dbConnectionError && duplicateGroups.length > 0) {
-      try {
-        for (const group of duplicateGroups) {
-          await mergeDuplicateStudentsInDb(group.keep.id, group.duplicateIds, group.keep.adminNo || undefined);
-        }
-        successfulMerge = true;
-      } catch (mergeErr: any) {
-        console.error('Failed to merge duplicate students via backend:', mergeErr);
-        alert(`Duplicate merge failed: ${mergeErr?.message || mergeErr}. Falling back to local cleanup.`);
-      }
-    }
-
-    if (successfulMerge) {
-      try {
-        await loadStudentsFromServer();
-      } catch (refreshErr) {
-        console.warn('Unable to refresh student list after merge:', refreshErr);
-      }
-      setSelectedIds(prev => prev.filter(id => !toDeleteIds.includes(id)));
-      if (toDeleteIds.includes(previewStudentId)) {
-        setPreviewStudentId(students.find((s) => !toDeleteIds.includes(s.id))?.id || null);
-      }
-      alert(`Successfully merged ${duplicateCount} duplicate student record(s) into ${duplicateGroups.length} keep record(s).`);
-      return;
-    }
-
-    await handleSaveAndSync(toKeep);
-    setSelectedIds(prev => prev.filter(id => !toDeleteIds.includes(id)));
-    if (toDeleteIds.includes(previewStudentId)) {
-      setPreviewStudentId(toKeep[0]?.id || '');
-    }
-    alert(`Successfully removed ${duplicateCount} duplicate student records locally.`);
+    setShowDuplicateModal(true);
   };
 
   const handlePhotosZipUpload = async (file: File) => {
@@ -2662,14 +2596,65 @@ function AppContent() {
         let matchedCount = 0;
         let unmatchedCount = 0;
 
-        // Build a map of normalized admin numbers / IDs to student IDs for quick lookup
-        const studentLookup = new Map<string, string>();
+        // Build multi-strategy lookup maps for flexible photo matching
+        const normalizeStr = (str: string) => (str || '').toLowerCase().replace(/[^a-z0-9]/g, '');
+        const getWords = (str: string) => (str || '').toLowerCase().replace(/[^a-z0-9\s]/g, ' ').trim().split(/\s+/).filter(w => w.length > 1);
+
+        const exactAdminMap = new Map<string, Student>();
+        const cleanAdminMap = new Map<string, Student>();
+        const tailNumMap = new Map<string, Student>();
+        const exactNameMap = new Map<string, Student>();
+        const revNameMap = new Map<string, Student>();
+
         students.forEach(s => {
-          const normAdmin = s.adminNo.trim().toLowerCase().replace(/\s+/g, '');
-          if (normAdmin) studentLookup.set(normAdmin, s.id);
-          const normId = s.id.trim().toLowerCase();
-          if (normId) studentLookup.set(normId, s.id);
+          const rawAdmin = String(s.adminNo || '').trim().toLowerCase();
+          const cleanAdmin = normalizeStr(s.adminNo);
+          const idClean = normalizeStr(s.id);
+          const cleanName = normalizeStr(s.name);
+
+          if (rawAdmin) exactAdminMap.set(rawAdmin, s);
+          if (cleanAdmin) cleanAdminMap.set(cleanAdmin, s);
+          if (idClean) cleanAdminMap.set(idClean, s);
+
+          const adminNumMatch = String(s.adminNo || '').match(/(\d+)(?:\D*)$/);
+          if (adminNumMatch) {
+            const tailNum = adminNumMatch[1].replace(/^0+/, '');
+            if (tailNum.length >= 1) tailNumMap.set(tailNum, s);
+          }
+
+          if (cleanName) exactNameMap.set(cleanName, s);
+
+          const words = getWords(s.name);
+          if (words.length > 1) {
+            const revName = words.slice().reverse().join('');
+            revNameMap.set(revName, s);
+          }
+
+          if (Array.isArray(s.aliases)) {
+            s.aliases.forEach((alias: string) => {
+              const cleanAlias = normalizeStr(alias);
+              if (cleanAlias) exactNameMap.set(cleanAlias, s);
+            });
+          }
         });
+
+        const findStudentMatch = (stemRaw: string): Student | undefined => {
+          const stemClean = normalizeStr(stemRaw);
+
+          if (exactAdminMap.has(stemRaw.toLowerCase())) return exactAdminMap.get(stemRaw.toLowerCase());
+          if (cleanAdminMap.has(stemClean)) return cleanAdminMap.get(stemClean);
+
+          const stemNumMatch = stemRaw.match(/(\d+)(?:\D*)$/);
+          if (stemNumMatch) {
+            const stemNum = stemNumMatch[1].replace(/^0+/, '');
+            if (stemNum && tailNumMap.has(stemNum)) return tailNumMap.get(stemNum);
+          }
+
+          if (exactNameMap.has(stemClean)) return exactNameMap.get(stemClean);
+          if (revNameMap.has(stemClean)) return revNameMap.get(stemClean);
+
+          return undefined;
+        };
 
         const updatedStudents = [...students];
 
@@ -2693,11 +2678,10 @@ function AppContent() {
           const baseName = filename.split('/').pop() || '';
           const lastDotIdx = baseName.lastIndexOf('.');
           const stem = lastDotIdx !== -1 ? baseName.substring(0, lastDotIdx) : baseName;
-          const normStem = stem.trim().toLowerCase().replace(/\s+/g, '');
 
-          const matchedId = studentLookup.get(normStem);
-          if (matchedId) {
-            const studentIdx = updatedStudents.findIndex(s => s.id === matchedId);
+          const matchedStudent = findStudentMatch(stem);
+          if (matchedStudent) {
+            const studentIdx = updatedStudents.findIndex(s => s.id === matchedStudent.id);
             if (studentIdx !== -1) {
               updatedStudents[studentIdx] = {
                 ...updatedStudents[studentIdx],
@@ -4030,134 +4014,76 @@ function AppContent() {
 
   // Admin early return removed so that administrators fall through to the main Full Clearance Dashboard.
   return (
-    <>
-    <div className="min-h-screen bg-slate-900 text-slate-100 flex flex-col font-sans select-none antialiased">
-      {/* HEADER NAVBAR */}
-      <header className="no-print bg-slate-950 border-b border-slate-800 shrink-0 px-4 py-4 md:px-6 flex flex-row justify-between items-center gap-3">
-        <div className="flex items-center gap-3">
-          <div className="relative p-1 bg-slate-900/45 rounded-lg border border-slate-800 shrink-0 shadow-inner">
-            <SchoolLogo className="w-12 h-12" logoBase64={schoolLogo} />
-          </div>
-          <div>
-            <div className="flex items-center gap-2 flex-wrap">
-              <h1 className="text-sm sm:text-xl font-black text-slate-100 uppercase tracking-tight">The Mighty System</h1>
-              {dbConnectionError ? (
-                <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[8.5px] uppercase font-bold tracking-wider bg-rose-500/10 border border-rose-500/25 text-rose-400" title="MySQL connection offline. Working on local cache. Changes will automatically sync once connection is restored.">
-                  ⚠️ MySQL Offline (Caching)
-                </span>
-              ) : syncQueueCount > 0 ? (
-                <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[8.5px] uppercase font-bold tracking-wider bg-amber-500/10 border border-amber-500/25 text-amber-400 animate-pulse" title={`Connected to MySQL. Syncing ${syncQueueCount} pending changes...`}>
-                  ✓ MySQL Online (Syncing {syncQueueCount}...)
-                </span>
-              ) : (
-                <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[8.5px] uppercase font-bold tracking-wider bg-emerald-500/10 border border-emerald-500/25 text-emerald-400" title="Connected to MySQL database. Data is fully synchronized.">
-                  ✓ MySQL Online
-                </span>
-              )}
-              {cameraDiagnostic.status === 'ok' ? (
-                <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[8.5px] uppercase font-bold tracking-wider bg-emerald-500/10 border border-emerald-500/25 text-emerald-400" title={cameraDiagnostic.message || ''}>
-                  📷 Camera Ready
-                </span>
-              ) : cameraDiagnostic.status === 'testing' ? (
-                <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[8.5px] uppercase font-bold tracking-wider bg-indigo-500/10 border border-indigo-500/25 text-indigo-400 animate-pulse">
-                  📷 Testing Camera...
-                </span>
-              ) : (
-                <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[8.5px] uppercase font-bold tracking-wider bg-rose-550/15 border border-rose-500/25 text-rose-400" title={cameraDiagnostic.message || ''}>
-                  📷 Camera Alert
-                </span>
-              )}
-            </div>
-            <p className="text-[9px] sm:text-xs text-slate-400 mt-0.5 max-w-[200px] sm:max-w-none truncate sm:whitespace-normal">ST. PAUL SECONDARY SCHOOL, NASUTI • P.O.BOX 678, NASUTI IGANGA • "God is My Guide"</p>
-          </div>
-        </div>
-        
-        {/* Mobile Hamburger menu toggler button */}
-        <div className="flex sm:hidden">
-          <button
-            onClick={() => setShowMobileMenu(!showMobileMenu)}
-            className="p-2.5 bg-slate-900 hover:bg-slate-800 text-slate-200 border border-slate-800 rounded-lg shadow-sm transition-all"
-            title="Menu"
-          >
-            <Menu className="w-5 h-5" />
-          </button>
-        </div>
-        
-        <div className="hidden sm:flex gap-2.5 self-stretch sm:self-auto flex-wrap">
-          <button
-            onClick={handleOpenAddForm}
-            className="flex-1 sm:flex-initial flex items-center justify-center gap-1.5 px-4 py-2 bg-indigo-600 hover:bg-indigo-500 text-white font-bold text-xs uppercase tracking-wider rounded-lg border border-indigo-500 shadow-sm transition-all duration-150 cursor-pointer"
-          >
-            <Plus className="w-4 h-4" /> Add Student
-          </button>
+    <div className="min-h-screen bg-slate-950 text-slate-100 flex flex-col font-sans select-none antialiased">
+      {/* ENTERPRISE TOP HEADER */}
+      <EnterpriseHeader
+        sidebarCollapsed={sidebarCollapsed}
+        onToggleSidebar={() => setSidebarCollapsed(!sidebarCollapsed)}
+        schoolLogo={schoolLogo}
+        authSession={authSession}
+        handleLogout={handleLogout}
+        onAddStudent={handleOpenAddForm}
+        onImportExcel={() => setShowBulkImporter(true)}
+        onExportData={() => handleExportScopeCsv()}
+        onGenerateCards={() => { setActiveModule('clearance'); setAdminActiveTab('cards'); }}
+        onMatchPhotos={() => photosZipInputRef.current?.click()}
+        onRemoveDuplicates={handleRemoveDuplicates}
+        onGenerateReports={() => { setActiveModule('exams'); setAdminActiveTab('cards'); }}
+        searchQuery={searchInputValue}
+        onSearchChange={(q) => { setSearchInputValue(q); setSearchQuery(q); }}
+      />
 
-          <button
-            onClick={() => setShowBulkImporter(!showBulkImporter)}
-            className="flex-1 sm:flex-initial flex items-center justify-center gap-1.5 px-4 py-2 bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 font-bold text-xs uppercase tracking-wider rounded-lg shadow-sm transition-all duration-150 cursor-pointer"
-          >
-            <Upload className="w-4 h-4" /> Bulk Excel Paste
-          </button>
-          <button
-            onClick={() => setShowBulkPhotoMatcher(true)}
-            className="flex-1 sm:flex-initial flex items-center justify-semibold gap-1.5 px-4 py-2 bg-emerald-600 hover:bg-emerald-500 text-white border border-emerald-500 font-bold text-xs uppercase tracking-wider rounded-lg shadow-sm transition-all duration-150 cursor-pointer"
-          >
-            <FileSpreadsheet className="w-4 h-4" /> Upload Excel File (.xlsx)
-          </button>
-          <button
-            onClick={handleRemoveDuplicates}
-            className="flex-1 sm:flex-initial flex items-center justify-center gap-1.5 px-4 py-2 bg-rose-950/60 hover:bg-rose-900 text-rose-255 border border-rose-800 font-bold text-xs uppercase tracking-wider rounded-lg shadow-sm transition-all duration-150 cursor-pointer"
-            title="Clean duplicate student records by name"
-          >
-            <Trash2 className="w-4 h-4 text-rose-455" /> Remove Duplicates
-          </button>
-          {isAdmin && (
-            <button
-              onClick={handleDeleteAllStudents}
-              className="flex-1 sm:flex-initial flex items-center justify-center gap-1.5 px-4 py-2 bg-rose-700/20 hover:bg-rose-600/30 text-rose-400 border border-rose-500/35 font-bold text-xs uppercase tracking-wider rounded-lg shadow-sm transition-all duration-150 cursor-pointer"
-              title="Delete all student records from database and storage"
-            >
-              <Trash2 className="w-4 h-4 text-rose-500" /> Delete All Students
-            </button>
-          )}
-          <button
-            onClick={() => photosZipInputRef.current?.click()}
-            className="flex-1 sm:flex-initial flex items-center justify-center gap-1.5 px-4 py-2 bg-indigo-955/60 hover:bg-indigo-900 text-indigo-250 border border-indigo-800 font-bold text-xs uppercase tracking-wider rounded-lg shadow-sm transition-all duration-150 cursor-pointer"
-            title="Upload multiple passport photos in a ZIP folder (e.g. 123.jpg matches student 123)"
-          >
-            <Camera className="w-4 h-4 text-indigo-400" /> Match Photos ZIP
-          </button>
+      <div className="flex flex-1 min-h-[calc(100vh-65px)]">
+        {/* ENTERPRISE LEFT SIDEBAR */}
+        <EnterpriseSidebar
+          currentModule={activeModule || 'dashboard'}
+          onModuleChange={(mod) => {
+            setActiveModule(mod);
+            if (mod === 'students' || mod === 'clearance') setAdminActiveTab('cards');
+            else if (mod === 'attendance') setAdminActiveTab('attendance');
+            else if (mod === 'staff') setAdminActiveTab('school');
+            else if (mod === 'settings') setAdminActiveTab('profile');
+            else if (mod === 'ai') setAdminActiveTab('assistant');
+          }}
+          collapsed={sidebarCollapsed}
+          onToggleCollapse={() => setSidebarCollapsed(!sidebarCollapsed)}
+          handleLogout={handleLogout}
+          studentCount={students.length}
+          clearedCount={stats.clearedCount}
+        />
+
+        {/* ENTERPRISE MAIN CONTENT AREA */}
+        <main className={`flex-1 transition-all duration-300 p-4 sm:p-6 overflow-y-auto ${sidebarCollapsed ? 'ml-20' : 'ml-64'}`}>
+          {activeModule === 'dashboard' ? (
+            <ExecutiveDashboard
+              students={students}
+              onNavigateModule={(mod) => {
+                setActiveModule(mod);
+                if (mod === 'students' || mod === 'clearance') setAdminActiveTab('cards');
+                else if (mod === 'attendance') setAdminActiveTab('attendance');
+                else if (mod === 'staff') setAdminActiveTab('school');
+                else if (mod === 'settings') setAdminActiveTab('profile');
+                else if (mod === 'ai') setAdminActiveTab('assistant');
+              }}
+              onAddStudent={handleOpenAddForm}
+              onImportExcel={() => setShowBulkImporter(true)}
+              onGenerateCards={() => { setActiveModule('clearance'); setAdminActiveTab('cards'); }}
+              dbStats={dbStats}
+            />
+          ) : (
+            <>
+          {/* HIDDEN ZIP FILE INPUT FOR PHOTO MATCHING */}
           <input
             type="file"
             ref={photosZipInputRef}
             onChange={(e) => {
               const file = e.target.files?.[0];
               if (file) handlePhotosZipUpload(file);
-              e.target.value = ''; // Reset file input
+              e.target.value = '';
             }}
             accept=".zip"
             className="hidden"
           />
-
-            <div className="flex-1 sm:flex-initial flex items-center gap-2 px-3 py-1.5 bg-slate-900 border border-slate-800 rounded-lg shadow-inner">
-              <div className="w-6 h-6 bg-indigo-650 rounded-full flex items-center justify-center text-[10px] font-bold text-white uppercase">
-                A
-              </div>
-              <div className="text-left hidden lg:block">
-                <div className="text-[10px] font-black text-slate-200 truncate max-w-[120px]">
-                  {authSession?.user?.name || 'Administrator'}
-                </div>
-                <div className="text-[8px] text-indigo-400 font-mono font-bold tracking-wider uppercase">ADMIN PORTAL</div>
-              </div>
-              <button
-                onClick={handleLogout}
-                className="p-1.5 text-slate-400 hover:text-red-400 transition-colors cursor-pointer rounded-md hover:bg-slate-800"
-                title="Sign Out"
-              >
-                <LogOut className="w-3.5 h-3.5" />
-              </button>
-            </div>
-        </div>
-      </header>
 
       {/* Mobile Actions Dropdown Menu */}
       {showMobileMenu && (
@@ -4348,7 +4274,10 @@ function AppContent() {
             <History className="w-4 h-4" /> Level 3: History &amp; Audits
           </button>
           <button
-            onClick={() => setActiveLevel('class-stream')}
+            onClick={() => {
+              setActiveLevel('class-stream');
+              setViewMode('board');
+            }}
             className={`flex-1 sm:flex-initial px-3 py-2 rounded-lg text-xs font-black uppercase tracking-wider flex items-center justify-center gap-2 transition-all cursor-pointer ${
               activeLevel === 'class-stream'
                 ? 'bg-indigo-600 text-white shadow-md'
@@ -4380,7 +4309,7 @@ function AppContent() {
             <Users className="w-4 h-4 text-indigo-400" />
           </div>
           <div className="text-2xl font-black mt-2 text-slate-100">{stats.total}</div>
-          <p className="text-[10px] text-slate-500 mt-1 font-mono">Term 2 2026 Students Registered</p>
+          <p className="text-[10px] text-slate-500 mt-1 font-mono">Term 3 2026 Students Registered</p>
         </div>
 
         <div className="rounded-xl bg-slate-900 p-4 border border-slate-800/80 hover:border-slate-800 transition-all duration-150 shadow-sm">
@@ -4456,277 +4385,12 @@ function AppContent() {
       </section>
 
       {/* SOLE INTEGRATED DASHBOARD WORKSPACE */}
-      {activeLevel === 'class-stream' ? (
-        <main className="no-print flex-1 overflow-y-auto p-4 md:p-6 bg-slate-900">
-          <Suspense fallback={<Loading message="Loading Clearance Workspace..." />}>
-            <ClearanceModule />
-          </Suspense>
-        </main>
-      ) : (
-        <main className="no-print flex-1 flex flex-col lg:flex-row overflow-hidden md:h-0">
-          
-          {/* COLLAPSIBLE DIVISION SIDEBAR MENU */}
-          <aside className="w-64 bg-slate-950 border-r border-slate-850 p-4 flex flex-col gap-4 overflow-y-auto no-print shrink-0">
-            <div className="flex flex-col gap-2">
-              <span className="text-[10px] font-black uppercase text-indigo-400 tracking-wider">Education Levels</span>
-              
-              <button
-                onClick={() => {
-                  setFilterLevel('All');
-                  setFilterClass('All');
-                  setFilterStream('All');
-                }}
-                className={`w-full text-left px-3 py-2.5 rounded-lg text-xs font-black transition flex items-center justify-between border ${
-                  filterLevel === 'All' && filterClass === 'All'
-                    ? 'bg-gradient-to-r from-indigo-600 to-violet-600 border-indigo-500 text-white shadow-md'
-                    : 'bg-slate-900/50 border-slate-800 text-slate-350 hover:text-slate-100 hover:bg-slate-900'
-                }`}
-              >
-                <span>🏫 All Students</span>
-              </button>
-            </div>
-
-            <div className="flex flex-col gap-3">
-              {/* 1. LOWER SECONDARY SECTION */}
-              <div className="space-y-1">
-                <div className="flex items-center justify-between bg-slate-900/30 border border-slate-850/50 rounded-lg pr-1">
-                  <button
-                    onClick={() => {
-                      setFilterLevel('Lower');
-                      setFilterClass('All');
-                      setFilterStream('All');
-                    }}
-                    className={`flex-1 text-left px-3 py-2 rounded-l-lg text-xs font-bold transition flex items-center gap-1.5 ${
-                      filterLevel === 'Lower' && filterClass === 'All'
-                        ? 'text-indigo-400 font-extrabold'
-                        : 'text-slate-300 hover:text-slate-100'
-                    }`}
-                  >
-                    <span className="text-sm select-none">📁</span>
-                    <span className="truncate">Lower Secondary (U.C.E)</span>
-                  </button>
-                  <button
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      setLowerExpanded(!lowerExpanded);
-                    }}
-                    className="p-1 hover:bg-slate-800 rounded text-slate-500 hover:text-slate-300 cursor-pointer transition-colors"
-                  >
-                    <span className="text-[9px] font-bold block transition-transform duration-200" style={{ transform: lowerExpanded ? 'rotate(90deg)' : 'rotate(0deg)' }}>
-                      ▶
-                    </span>
-                  </button>
-                </div>
-
-                {lowerExpanded && (
-                  <div className="pl-4 space-y-1.5 mt-1 border-l border-slate-850 ml-5">
-                    {['S.1', 'S.2', 'S.3', 'S.4'].map((clsName) => {
-                      const isClsActive = filterClass === clsName;
-                      const isClsExpanded = expandedClasses[clsName];
-                      const streams = classesWithStreams[clsName] || [];
-
-                      return (
-                        <div key={clsName} className="space-y-1">
-                          <div className="flex items-center justify-between">
-                            <button
-                              onClick={() => {
-                                setFilterLevel('All');
-                                setFilterClass(clsName);
-                                setFilterStream('All');
-                              }}
-                              className={`flex-1 text-left px-2 py-1 rounded transition text-xs flex items-center gap-1.5 ${
-                                isClsActive && filterStream === 'All'
-                                  ? 'bg-indigo-600/20 text-indigo-400 font-bold border border-indigo-500/10'
-                                  : 'hover:bg-slate-900/40 text-slate-400 hover:text-slate-200'
-                              }`}
-                            >
-                              <span>├──</span>
-                              <span>{clsName}</span>
-                            </button>
-                            {streams.length > 0 && (
-                              <button
-                                onClick={() => {
-                                  setExpandedClasses((prev) => ({
-                                    ...prev,
-                                    [clsName]: !prev[clsName],
-                                  }));
-                                }}
-                                className="px-1 text-slate-650 hover:text-slate-400 text-[10px] cursor-pointer"
-                              >
-                                {isClsExpanded ? '▼' : '►'}
-                              </button>
-                            )}
-                          </div>
-
-                          {isClsExpanded && streams.length > 0 && (
-                            <div className="pl-6 space-y-1 border-l border-slate-850/60 ml-2">
-                              {streams.map((stream) => {
-                                const isStreamActive = isClsActive && filterStream === stream;
-                                return (
-                                  <button
-                                    key={stream}
-                                    onClick={() => {
-                                      setFilterLevel('All');
-                                      setFilterClass(clsName);
-                                      setFilterStream(stream);
-                                    }}
-                                    className={`w-full text-left px-2 py-0.5 rounded text-[10px] flex items-center gap-1.5 transition ${
-                                      isStreamActive
-                                        ? 'text-indigo-400 font-extrabold bg-indigo-950/20'
-                                        : 'text-slate-500 hover:text-slate-350'
-                                    }`}
-                                  >
-                                    <span>↳</span>
-                                    <span>{stream}</span>
-                                  </button>
-                                );
-                              })}
-                            </div>
-                          )}
-                          {isClsActive && (
-                            <div className="pl-6 py-1.5 pr-2 space-y-1 my-1 border-l border-indigo-500/20 ml-2">
-                              <span className="text-[9px] font-black uppercase text-indigo-400 font-mono tracking-wider block">Boarding Filter</span>
-                              <select
-                                value={filterBoarding}
-                                onChange={(e) => setFilterBoarding(e.target.value)}
-                                className="w-full bg-slate-900 border border-slate-800 rounded px-2 py-1 text-[10px] text-slate-300 font-bold outline-none cursor-pointer uppercase font-mono"
-                              >
-                                <option value="All">All Students</option>
-                                <option value="Hosteller">Hostellers</option>
-                                <option value="Day Scholar">Day Scholars</option>
-                              </select>
-                            </div>
-                          )}
-                        </div>
-                      );
-                    })}
-                  </div>
-                )}
-              </div>
-
-              {/* 2. UPPER SECONDARY SECTION */}
-              <div className="space-y-1">
-                <div className="flex items-center justify-between bg-slate-900/30 border border-slate-850/50 rounded-lg pr-1">
-                  <button
-                    onClick={() => {
-                      setFilterLevel('Upper');
-                      setFilterClass('All');
-                      setFilterStream('All');
-                    }}
-                    className={`flex-1 text-left px-3 py-2 rounded-l-lg text-xs font-bold transition flex items-center gap-1.5 ${
-                      filterLevel === 'Upper' && filterClass === 'All'
-                        ? 'text-indigo-400 font-extrabold'
-                        : 'text-slate-300 hover:text-slate-100'
-                    }`}
-                  >
-                    <span className="text-sm select-none">📁</span>
-                    <span className="truncate">Upper Secondary (A'Level)</span>
-                  </button>
-                  <button
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      setUpperExpanded(!upperExpanded);
-                    }}
-                    className="p-1 hover:bg-slate-800 rounded text-slate-500 hover:text-slate-300 cursor-pointer transition-colors"
-                  >
-                    <span className="text-[9px] font-bold block transition-transform duration-200" style={{ transform: upperExpanded ? 'rotate(90deg)' : 'rotate(0deg)' }}>
-                      ▶
-                    </span>
-                  </button>
-                </div>
-
-                {upperExpanded && (
-                  <div className="pl-4 space-y-1.5 mt-1 border-l border-slate-850 ml-5">
-                    {['S.5', 'S.6'].map((clsName) => {
-                      const isClsActive = filterClass === clsName;
-                      const isClsExpanded = expandedClasses[clsName];
-                      const streams = classesWithStreams[clsName] || [];
-
-                      return (
-                        <div key={clsName} className="space-y-1">
-                          <div className="flex items-center justify-between">
-                            <button
-                              onClick={() => {
-                                setFilterLevel('All');
-                                setFilterClass(clsName);
-                                setFilterStream('All');
-                              }}
-                              className={`flex-1 text-left px-2 py-1 rounded transition text-xs flex items-center gap-1.5 ${
-                                isClsActive && filterStream === 'All'
-                                  ? 'bg-indigo-600/20 text-indigo-400 font-bold border border-indigo-500/10'
-                                  : 'hover:bg-slate-900/40 text-slate-400 hover:text-slate-200'
-                              }`}
-                            >
-                              <span>├──</span>
-                              <span>{clsName}</span>
-                            </button>
-                            {streams.length > 0 && (
-                              <button
-                                onClick={() => {
-                                  setExpandedClasses((prev) => ({
-                                    ...prev,
-                                    [clsName]: !prev[clsName],
-                                  }));
-                                }}
-                                className="px-1 text-slate-650 hover:text-slate-400 text-[10px] cursor-pointer"
-                              >
-                                {isClsExpanded ? '▼' : '►'}
-                              </button>
-                            )}
-                          </div>
-
-                          {isClsExpanded && streams.length > 0 && (
-                            <div className="pl-6 space-y-1 border-l border-slate-850/60 ml-2">
-                              {streams.map((stream) => {
-                                const isStreamActive = isClsActive && filterStream === stream;
-                                return (
-                                  <button
-                                    key={stream}
-                                    onClick={() => {
-                                      setFilterLevel('All');
-                                      setFilterClass(clsName);
-                                      setFilterStream(stream);
-                                    }}
-                                    className={`w-full text-left px-2 py-0.5 rounded text-[10px] flex items-center gap-1.5 transition ${
-                                      isStreamActive
-                                        ? 'text-indigo-400 font-extrabold bg-indigo-950/20'
-                                        : 'text-slate-500 hover:text-slate-355'
-                                    }`}
-                                  >
-                                    <span>↳</span>
-                                    <span>{stream}</span>
-                                  </button>
-                                );
-                              })}
-                            </div>
-                          )}
-                          {isClsActive && (
-                            <div className="pl-6 py-1.5 pr-2 space-y-1 my-1 border-l border-indigo-500/20 ml-2">
-                              <span className="text-[9px] font-black uppercase text-indigo-400 font-mono tracking-wider block">Boarding Filter</span>
-                              <select
-                                value={filterBoarding}
-                                onChange={(e) => setFilterBoarding(e.target.value)}
-                                className="w-full bg-slate-900 border border-slate-800 rounded px-2 py-1 text-[10px] text-slate-300 font-bold outline-none cursor-pointer uppercase font-mono"
-                              >
-                                <option value="All">All Students</option>
-                                <option value="Hosteller">Hostellers</option>
-                                <option value="Day Scholar">Day Scholars</option>
-                              </select>
-                            </div>
-                          )}
-                        </div>
-                      );
-                    })}
-                  </div>
-                )}
-              </div>
-            </div>
-          </aside>
+      <div className="no-print flex-1 flex flex-col min-h-[500px]">
         
         {/* LEFT WORKSPACE PANEL: STUDENT TABLE & MANAGEMENT */}
         <section className="flex-1 flex flex-col overflow-y-auto p-4 md:p-6 border-r border-slate-800 gap-4">
           
-          {activeLevel === 'master' ? (
+          {activeLevel === 'master' || activeLevel === 'class-stream' ? (
             <>
               {/* BULK EXCEL PASTE CONTAINER (COLLAPSIBLE) */}
           {showBulkImporter && (
@@ -5168,6 +4832,14 @@ function AppContent() {
                 >
                   <ClipboardList className="w-3.5 h-3.5" /> Registry List
                 </button>
+
+                <button
+                  onClick={() => setShowDuplicateModal(true)}
+                  className="px-2.5 py-1.5 rounded-md cursor-pointer transition-all flex items-center gap-1.5 bg-slate-900 hover:bg-indigo-950 text-indigo-400 hover:text-indigo-300 border border-slate-800 hover:border-indigo-500/40"
+                  title="Scan and merge duplicate student entries"
+                >
+                  <Sparkles className="w-3.5 h-3.5" /> Manage Duplicates
+                </button>
               </div>
             </div>
 
@@ -5264,33 +4936,37 @@ function AppContent() {
               </div>
             )}
 
-            {/* GROUPED BOARD VIEW (Board Mode) */}
+            {/* GROUPED BOARD VIEW (1 Class + 1 Stream = 1 Full-Width Table Layout) */}
             {viewMode === 'board' ? (
-              <div className="flex-1 flex flex-col min-h-[400px] bg-slate-950/40 select-none">
-                {/* CLASS SELECTOR TABS FOR BOARD VIEW */}
-                <div className="bg-slate-900 border-b border-slate-850 p-2.5 flex items-center justify-between overflow-x-auto select-none gap-3">
+              <div className="flex-1 flex flex-col min-h-[450px] bg-slate-950/40 select-none">
+                {/* 1. CLASS SELECTOR TABS BAR */}
+                <div className="bg-slate-900 border-b border-slate-850 p-3 flex items-center justify-between overflow-x-auto select-none gap-3">
                   <div className="flex items-center gap-2 pl-1">
-                    <span className="w-1.5 h-1.5 rounded-full bg-indigo-500 animate-pulse" />
-                    <span className="text-[10px] font-black font-mono uppercase text-slate-400 tracking-widest shrink-0">
-                      Active Class View:
+                    <span className="w-2 h-2 rounded-full bg-indigo-500 animate-pulse" />
+                    <span className="text-xs font-black font-mono uppercase text-slate-300 tracking-wider shrink-0">
+                      Select Class:
                     </span>
                   </div>
-                  <div className="flex gap-1.5">
+                  <div className="flex gap-2 items-center">
                     {['S.1', 'S.2', 'S.3', 'S.4', 'S.5', 'S.6'].map((className) => {
                       const isActive = activeBoardClass === className;
                       
                       let badgeColor = '';
-                      if (className === 'S.1') badgeColor = isActive ? 'bg-emerald-500/15 border-emerald-500/50 text-emerald-400 ring-2 ring-emerald-500/10 font-extrabold shadow-sm' : 'border-slate-800 text-slate-400 hover:bg-slate-900 hover:border-emerald-500/30 hover:text-emerald-400';
-                      if (className === 'S.2') badgeColor = isActive ? 'bg-sky-500/15 border-sky-500/50 text-sky-400 ring-2 ring-sky-500/10 font-extrabold shadow-sm' : 'border-slate-800 text-slate-400 hover:bg-slate-900 hover:border-sky-500/30 hover:text-sky-400';
-                      if (className === 'S.3') badgeColor = isActive ? 'bg-blue-500/15 border-blue-500/50 text-blue-400 ring-2 ring-blue-500/10 font-extrabold shadow-sm' : 'border-slate-800 text-slate-400 hover:bg-slate-900 hover:border-blue-500/30 hover:text-blue-400';
-                      if (className === 'S.4') badgeColor = isActive ? 'bg-amber-500/15 border-amber-500/50 text-amber-400 ring-2 ring-amber-500/10 font-extrabold shadow-sm' : 'border-slate-800 text-slate-400 hover:bg-slate-900 hover:border-amber-500/30 hover:text-amber-400';
-                      if (className === 'S.5' || className === 'S.6') badgeColor = isActive ? 'bg-indigo-500/15 border-indigo-500/50 text-indigo-400 ring-2 ring-indigo-500/10 font-extrabold shadow-sm' : 'border-slate-800 text-slate-400 hover:bg-slate-900 hover:border-indigo-500/30 hover:text-indigo-400';
+                      if (className === 'S.1') badgeColor = isActive ? 'bg-emerald-500 text-slate-950 border-emerald-400 font-black ring-2 ring-emerald-500/40 shadow-lg shadow-emerald-950/50 scale-105' : 'bg-slate-950/60 border-slate-800 text-slate-400 hover:bg-slate-900 hover:border-emerald-500/40 hover:text-emerald-400';
+                      if (className === 'S.2') badgeColor = isActive ? 'bg-sky-500 text-slate-950 border-sky-400 font-black ring-2 ring-sky-500/40 shadow-lg shadow-sky-950/50 scale-105' : 'bg-slate-950/60 border-slate-800 text-slate-400 hover:bg-slate-900 hover:border-sky-500/40 hover:text-sky-400';
+                      if (className === 'S.3') badgeColor = isActive ? 'bg-blue-500 text-slate-950 border-blue-400 font-black ring-2 ring-blue-500/40 shadow-lg shadow-blue-950/50 scale-105' : 'bg-slate-950/60 border-slate-800 text-slate-400 hover:bg-slate-900 hover:border-blue-500/40 hover:text-blue-400';
+                      if (className === 'S.4') badgeColor = isActive ? 'bg-amber-500 text-slate-950 border-amber-400 font-black ring-2 ring-amber-500/40 shadow-lg shadow-amber-950/50 scale-105' : 'bg-slate-950/60 border-slate-800 text-slate-400 hover:bg-slate-900 hover:border-amber-500/40 hover:text-amber-400';
+                      if (className === 'S.5') badgeColor = isActive ? 'bg-indigo-500 text-white border-indigo-400 font-black ring-2 ring-indigo-500/40 shadow-lg shadow-indigo-950/50 scale-105' : 'bg-slate-950/60 border-slate-800 text-slate-400 hover:bg-slate-900 hover:border-indigo-500/40 hover:text-indigo-400';
+                      if (className === 'S.6') badgeColor = isActive ? 'bg-purple-500 text-white border-purple-400 font-black ring-2 ring-purple-500/40 shadow-lg shadow-purple-950/50 scale-105' : 'bg-slate-950/60 border-slate-800 text-slate-400 hover:bg-slate-900 hover:border-purple-500/40 hover:text-purple-400';
 
                       return (
                         <button
                           key={className}
-                          onClick={() => setActiveBoardClass(className)}
-                          className={`px-3 py-1 text-xs font-bold tracking-wider uppercase font-mono border rounded-lg transition-all cursor-pointer ${badgeColor}`}
+                          type="button"
+                          onClick={() => {
+                            setActiveBoardClass(className);
+                          }}
+                          className={`px-4 py-1.5 text-xs font-mono font-bold tracking-widest uppercase border rounded-xl transition-all duration-150 cursor-pointer ${badgeColor}`}
                         >
                           {className}
                         </button>
@@ -5299,226 +4975,289 @@ function AppContent() {
                   </div>
                 </div>
 
+                {/* 2. STREAM SELECTOR SUB-TABS BAR */}
+                <div className="bg-slate-955 border-b border-slate-850 px-4 py-2.5 flex items-center justify-between flex-wrap gap-3">
+                  <div className="flex items-center gap-2">
+                    <span className="text-xs font-black font-mono uppercase text-indigo-400 tracking-wider">
+                      {activeBoardClass} — SELECT STREAM:
+                    </span>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    {['A', 'B', 'C'].map((stKey) => {
+                      const isSeniorUpper = ['S.5', 'S.6'].includes(activeBoardClass);
+                      let label = `STREAM ${stKey}`;
+                      if (isSeniorUpper) {
+                        if (stKey === 'A') label = `STREAM A (ARTS)`;
+                        else if (stKey === 'B') label = `STREAM B (SCIENCES)`;
+                        else label = `STREAM C`;
+                      }
+                      const isStreamActive = activeBoardStream === stKey;
+                      const streamCount = (boardViewData.studentsByStream[stKey] || []).length;
+
+                      return (
+                        <button
+                          key={stKey}
+                          type="button"
+                          onClick={() => setActiveBoardStream(stKey as 'A' | 'B' | 'C')}
+                          className={`px-4 py-1.5 text-xs font-mono font-bold tracking-wider uppercase border rounded-xl transition-all duration-150 cursor-pointer flex items-center gap-2 ${
+                            isStreamActive
+                              ? 'bg-gradient-to-r from-indigo-600 to-violet-600 text-white border-indigo-400 shadow-md ring-2 ring-indigo-500/40 scale-105'
+                              : 'bg-slate-900 border-slate-800 text-slate-400 hover:bg-slate-850 hover:text-slate-200'
+                          }`}
+                        >
+                          <span>{label}</span>
+                          <span className={`text-[10px] px-2 py-0.5 rounded-full font-mono font-black ${
+                            isStreamActive ? 'bg-indigo-950 text-indigo-200 border border-indigo-400/40' : 'bg-slate-950 text-slate-500 border border-slate-800'
+                          }`}>
+                            {streamCount}
+                          </span>
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+
+                {/* 3. DYNAMIC STREAM HEADER & STATISTICS SUMMARY BAR */}
                 {(() => {
-                  const { streams, studentsByStream, maxRows, boardStudentsLength } = boardViewData;
-
-                  const parseClassAndStream = (gradeClassStr: string) => {
-                    const parts = (gradeClassStr || '').trim().split(/\s+/);
-                    const className = parts[0] || 'Unknown';
-                    const streamName = parts.slice(1).join(' ') || 'A';
-                    return { className, streamName };
-                  };
-
-                  if (boardStudentsLength === 0) {
-                    return (
-                      <div className="w-full flex-1 flex flex-col items-center justify-center p-12 text-slate-500 font-medium">
-                        <AlertCircle className="w-8 h-8 text-slate-600 mb-2" />
-                        <span>No records found in Class {activeBoardClass} matching active search criteria.</span>
-                      </div>
-                    );
+                  const { activeStreamStudents, activeStreamStats } = boardViewData;
+                  const isSeniorUpper = ['S.5', 'S.6'].includes(activeBoardClass);
+                  let displayStreamTitle = `${activeBoardClass} — STREAM ${activeBoardStream}`;
+                  if (isSeniorUpper) {
+                    if (activeBoardStream === 'A') displayStreamTitle = `${activeBoardClass} — STREAM A (ARTS)`;
+                    else if (activeBoardStream === 'B') displayStreamTitle = `${activeBoardClass} — STREAM B (SCIENCES)`;
+                    else displayStreamTitle = `${activeBoardClass} — STREAM C`;
                   }
 
+                  const activeStreamIds = activeStreamStudents.map(s => s.id);
+                  const allSelectedInStream = activeStreamIds.length > 0 && activeStreamIds.every(id => selectedIds.includes(id));
+
                   return (
-                    <div className="flex-1 overflow-auto max-h-[500px] scrollbar-thin scrollbar-thumb-slate-800">
-                      <table className="w-full min-w-[1000px] text-left border-collapse select-none border border-slate-850 bg-slate-950/30 table-fixed">
-                        <thead>
-                          <tr className="border-b border-slate-800 bg-slate-900/60 font-mono text-[9px] font-black tracking-widest uppercase">
-                            {/* Top-Left Blank Google Sheets cell with Select All */}
-                            <th className="py-2.5 px-3 w-12 border-r border-slate-850 text-slate-550 text-center bg-slate-900/80 align-middle">
-                              <div className="flex flex-col items-center gap-1 justify-center">
-                                <input
-                                  type="checkbox"
-                                  checked={!!boardViewData.boardStudentIds && boardViewData.boardStudentIds.length > 0 && boardViewData.boardStudentIds.every((id: string) => selectedIds.includes(id))}
-                                  onChange={(e) => {
-                                    const boardIds = boardViewData.boardStudentIds || [];
-                                    if (e.target.checked) {
-                                      setSelectedIds(prev => Array.from(new Set([...prev, ...boardIds])));
-                                    } else {
-                                      setSelectedIds(prev => prev.filter(id => !boardIds.includes(id)));
-                                    }
-                                  }}
-                                  className="w-3.5 h-3.5 rounded border-slate-700 bg-slate-800 text-indigo-500 focus:ring-0 focus:ring-offset-0 cursor-pointer"
-                                  title="Select/Deselect all in board view"
-                                />
-                                <span className="text-[7.5px] font-black text-slate-500 font-mono tracking-tighter leading-none">ALL</span>
-                              </div>
-                            </th>
-                            {streams.map((stream) => {
-                              const streamStudents = studentsByStream[stream] || [];
-                              const activeStreamIds = Array.isArray(streamStudents) ? streamStudents.map(s => s.id) : [];
-                              const allSelected = activeStreamIds.length > 0 && activeStreamIds.every(id => selectedIds.includes(id));
-                              return (
-                                <th 
-                                  key={stream} 
-                                  className="py-2 px-3 border-r border-slate-850 text-slate-350 font-bold font-mono tracking-widest text-[11px] relative bg-slate-900/80 align-middle"
-                                >
-                                  <div className="flex items-center justify-between gap-1.5">
-                                    <div className="flex items-center shrink-0">
+                    <div className="flex-1 flex flex-col overflow-hidden">
+                      {/* STATS BANNER */}
+                      <div className="bg-slate-900/80 border-b border-slate-850 p-4 flex flex-wrap items-center justify-between gap-3">
+                        <div>
+                          <h3 className="text-sm font-black uppercase text-slate-100 tracking-wider font-mono flex items-center gap-2">
+                            <span className="w-2.5 h-2.5 rounded-full bg-indigo-500 shadow-[0_0_8px_rgba(99,102,241,0.6)]" />
+                            {displayStreamTitle}
+                          </h3>
+                        </div>
+
+                        {/* Summary Pill Badges */}
+                        <div className="flex flex-wrap items-center gap-2 font-mono text-[10px] font-bold">
+                          <div className="bg-slate-950 border border-slate-800 px-3 py-1.5 rounded-lg flex items-center gap-1.5 text-slate-200">
+                            <Users className="w-3.5 h-3.5 text-indigo-400" />
+                            <span>Total: <strong className="text-white text-xs">{activeStreamStats.total}</strong></span>
+                          </div>
+                          <div className="bg-emerald-955/60 border border-emerald-900/50 px-3 py-1.5 rounded-lg flex items-center gap-1.5 text-emerald-300">
+                            <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400" />
+                            <span>Cleared: <strong className="text-emerald-400 text-xs">{activeStreamStats.cleared}</strong></span>
+                          </div>
+                          <div className="bg-rose-955/60 border border-rose-900/50 px-3 py-1.5 rounded-lg flex items-center gap-1.5 text-rose-300">
+                            <AlertCircle className="w-3.5 h-3.5 text-rose-400" />
+                            <span>On Hold: <strong className="text-rose-400 text-xs">{activeStreamStats.hold}</strong></span>
+                          </div>
+                          <div className="bg-indigo-955/60 border border-indigo-900/50 px-3 py-1.5 rounded-lg flex items-center gap-1.5 text-indigo-300">
+                            <Camera className="w-3.5 h-3.5 text-indigo-400" />
+                            <span>Missing Photos: <strong className="text-amber-400 text-xs">{activeStreamStats.missingPhotos}</strong></span>
+                          </div>
+                        </div>
+                      </div>
+
+                      {/* 4. FULL-WIDTH SPACIOUS STUDENT TABLE */}
+                      <div className="flex-1 overflow-x-auto overflow-y-auto max-h-[650px]">
+                        {activeStreamStudents.length === 0 ? (
+                          <div className="w-full py-24 flex flex-col items-center justify-center text-slate-500">
+                            <AlertCircle className="w-10 h-10 text-slate-600 mb-3" />
+                            <span className="text-sm font-bold text-slate-400">No students found in {displayStreamTitle}</span>
+                            <span className="text-xs text-slate-600 mt-1 font-mono">Try searching or clearing active filters.</span>
+                          </div>
+                        ) : (
+                          <table className="w-full text-left border-collapse select-none min-w-[900px]">
+                            <thead>
+                              <tr className="border-b border-slate-800 bg-slate-900/90 text-[10px] font-mono font-black text-slate-400 uppercase tracking-widest sticky top-0 z-10 shadow-sm">
+                                <th className="py-3 px-4 w-12 text-center">
+                                  <input
+                                    type="checkbox"
+                                    checked={allSelectedInStream}
+                                    onChange={(e) => {
+                                      if (e.target.checked) {
+                                        setSelectedIds(prev => Array.from(new Set([...prev, ...activeStreamIds])));
+                                      } else {
+                                        setSelectedIds(prev => prev.filter(id => !activeStreamIds.includes(id)));
+                                      }
+                                    }}
+                                    className="w-4 h-4 rounded border-slate-700 bg-slate-800 text-indigo-500 focus:ring-0 cursor-pointer"
+                                    title={`Select all students in ${displayStreamTitle}`}
+                                  />
+                                </th>
+                                <th className="py-3 px-3 w-12 text-center font-mono">#</th>
+                                <th className="py-3 px-3 w-16 text-center">PHOTO</th>
+                                <th className="py-3 px-4">STUDENT NAME</th>
+                                <th className="py-3 px-4">ADM NO.</th>
+                                <th className="py-3 px-3 text-center">CLASS</th>
+                                <th className="py-3 px-3 text-center">STREAM</th>
+                                <th className="py-3 px-3 text-center">CLEARANCE</th>
+                                <th className="py-3 px-3 text-center">BOARDING</th>
+                                <th className="py-3 px-3 text-center">PHOTO STATUS</th>
+                                <th className="py-3 px-4 text-right">ACTIONS</th>
+                              </tr>
+                            </thead>
+                            <tbody className="divide-y divide-slate-850/60 text-xs">
+                              {activeStreamStudents.map((s, rowIndex) => {
+                                const isChecked = selectedIds.includes(s.id);
+                                const isFocused = previewStudentId === s.id;
+                                const numIndex = rowIndex + 1;
+                                const hasPhoto = s.hasPhoto || !!s.photo;
+
+                                return (
+                                  <tr
+                                    key={s.id}
+                                    onClick={() => setPreviewStudentId(s.id)}
+                                    className={`transition-colors duration-150 cursor-pointer ${
+                                      isFocused
+                                        ? 'bg-indigo-950/60 border-l-4 border-l-indigo-500'
+                                        : isChecked
+                                        ? 'bg-indigo-950/30'
+                                        : 'hover:bg-slate-900/80 bg-slate-950/40'
+                                    }`}
+                                  >
+                                    {/* Selection Checkbox */}
+                                    <td className="py-3 px-4 text-center">
                                       <input
                                         type="checkbox"
-                                        checked={allSelected}
-                                        onChange={(e) => {
-                                          if (e.target.checked) {
-                                            setSelectedIds(prev => {
-                                              const distinct = new Set([...prev, ...activeStreamIds]);
-                                              return Array.from(distinct);
-                                            });
-                                          } else {
-                                            setSelectedIds(prev => prev.filter(id => !activeStreamIds.includes(id)));
-                                          }
+                                        checked={isChecked}
+                                        onClick={(e) => e.stopPropagation()}
+                                        onChange={() => {
+                                          setSelectedIds(prev =>
+                                            prev.includes(s.id) ? prev.filter(id => id !== s.id) : [...prev, s.id]
+                                          );
                                         }}
-                                        className="w-3.5 h-3.5 rounded border-slate-700 bg-slate-800 text-indigo-500 focus:ring-0 focus:ring-offset-0 cursor-pointer"
-                                        title="Select/Deselect all in this stream column"
+                                        className="w-4 h-4 rounded border-slate-700 bg-slate-800 text-indigo-600 focus:ring-0 cursor-pointer"
                                       />
-                                    </div>
-                                    <span className="flex-1 text-center truncate">
-                                      {stream.toUpperCase() === 'ARTS' || stream.toUpperCase() === 'SCIENCES' 
-                                        ? `${stream.toUpperCase()} STREAM` 
-                                        : `STREAM ${stream.toUpperCase()}`}
-                                    </span>
-                                  </div>
-                                </th>
-                              );
-                            })}
-                          </tr>
-                        </thead>
-                        <tbody className="divide-y divide-slate-850 text-xs text-slate-300">
-                          {Array.from({ length: maxRows }).map((_, rowIndex) => (
-                            <tr key={rowIndex} className="border-b border-slate-855 hover:bg-slate-900/10">
-                              {/* Left Side Google Sheets row numbering */}
-                              <td className="py-2 text-center text-[10px] font-black font-mono text-slate-500 bg-slate-900/40 select-none border-r border-slate-850">
-                                {rowIndex + 1}
-                              </td>
+                                    </td>
 
-                              {streams.map((stream) => {
-                                const list = studentsByStream[stream] || [];
-                                const s = list[rowIndex];
+                                    {/* Row Index */}
+                                    <td className="py-3 px-3 text-center font-mono font-bold text-slate-500 text-[10px]">
+                                      {numIndex}
+                                    </td>
 
-                                if (s) {
-                                  const isChecked = selectedIds.includes(s.id);
-                                  const isFocused = previewStudentId === s.id;
-                                  const numIndex = rowIndex + 1;
-
-                                  return (
-                                    <td 
-                                      key={stream + '-' + s.id}
-                                      onClick={() => setPreviewStudentId(s.id)}
-                                      className={`p-2 border-r border-slate-850 relative cursor-pointer select-none transition-all duration-100 ${
-                                        isFocused 
-                                          ? 'bg-indigo-950/40 shadow-inner' 
-                                          : 'hover:bg-slate-900/50'
-                                      }`}
-                                    >
-                                      <div className="flex items-center justify-between gap-2">
-                                        {/* Action Stack */}
-                                        <div className="flex items-center gap-1.5 shrink-0">
-                                          <input
-                                            type="checkbox"
-                                            checked={isChecked}
-                                            onClick={(e) => e.stopPropagation()}
-                                            onChange={() => {
-                                              setSelectedIds((prev) =>
-                                                prev.includes(s.id) ? prev.filter((id) => id !== s.id) : [...prev, s.id]
-                                              );
-                                            }}
-                                            className="w-3.5 h-3.5 rounded border-slate-750 bg-slate-850 text-indigo-600 focus:ring-0 focus:ring-offset-0 cursor-pointer"
+                                    {/* Photo Thumbnail */}
+                                    <td className="py-3 px-3 text-center">
+                                      <div className="w-9 h-11 bg-slate-950 rounded-lg border border-slate-800 mx-auto overflow-hidden flex items-center justify-center shadow-inner shrink-0">
+                                        {getStudentPhotoUrl(s) ? (
+                                          <img
+                                            src={getStudentPhotoUrl(s)}
+                                            alt={s.name}
+                                            loading="lazy"
+                                            className="w-full h-full object-cover"
+                                            referrerPolicy="no-referrer"
                                           />
-                                          <span 
-                                            onClick={(e) => {
-                                              e.stopPropagation();
-                                              toggleRowStatus(s.id);
-                                            }}
-                                            className={`w-2 h-2 rounded-full cursor-pointer shrink-0 border border-slate-900 ${
-                                              s.isCleared ? 'bg-emerald-500 shadow-[0_0_6px_rgba(16,185,129,0.5)]' : 'bg-rose-500 shadow-[0_0_6px_rgba(239,68,68,0.5)]'
-                                            }`}
-                                            title="Click to toggle status"
-                                          />
-                                          {/* Mini Number Badge */}
-                                          <span className="text-[9px] font-black font-mono text-slate-500 bg-slate-900 border border-slate-800 w-4.5 h-4.5 flex items-center justify-center rounded">
-                                            {numIndex}
-                                          </span>
-                                        </div>
-
-                                        {/* Student Details with Photo */}
-                                        <div className="flex items-center gap-2 flex-1 min-w-0">
-                                          <div className="w-[30px] h-[40px] bg-slate-900 rounded border border-slate-800 shrink-0 overflow-hidden flex items-center justify-center shadow-3xs">
-                                            {getStudentPhotoUrl(s) ? (
-                                              <img 
-                                                src={getStudentPhotoUrl(s)} 
-                                                alt={s.name} 
-                                                loading="lazy"
-                                                className="w-full h-full object-cover"
-                                                referrerPolicy="no-referrer"
-                                              />
-                                            ) : (
-                                              <svg className="w-5 h-5 text-slate-600" fill="currentColor" viewBox="0 0 20 20">
-                                                <path fillRule="evenodd" d="M10 9a3 3 0 100-6 3 3 0 000 6zm-7 9a7 7 0 1114 0H3z" clipRule="evenodd" />
-                                              </svg>
-                                            )}
-                                          </div>
-                                          <div className="min-w-0">
-                                            <h4 className={`text-[10px] font-extrabold leading-tight truncate ${isFocused ? 'text-indigo-300' : 'text-slate-100'}`}>
-                                              {s.name}
-                                            </h4>
-                                            <span className="text-[8px] font-mono text-slate-500 block leading-none select-all mt-0.5">
-                                              {s.adminNo}
-                                            </span>
-                                          </div>
-                                        </div>
-
-                                        {/* Status Tag & actions hover overlay */}
-                                        <div className="flex items-center gap-1 shrink-0">
-                                          <span className={`text-[7.5px] font-black font-mono px-1 py-0.5 rounded leading-none ${
-                                            s.isCleared ? 'bg-emerald-950/60 text-emerald-400 border border-emerald-900/40' : 'bg-rose-950/60 text-rose-400 border border-rose-900/40'
-                                          }`}>
-                                            {s.isCleared ? 'OK' : 'HOLD'}
-                                          </span>
-                                          <span className={`text-[7.5px] font-black font-mono px-1 py-0.5 rounded leading-none ${
-                                            s.printStatus === 'Printed'
-                                              ? 'bg-indigo-950/60 text-indigo-400 border border-indigo-900/40'
-                                              : 'bg-amber-955/65 text-amber-450 border border-amber-900/40'
-                                          }`} title={`Print Status: ${s.printStatus || 'Not Printed'}`}>
-                                            {s.printStatus === 'Printed' ? 'PRN' : 'NEW'}
-                                          </span>
-                                          <button
-                                            onClick={(e) => {
-                                              e.stopPropagation();
-                                              handleOpenEditForm(s);
-                                            }}
-                                            className="text-slate-500 hover:text-emerald-400 p-0.5 transition-colors cursor-pointer"
-                                            title="Edit student"
-                                          >
-                                            <Edit2 className="w-3 h-3" />
-                                          </button>
-                                          <button
-                                            onClick={(e) => {
-                                              e.stopPropagation();
-                                              handleDeleteStudent(s.id);
-                                            }}
-                                            className="text-slate-500 hover:text-rose-455 p-0.5 transition-colors cursor-pointer"
-                                            title="Remove student"
-                                          >
-                                            <Trash2 className="w-3 h-3" />
-                                          </button>
-                                        </div>
+                                        ) : (
+                                          <svg className="w-4 h-4 text-slate-600" fill="currentColor" viewBox="0 0 20 20">
+                                            <path fillRule="evenodd" d="M10 9a3 3 0 100-6 3 3 0 000 6zm-7 9a7 7 0 1114 0H3z" clipRule="evenodd" />
+                                          </svg>
+                                        )}
                                       </div>
                                     </td>
-                                  );
-                                } else {
-                                  return (
-                                    <td 
-                                      key={`empty-${stream}-${rowIndex}`}
-                                      className="p-2 border-r border-slate-850 bg-slate-950/10 text-center"
-                                    >
-                                      <span className="text-[10px] text-slate-750 font-mono select-none">-</span>
+
+                                    {/* Student Name */}
+                                    <td className="py-3 px-4 font-bold text-slate-100">
+                                      <span className={`block truncate ${isFocused ? 'text-indigo-300 font-extrabold' : ''}`}>
+                                        {s.name}
+                                      </span>
                                     </td>
-                                  );
-                                }
+
+                                    {/* Admission Number */}
+                                    <td className="py-3 px-4 font-mono font-semibold text-slate-400 text-xs">
+                                      {s.adminNo || s.studentNo || '—'}
+                                    </td>
+
+                                    {/* Class */}
+                                    <td className="py-3 px-3 text-center font-mono font-bold text-slate-300">
+                                      {parseClassAndStream(s.gradeClass).className || activeBoardClass}
+                                    </td>
+
+                                    {/* Stream */}
+                                    <td className="py-3 px-3 text-center font-mono font-bold text-indigo-400">
+                                      STREAM {activeBoardStream}
+                                    </td>
+
+                                    {/* Clearance Status Badge & Quick Toggle */}
+                                    <td className="py-3 px-3 text-center">
+                                      <button
+                                        type="button"
+                                        onClick={(e) => {
+                                          e.stopPropagation();
+                                          toggleRowStatus(s.id);
+                                        }}
+                                        className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[10px] font-black font-mono uppercase tracking-wider border cursor-pointer transition-all ${
+                                          s.isCleared
+                                            ? 'bg-emerald-950/80 text-emerald-400 border-emerald-800/60 hover:bg-emerald-900/80'
+                                            : 'bg-rose-955/80 text-rose-400 border-rose-800/60 hover:bg-rose-900/80'
+                                        }`}
+                                        title="Click to toggle clearance status"
+                                      >
+                                        <span className={`w-2 h-2 rounded-full ${s.isCleared ? 'bg-emerald-400' : 'bg-rose-400'}`} />
+                                        {s.isCleared ? 'OK / CLEARED' : 'ON HOLD'}
+                                      </button>
+                                    </td>
+
+                                    {/* Boarding Status */}
+                                    <td className="py-3 px-3 text-center font-mono">
+                                      <span className={`inline-block px-2 py-0.5 rounded text-[9.5px] font-bold ${
+                                        s.boardingStatus === 'Hosteller'
+                                          ? 'bg-indigo-950/70 text-indigo-300 border border-indigo-900/40'
+                                          : 'bg-slate-900 text-slate-400 border border-slate-800'
+                                      }`}>
+                                        {s.boardingStatus || 'Day Scholar'}
+                                      </span>
+                                    </td>
+
+                                    {/* Photo Status */}
+                                    <td className="py-3 px-3 text-center font-mono">
+                                      <span className={`inline-block px-2 py-0.5 rounded text-[9.5px] font-bold ${
+                                        hasPhoto
+                                          ? 'bg-emerald-955/60 text-emerald-400 border border-emerald-900/40'
+                                          : 'bg-amber-955/60 text-amber-400 border border-amber-900/40'
+                                      }`}>
+                                        {hasPhoto ? 'Photo' : 'No Photo'}
+                                      </span>
+                                    </td>
+
+                                    {/* Action Buttons */}
+                                    <td className="py-3 px-4 text-right">
+                                      <div className="flex items-center justify-end gap-1.5">
+                                        <button
+                                          type="button"
+                                          onClick={(e) => {
+                                            e.stopPropagation();
+                                            handleOpenEditForm(s);
+                                          }}
+                                          className="p-1.5 text-slate-400 hover:text-emerald-400 hover:bg-slate-900 rounded-lg transition-colors cursor-pointer"
+                                          title="Edit student details"
+                                        >
+                                          <Edit2 className="w-4 h-4" />
+                                        </button>
+                                        <button
+                                          type="button"
+                                          onClick={(e) => {
+                                            e.stopPropagation();
+                                            handleDeleteStudent(s.id);
+                                          }}
+                                          className="p-1.5 text-slate-400 hover:text-rose-400 hover:bg-slate-900 rounded-lg transition-colors cursor-pointer"
+                                          title="Delete student"
+                                        >
+                                          <Trash2 className="w-4 h-4" />
+                                        </button>
+                                      </div>
+                                    </td>
+                                  </tr>
+                                );
                               })}
-                            </tr>
-                          ))}
-                        </tbody>
-                      </table>
+                            </tbody>
+                          </table>
+                        )}
+                      </div>
                     </div>
                   );
                 })()}
@@ -6315,9 +6054,6 @@ function AppContent() {
               <h3 className="text-sm font-extrabold text-slate-150 uppercase tracking-tight flex items-center gap-1.5">
                 <ClipboardList className="w-4 h-4 text-indigo-400" /> Print Preview Workspace
               </h3>
-          <h3 className="text-sm font-extrabold text-slate-150 uppercase tracking-tight flex items-center gap-1.5">
-            <ClipboardList className="w-4 h-4 text-indigo-400" /> Print Preview Workspace
-          </h3>
           <p className="text-[10px] text-slate-500 mt-1">
             Select student on the grid to update live preview parameters. Flip card using toggle controls.
           </p>
@@ -6737,17 +6473,20 @@ function AppContent() {
                 <span>Select range above or check individual students below to queue for printing.</span>
               </div>
             </div>
-
           </div>
+
           </>
         )}
 
         </section>
 
-      </main>
+      </div>
+        </>
       )}
         </>
       )}
+      </main>
+      </div>
 
       {adminActiveTab === 'attendance' && (
         <div className="p-4 md:p-6 bg-slate-900 min-h-screen">
@@ -6829,6 +6568,18 @@ function AppContent() {
         }} 
         existingStudents={students} 
       />
+
+      {/* DUPLICATE MANAGER MODAL */}
+      {showDuplicateModal && (
+        <DuplicateManagerModal
+          isOpen={showDuplicateModal}
+          onClose={() => setShowDuplicateModal(false)}
+          students={students}
+          onRefreshData={async () => {
+            await loadStudentsFromServer();
+          }}
+        />
+      )}
 
       {/* HIDDEN PHYSICAL HIGH-FIDELITY WEB PRINT CONTAINER */}
       <div id="print-section" className="hidden print:block bg-white text-black p-0">
@@ -7620,9 +7371,8 @@ function AppContent() {
           </div>
         )}
       </div>
-      )}
+    )}
     </div>
-    </>
   );
 }
 

@@ -801,6 +801,10 @@ export async function fetchAttendanceDashboard(): Promise<any> {
   return await apiCall('/api/attendance/dashboard');
 }
 
+export async function fetchAttendanceGrid(period: string = 'today'): Promise<any> {
+  return await apiCall(`/api/attendance/grid?period=${encodeURIComponent(period)}`);
+}
+
 export async function fetchAttendanceLogs(filters: {
   startDate?: string;
   endDate?: string;

@@ -179,7 +179,7 @@ export default function ClearanceCard({
         {/* Right: Term Badge aligned to top-right corner */}
         <div className="shrink-0 flex items-center justify-center translate-y-[16px]">
           <div className="bg-[#0b1942] text-[#d4af37] border border-[#d4af37]/60 px-2.5 py-1 rounded-md text-[7.5px] font-mono font-[800] uppercase shrink-0 tracking-wider text-center shadow-xs">
-            TERM 2, 2026
+            TERM 3, 2026
           </div>
         </div>
       </div>

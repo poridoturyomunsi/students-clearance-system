@@ -282,7 +282,7 @@ function drawCardFrontPdf(
   }
   doc.text('P.O.BOX 678, NASUTI IGANGA', x + 16.0, y + 10.8);
 
-  // TERM 2, 2026 badge aligned to top-right corner, pushed down for perfect vertical centering in header
+  // TERM 3, 2026 badge aligned to top-right corner, pushed down for perfect vertical centering in header
   const termBadgeX = x + cw - 23.5;
   const termBadgeY = y + 7.8;
   const termBadgeW = 20.5;
@@ -293,7 +293,7 @@ function drawCardFrontPdf(
   doc.setFont('helvetica', 'bold');
   doc.setFontSize(6.2);
   doc.setTextColor(255, 255, 255);
-  doc.text('TERM 2, 2026', termBadgeX + termBadgeW / 2, termBadgeY + 4.2, { align: 'center' });
+  doc.text('TERM 3, 2026', termBadgeX + termBadgeW / 2, termBadgeY + 4.2, { align: 'center' });
 
   if (logoBase64 && showWatermark) {
     const wmSize = 34.0;
@@ -1065,19 +1065,20 @@ async function generateClearancePdf({
   const spacingX = 10;
   const spacingY = 13;
 
-  // Pre-generate unique QR codes for every student if not present
-  for (let i = 0; i < students.length; i++) {
-    const student = students[i];
-    if (!student.qrCodeBase64) {
-      try {
-        const stdIdentifier = student.studentNo || student.adminNo || student.id;
-        const secureUrl = `https://stpaulss-eportal.vercel.app/verify/student/${encodeURIComponent(stdIdentifier)}`;
-        student.qrCodeBase64 = await QRCode.toDataURL(secureUrl, { margin: 1, width: 250, errorCorrectionLevel: 'M' });
-      } catch (e) {
-        console.warn(`Could not generate QR code for student ${student.id}:`, e);
+  // Pre-generate unique QR codes for every student in parallel
+  await Promise.all(
+    students.map(async (student) => {
+      if (!student.qrCodeBase64) {
+        try {
+          const stdIdentifier = student.studentNo || student.adminNo || student.id;
+          const secureUrl = `https://stpaulss-eportal.vercel.app/verify/student/${encodeURIComponent(stdIdentifier)}`;
+          student.qrCodeBase64 = await QRCode.toDataURL(secureUrl, { margin: 1, width: 250, errorCorrectionLevel: 'M' });
+        } catch (e) {
+          console.warn(`Could not generate QR code for student ${student.id}:`, e);
+        }
       }
-    }
-  }
+    })
+  );
 
   if (layoutMode === 'front-back-paired') {
     let studentCounter = 0;

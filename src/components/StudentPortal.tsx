@@ -713,7 +713,7 @@ export default function StudentPortal({ studentId, studentName, adminNo, student
                   </div>
                   <div className="space-y-1">
                     <h4 className="text-xs font-black uppercase text-slate-200 tracking-wider">
-                      {marks && marks.length > 0 ? ((marks[0].term === '1' || marks[0].term === '2' || marks[0].term === '3') ? `Term ${marks[0].term}` : marks[0].term) : 'Term 2'}, {marks && marks.length > 0 ? marks[0].year : '2026'} Academic Report
+                      {marks && marks.length > 0 ? ((marks[0].term === '1' || marks[0].term === '2' || marks[0].term === '3') ? `Term ${marks[0].term}` : marks[0].term) : 'Term 3'}, {marks && marks.length > 0 ? marks[0].year : '2026'} Academic Report
                     </h4>
                     <p className="text-[10.5px] text-slate-500 leading-normal max-w-md font-medium">
                       Contains marks, continuous assessment weights, rank, averages, and signatures. Available once subject teachers submit and admin approves.

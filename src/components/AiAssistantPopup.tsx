@@ -34,7 +34,7 @@ interface AiAssistantPopupProps {
 }
 
 export default function AiAssistantPopup({ schoolLogo }: AiAssistantPopupProps) {
-  const [isOpen, setIsOpen] = useState<boolean>(true);
+  const [isOpen, setIsOpen] = useState<boolean>(false);
   const [isKeyConfigured, setIsKeyConfigured] = useState<boolean>(false);
   const [messages, setMessages] = useState<Message[]>([]);
   const [inputVal, setInputVal] = useState<string>('');
@@ -206,45 +206,57 @@ export default function AiAssistantPopup({ schoolLogo }: AiAssistantPopupProps) 
   };
 
   return (
-    <div className="no-print">
-      {/* FLOATING LAUNCHER BUTTON */}
+    <div className="no-print font-sans select-none">
+      {/* FLOATING LAUNCHER CIRCULAR BUTTON */}
       <button
+        type="button"
         onClick={() => setIsOpen(!isOpen)}
-        className="fixed bottom-6 right-6 w-14 h-14 bg-gradient-to-r from-indigo-600 to-violet-600 hover:from-indigo-500 hover:to-violet-500 rounded-full flex items-center justify-center text-white shadow-2xl transition-all duration-300 hover:scale-110 z-[9999] cursor-pointer group hover:rotate-12"
-        title="Open St.Paul AI Popup Assistant"
+        className={`fixed bottom-5 right-5 sm:bottom-6 sm:right-6 w-14 h-14 rounded-full flex items-center justify-center text-white shadow-2xl transition-all duration-300 z-[10000] cursor-pointer group ${
+          isOpen
+            ? 'bg-slate-900 border border-slate-700 hover:bg-slate-800 text-slate-300 hover:scale-105 active:scale-95 shadow-black/80 ring-2 ring-indigo-500/30'
+            : 'bg-gradient-to-r from-indigo-600 via-purple-600 to-violet-600 border border-indigo-400/40 hover:from-indigo-500 hover:to-violet-500 hover:scale-110 active:scale-95 shadow-indigo-600/50 hover:shadow-indigo-500/70 ring-2 ring-indigo-500/20'
+        }`}
+        title={isOpen ? "Minimize St.Paul AI Assistant" : "Open St.Paul AI Assistant"}
+        aria-label="Toggle St.Paul AI Assistant"
       >
         {isOpen ? (
-          <X className="w-6 h-6" />
+          <X className="w-6 h-6 text-white transition-transform duration-200 group-hover:rotate-90" />
         ) : (
-          <div className="relative">
-            <Sparkles className="w-6 h-6" />
-            <span className="absolute -top-1 -right-1 w-2.5 h-2.5 bg-emerald-400 border-2 border-slate-900 rounded-full animate-ping" />
-            <span className="absolute -top-1 -right-1 w-2.5 h-2.5 bg-emerald-500 border-2 border-slate-900 rounded-full" />
+          <div className="relative flex items-center justify-center">
+            <Sparkles className="w-6 h-6 text-white animate-pulse" />
+            <span className="absolute -top-1 -right-1 w-3 h-3 bg-emerald-400 border-2 border-slate-950 rounded-full animate-ping" />
+            <span className="absolute -top-1 -right-1 w-3 h-3 bg-emerald-500 border-2 border-slate-950 rounded-full" />
           </div>
         )}
       </button>
 
       {/* POPUP OVERLAY WINDOW */}
       {isOpen && (
-        <div className="fixed bottom-24 right-6 w-96 h-[520px] bg-slate-950/95 border border-slate-800 rounded-2xl shadow-2xl z-[9999] flex flex-col backdrop-blur-md overflow-hidden animate-slide-down">
+        <div className="fixed bottom-22 sm:bottom-24 right-3 sm:right-6 w-[calc(100vw-24px)] sm:w-[400px] h-[520px] max-h-[calc(100vh-110px)] bg-slate-950/95 border border-slate-800 rounded-2xl shadow-2xl shadow-black/90 z-[10000] flex flex-col backdrop-blur-md overflow-hidden animate-in fade-in slide-in-from-bottom-4 duration-200">
           {/* Header */}
           <div className="p-3 bg-slate-950 border-b border-slate-850 flex items-center justify-between">
-            <div className="flex items-center gap-2">
-              <div className="w-8 h-8 rounded bg-slate-900 border border-slate-800 flex items-center justify-center overflow-hidden shrink-0">
-                <SchoolLogo className="w-6 h-6" logoBase64={schoolLogo} />
+            <div className="flex items-center gap-2.5">
+              <div className="w-8 h-8 rounded-lg bg-indigo-950/80 border border-indigo-500/30 flex items-center justify-center overflow-hidden shrink-0 shadow-inner">
+                {schoolLogo ? (
+                  <SchoolLogo className="w-6 h-6 object-contain" logoBase64={schoolLogo} />
+                ) : (
+                  <Sparkles className="w-4.5 h-4.5 text-indigo-400" />
+                )}
               </div>
               <div>
-                <h3 className="text-xs font-black uppercase text-slate-100 flex items-center gap-1">
+                <h3 className="text-xs font-black uppercase tracking-wider text-slate-100 flex items-center gap-1.5 font-sans">
                   St.Paul AI Assistant
                 </h3>
-                <span className="text-[7.5px] uppercase font-bold text-indigo-400 font-mono block tracking-wider">
+                <span className="text-[8px] uppercase font-bold text-indigo-400 font-mono block tracking-widest">
                   Quick Query Console
                 </span>
               </div>
             </div>
             <button
+              type="button"
               onClick={() => setIsOpen(false)}
-              className="text-slate-500 hover:text-slate-300 p-1 rounded-md"
+              className="text-slate-400 hover:text-white hover:bg-slate-900 p-1.5 rounded-lg transition-colors cursor-pointer"
+              title="Close Assistant"
             >
               <X className="w-4 h-4" />
             </button>
@@ -369,6 +381,7 @@ export default function AiAssistantPopup({ schoolLogo }: AiAssistantPopupProps) 
                       </div>
                       <div className="flex flex-col gap-1.5 text-left">
                         {[
+                          "How do I print clearance cards?",
                           "How many students are in S.4?",
                           "Which students have no photos?",
                           "Who has not cleared?"

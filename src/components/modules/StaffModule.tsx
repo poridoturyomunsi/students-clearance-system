@@ -1149,7 +1149,7 @@ export default function StaffModule() {
                             value={currentAssign?.teacher_id || ''}
                             onChange={async (e) => {
                               try {
-                                await saveClassTeacher(streamClass, e.target.value || null);
+                                await saveClassTeacher({ gradeClass: streamClass, teacherId: e.target.value || null });
                                 setSuccess(`Updated stream ${streamClass} class teacher.`);
                                 loadData();
                                 setTimeout(() => setSuccess(null), 3000);

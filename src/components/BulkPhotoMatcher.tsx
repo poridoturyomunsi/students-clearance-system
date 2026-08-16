@@ -376,7 +376,21 @@ export default function BulkPhotoMatcher({
           return;
         }
 
-        const matchedPhoto = normStudentNo ? photosByStem.get(normStudentNo) : undefined;
+        let matchedPhoto = normStudentNo ? photosByStem.get(normStudentNo) : undefined;
+        if (!matchedPhoto && normName) {
+          matchedPhoto = photosByStem.get(normName);
+        }
+        if (!matchedPhoto && normName) {
+          const revName = normalizeKey(row.name.split(/\s+/).reverse().join(''));
+          matchedPhoto = photosByStem.get(revName);
+        }
+        if (!matchedPhoto && normStudentNo) {
+          const numMatch = normStudentNo.match(/(\d+)(?:\D*)$/);
+          if (numMatch) {
+            const num = numMatch[1].replace(/^0+/, '');
+            if (num) matchedPhoto = photosByStem.get(num);
+          }
+        }
 
         seenInternalNameClasses.add(nameClassKey);
         if (normStudentNo) seenInternalNums.add(normStudentNo);
