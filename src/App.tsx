@@ -6577,63 +6577,61 @@ function AppContent() {
       )}
         </>
       )}
+
+        {adminActiveTab === 'attendance' && (
+          <div className="w-full">
+            <Suspense fallback={<Loading message="Loading Gate Attendance Workspace..." />}>
+              <AttendanceModule />
+            </Suspense>
+          </div>
+        )}
+
+        {adminActiveTab === 'school' && (
+          <div className="w-full">
+            <Suspense fallback={<Loading message="Loading School Management..." />}>
+              <StaffModule />
+            </Suspense>
+          </div>
+        )}
+
+        {adminActiveTab === 'profile' && (
+          <div className="w-full">
+            <Suspense fallback={<Loading message="Loading Profile Settings..." />}>
+              <AdminSettingsView
+                authSession={authSession}
+                setAuthSession={setAuthSession}
+                dbConfig={dbConfig}
+                handleOpenDbSettings={handleOpenDbSettings}
+                handleLogout={handleLogout}
+                schoolLogo={schoolLogo}
+                handleAddTask={handleAddTask}
+              />
+            </Suspense>
+          </div>
+        )}
+
+        {adminActiveTab === 'controls' && (
+          <div className="w-full">
+            <Suspense fallback={<Loading message="Loading Admin Controls..." />}>
+              <AdminPortalExtensions
+                schoolLogo={schoolLogo}
+                onLogoRefresh={handleResetLogo}
+                authSession={authSession}
+                onAddTask={handleAddTask}
+              />
+            </Suspense>
+          </div>
+        )}
+
+        {adminActiveTab === 'assistant' && (
+          <div className="w-full">
+            <Suspense fallback={<Loading message="Loading St.Paul Assistant..." />}>
+              <AiAssistantModule />
+            </Suspense>
+          </div>
+        )}
       </main>
-      </div>
-
-      {adminActiveTab === 'attendance' && (
-        <div className="p-4 md:p-6 bg-slate-900 min-h-screen">
-          <Suspense fallback={<Loading message="Loading Gate Attendance Workspace..." />}>
-            <AttendanceModule />
-          </Suspense>
-        </div>
-      )}
-
-      {adminActiveTab === 'school' && (
-        <div className="p-4 md:p-6 bg-slate-900 min-h-screen">
-          <Suspense fallback={<Loading message="Loading School Management..." />}>
-            <StaffModule />
-          </Suspense>
-        </div>
-      )}
-
-      {adminActiveTab === 'profile' && (
-        <div className="p-4 md:p-6 bg-slate-900 min-h-screen">
-          <Suspense fallback={<Loading message="Loading Profile Settings..." />}>
-            <AdminSettingsView
-              authSession={authSession}
-              setAuthSession={setAuthSession}
-              dbConfig={dbConfig}
-              handleOpenDbSettings={handleOpenDbSettings}
-              handleLogout={handleLogout}
-              schoolLogo={schoolLogo}
-              handleAddTask={handleAddTask}
-            />
-          </Suspense>
-        </div>
-      )}
-
-
-
-      {adminActiveTab === 'controls' && (
-        <div className="p-4 md:p-6 bg-slate-900 min-h-screen">
-          <Suspense fallback={<Loading message="Loading Admin Controls..." />}>
-            <AdminPortalExtensions
-              schoolLogo={schoolLogo}
-              onLogoRefresh={handleResetLogo}
-              authSession={authSession}
-              onAddTask={handleAddTask}
-            />
-          </Suspense>
-        </div>
-      )}
-
-      {adminActiveTab === 'assistant' && (
-        <div className="p-4 md:p-6 bg-slate-900 min-h-screen">
-          <Suspense fallback={<Loading message="Loading St.Paul Assistant..." />}>
-            <AiAssistantModule />
-          </Suspense>
-        </div>
-      )}
+    </div>
 
 
       {/* BULK PHOTOS MATCHING DIALOG */}

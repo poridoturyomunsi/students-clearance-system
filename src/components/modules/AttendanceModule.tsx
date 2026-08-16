@@ -625,7 +625,7 @@ export default function AttendanceModule() {
       </div>
 
       {/* Contents */}
-      <div className="min-h-[50vh]">
+      <div>
         {activeTab === 'qr-guard' && (
           <div className="bg-slate-900 p-2 md:p-4 rounded-2xl border border-slate-800">
             <QRAttendanceSystem students={allStudentsList.length > 0 ? allStudentsList : INITIAL_STUDENTS} />
