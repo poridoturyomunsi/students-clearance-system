@@ -4018,7 +4018,7 @@ function AppContent() {
       {/* ENTERPRISE TOP HEADER */}
       <EnterpriseHeader
         sidebarCollapsed={sidebarCollapsed}
-        onToggleSidebar={() => setSidebarCollapsed(!sidebarCollapsed)}
+        onToggleSidebar={() => { setShowMobileMenu(!showMobileMenu); setSidebarCollapsed(!sidebarCollapsed); }}
         schoolLogo={schoolLogo}
         authSession={authSession}
         handleLogout={handleLogout}
@@ -4044,16 +4044,19 @@ function AppContent() {
             else if (mod === 'staff') setAdminActiveTab('school');
             else if (mod === 'settings') setAdminActiveTab('profile');
             else if (mod === 'ai') setAdminActiveTab('assistant');
+            setShowMobileMenu(false);
           }}
           collapsed={sidebarCollapsed}
           onToggleCollapse={() => setSidebarCollapsed(!sidebarCollapsed)}
           handleLogout={handleLogout}
           studentCount={students.length}
           clearedCount={stats.clearedCount}
+          mobileOpen={showMobileMenu}
+          onCloseMobile={() => setShowMobileMenu(false)}
         />
 
         {/* ENTERPRISE MAIN CONTENT AREA */}
-        <main className={`flex-1 transition-all duration-300 p-4 sm:p-6 overflow-y-auto ${sidebarCollapsed ? 'ml-20' : 'ml-64'}`}>
+        <main className={`flex-1 transition-all duration-300 p-3 sm:p-6 overflow-y-auto ml-0 ${sidebarCollapsed ? 'md:ml-20' : 'md:ml-64'}`}>
           {activeModule === 'dashboard' ? (
             <ExecutiveDashboard
               students={students}
@@ -5072,7 +5075,95 @@ function AppContent() {
                             <span className="text-xs text-slate-600 mt-1 font-mono">Try searching or clearing active filters.</span>
                           </div>
                         ) : (
-                          <table className="w-full text-left border-collapse select-none min-w-[900px]">
+                          <>
+                            {/* MOBILE RESPONSIVE STUDENT CARDS VIEW (< md) */}
+                            <div className="block md:hidden space-y-3 p-3">
+                              {activeStreamStudents.map((s) => {
+                                const isChecked = selectedIds.includes(s.id);
+                                const isFocused = previewStudentId === s.id;
+                                return (
+                                  <div 
+                                    key={s.id}
+                                    onClick={() => setPreviewStudentId(s.id)}
+                                    className={`p-4 rounded-2xl border transition-all cursor-pointer ${
+                                      isFocused 
+                                        ? 'bg-indigo-950/80 border-indigo-500 shadow-lg shadow-indigo-950/50' 
+                                        : 'bg-slate-900/90 border-slate-800 hover:border-slate-700'
+                                    }`}
+                                  >
+                                    <div className="flex items-start justify-between gap-3">
+                                      <div className="flex items-center gap-3 min-w-0">
+                                        <input
+                                          type="checkbox"
+                                          checked={isChecked}
+                                          onClick={(e) => e.stopPropagation()}
+                                          onChange={() => {
+                                            setSelectedIds(prev => prev.includes(s.id) ? prev.filter(id => id !== s.id) : [...prev, s.id]);
+                                          }}
+                                          className="w-5 h-5 rounded border-slate-700 bg-slate-800 text-indigo-600 focus:ring-0 shrink-0"
+                                        />
+                                        <div className="w-11 h-13 bg-slate-950 rounded-xl border border-slate-800 overflow-hidden shrink-0 flex items-center justify-center">
+                                          {getStudentPhotoUrl(s) ? (
+                                            <img src={getStudentPhotoUrl(s)} alt="" className="w-full h-full object-cover" />
+                                          ) : (
+                                            <div className="w-full h-full flex items-center justify-center font-bold text-slate-600 text-xs">
+                                              {s.name[0]}
+                                            </div>
+                                          )}
+                                        </div>
+                                        <div className="min-w-0">
+                                          <h4 className="font-extrabold text-sm text-slate-100 uppercase truncate">{s.name}</h4>
+                                          <p className="text-xs text-slate-400 font-mono font-medium truncate">{s.adminNo || s.studentNo || '—'}</p>
+                                          <div className="flex items-center gap-2 mt-1">
+                                            <span className="text-[10px] font-mono font-bold text-indigo-400 bg-indigo-500/10 px-2 py-0.5 rounded border border-indigo-500/20">
+                                              {activeBoardClass} STREAM {activeBoardStream}
+                                            </span>
+                                          </div>
+                                        </div>
+                                      </div>
+                                      
+                                      <button
+                                        type="button"
+                                        onClick={(e) => { e.stopPropagation(); toggleRowStatus(s.id); }}
+                                        className={`px-2.5 py-1 rounded-full text-[10px] font-black font-mono uppercase tracking-wider border shrink-0 ${
+                                          s.isCleared
+                                            ? 'bg-emerald-950/80 text-emerald-400 border-emerald-800/60'
+                                            : 'bg-rose-955/80 text-rose-400 border-rose-800/60'
+                                        }`}
+                                      >
+                                        {s.isCleared ? 'CLEARED' : 'ON HOLD'}
+                                      </button>
+                                    </div>
+
+                                    {/* Action Buttons */}
+                                    <div className="flex items-center justify-between border-t border-slate-800/80 pt-3 mt-3">
+                                      <span className="text-[10px] font-mono text-slate-400 font-bold">
+                                        {s.boardingStatus || 'Day Scholar'}
+                                      </span>
+                                      <div className="flex items-center gap-2">
+                                        <button
+                                          type="button"
+                                          onClick={(e) => { e.stopPropagation(); handleOpenEditForm(s); }}
+                                          className="px-3 py-1.5 bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-bold rounded-lg border border-slate-700 min-h-[36px] flex items-center gap-1 cursor-pointer"
+                                        >
+                                          <Edit2 className="w-3.5 h-3.5" /> Edit
+                                        </button>
+                                        <button
+                                          type="button"
+                                          onClick={(e) => { e.stopPropagation(); handleDeleteStudent(s.id); }}
+                                          className="px-3 py-1.5 bg-rose-950/50 hover:bg-rose-900/60 text-rose-300 text-xs font-bold rounded-lg border border-rose-800/50 min-h-[36px] flex items-center gap-1 cursor-pointer"
+                                        >
+                                          <Trash2 className="w-3.5 h-3.5" /> Delete
+                                        </button>
+                                      </div>
+                                    </div>
+                                  </div>
+                                );
+                              })}
+                            </div>
+
+                            {/* DESKTOP TABLE VIEW (>= md) */}
+                            <table className="hidden md:table w-full text-left border-collapse select-none min-w-[900px]">
                             <thead>
                               <tr className="border-b border-slate-800 bg-slate-900/90 text-[10px] font-mono font-black text-slate-400 uppercase tracking-widest sticky top-0 z-10 shadow-sm">
                                 <th className="py-3 px-4 w-12 text-center">
@@ -5255,7 +5346,8 @@ function AppContent() {
                                 );
                               })}
                             </tbody>
-                          </table>
+                            </table>
+                          </>
                         )}
                       </div>
                     </div>
