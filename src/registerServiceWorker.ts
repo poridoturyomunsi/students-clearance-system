@@ -10,8 +10,6 @@ export function registerServiceWorker() {
         registration.unregister().then((success) => {
           if (success) {
             console.log('Successfully unregistered service worker for development');
-            // Force reload to clear cache
-            window.location.reload();
           }
         });
       }

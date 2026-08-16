@@ -7485,14 +7485,40 @@ class ErrorBoundary extends React.Component<any, any> {
     const state = (this as any).state;
     if (state.hasError) {
       return (
-        <div className="p-8 text-center">
-          <h2 className="text-xl font-bold mb-4">Application failed to load</h2>
-          <p className="mb-4">An unexpected error occurred while starting the app.</p>
-          <pre className="text-left max-w-prose mx-auto mb-4 overflow-auto text-sm">{String(state.error)}</pre>
-          <div>
-            <button className="px-4 py-2 bg-indigo-600 text-white rounded" onClick={() => window.location.reload()}>
-              Reload App
-            </button>
+        <div className="min-h-screen bg-slate-950 text-slate-100 flex flex-col items-center justify-center p-6 select-none font-sans">
+          <div className="w-full max-w-lg bg-slate-900 border border-slate-800 rounded-2xl p-6 shadow-2xl space-y-4 text-center">
+            <div className="w-12 h-12 rounded-xl bg-rose-500/10 border border-rose-500/20 text-rose-400 flex items-center justify-center mx-auto">
+              <span className="text-xl font-bold">!</span>
+            </div>
+            <div>
+              <h2 className="text-lg font-black text-slate-100 uppercase tracking-tight">Application Render Error</h2>
+              <p className="text-xs text-slate-400 mt-1">An unexpected error occurred while starting the application.</p>
+            </div>
+            <pre className="text-left bg-slate-955 p-3 rounded-xl border border-slate-850 text-[11px] font-mono text-rose-300 overflow-auto max-h-40 whitespace-pre-wrap select-all">
+              {String(state.error?.stack || state.error)}
+            </pre>
+            <div className="flex flex-col sm:flex-row gap-2.5 justify-center pt-2">
+              <button
+                type="button"
+                className="px-4 py-2.5 bg-indigo-600 hover:bg-indigo-500 text-white font-bold text-xs uppercase tracking-wider rounded-xl transition-colors cursor-pointer"
+                onClick={() => {
+                  try {
+                    localStorage.removeItem('spss_session');
+                    localStorage.clear();
+                  } catch (e) { /* ignore */ }
+                  window.location.href = '/';
+                }}
+              >
+                Clear Cache & Reset Login
+              </button>
+              <button
+                type="button"
+                className="px-4 py-2.5 bg-slate-800 hover:bg-slate-700 text-slate-200 font-bold text-xs uppercase tracking-wider rounded-xl border border-slate-700 transition-colors cursor-pointer"
+                onClick={() => window.location.reload()}
+              >
+                Reload App Page
+              </button>
+            </div>
           </div>
         </div>
       );
