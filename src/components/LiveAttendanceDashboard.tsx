@@ -419,58 +419,88 @@ export const LiveAttendanceDashboard: React.FC<LiveAttendanceDashboardProps> = (
         </div>
       </div>
 
-      {/* 2. SUMMARY STATISTICS CARDS (3 CARDS) */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-        {/* TOTAL PRESENT TODAY */}
-        <div 
-          onClick={() => openDrillDown('All Present Students Today')}
-          className="group rounded-2xl bg-gradient-to-br from-indigo-950/40 via-slate-900 to-slate-900 p-5 border border-indigo-500/30 hover:border-indigo-400/60 transition-all duration-200 shadow-xl cursor-pointer hover:scale-[1.01]"
-        >
-          <div className="flex justify-between items-center text-indigo-300 text-xs font-black uppercase tracking-wider font-mono">
-            <span>TOTAL PRESENT TODAY</span>
-            <div className="p-2 rounded-xl bg-indigo-500/10 border border-indigo-500/20 text-indigo-400 group-hover:bg-indigo-500 group-hover:text-white transition">
-              <CheckCircle2 className="w-5 h-5" />
-            </div>
-          </div>
-          <div className="text-3xl lg:text-4xl font-black mt-3 text-white flex items-baseline justify-between font-mono">
-            <span>{columnTotals.grandTotal.toLocaleString()}</span>
-            <span className="text-xs font-bold text-indigo-400 flex items-center gap-1 group-hover:translate-x-1 transition">
-              View List <ArrowUpRight className="w-3.5 h-3.5" />
-            </span>
-          </div>
-          <p className="text-[11px] text-slate-400 mt-2 font-mono">Students verified & clocked in at gate</p>
-        </div>
-
+      {/* 2. SUMMARY STATISTICS CARDS (5 CARDS) */}
+      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3">
         {/* TOTAL REGISTERED */}
-        <div className="rounded-2xl bg-slate-900 p-5 border border-slate-800 shadow-xl">
-          <div className="flex justify-between items-center text-slate-400 text-xs font-black uppercase tracking-wider font-mono">
+        <div className="rounded-2xl bg-slate-900 p-4 border border-slate-800 shadow-xl">
+          <div className="flex justify-between items-center text-slate-400 text-[10px] font-black uppercase tracking-wider font-mono">
             <span>TOTAL REGISTERED</span>
-            <div className="p-2 rounded-xl bg-slate-800 text-slate-400">
-              <Users className="w-5 h-5" />
+            <div className="p-1.5 rounded-lg bg-slate-800 text-slate-400">
+              <Users className="w-4 h-4" />
             </div>
           </div>
-          <div className="text-3xl lg:text-4xl font-black mt-3 text-slate-100 font-mono">
+          <div className="text-2xl lg:text-3xl font-black mt-2 text-slate-100 font-mono">
             {totalRegistered.toLocaleString()}
           </div>
-          <p className="text-[11px] text-slate-500 mt-2 font-mono font-medium">Total active student roster population</p>
+          <p className="text-[10px] text-slate-500 mt-1 font-mono font-medium truncate">Total student population</p>
+        </div>
+
+        {/* PRESENT TODAY */}
+        <div 
+          onClick={() => openDrillDown('All Present Students Today')}
+          className="group rounded-2xl bg-gradient-to-br from-indigo-950/40 via-slate-900 to-slate-900 p-4 border border-indigo-500/30 hover:border-indigo-400/60 transition-all duration-200 shadow-xl cursor-pointer hover:scale-[1.01]"
+        >
+          <div className="flex justify-between items-center text-indigo-300 text-[10px] font-black uppercase tracking-wider font-mono">
+            <span>PRESENT TODAY</span>
+            <div className="p-1.5 rounded-lg bg-indigo-500/10 border border-indigo-500/20 text-indigo-400 group-hover:bg-indigo-500 group-hover:text-white transition">
+              <CheckCircle2 className="w-4 h-4" />
+            </div>
+          </div>
+          <div className="text-2xl lg:text-3xl font-black mt-2 text-white flex items-baseline justify-between font-mono">
+            <span>{columnTotals.grandTotal.toLocaleString()}</span>
+            <ArrowUpRight className="w-3.5 h-3.5 text-indigo-400 group-hover:translate-x-0.5 transition" />
+          </div>
+          <p className="text-[10px] text-slate-400 mt-1 font-mono truncate">Unique students verified today</p>
+        </div>
+
+        {/* CURRENTLY ON CAMPUS */}
+        <div 
+          onClick={() => openDrillDown('Students Currently On Campus', undefined, undefined)}
+          className="group rounded-2xl bg-gradient-to-br from-emerald-950/30 via-slate-900 to-slate-900 p-4 border border-emerald-500/30 hover:border-emerald-400/60 transition-all duration-200 shadow-xl cursor-pointer hover:scale-[1.01]"
+        >
+          <div className="flex justify-between items-center text-emerald-300 text-[10px] font-black uppercase tracking-wider font-mono">
+            <span>CURRENTLY ON CAMPUS</span>
+            <div className="p-1.5 rounded-lg bg-emerald-500/10 border border-emerald-500/20 text-emerald-400">
+              <ShieldCheck className="w-4 h-4" />
+            </div>
+          </div>
+          <div className="text-2xl lg:text-3xl font-black mt-2 text-emerald-400 font-mono">
+            {presentStudentsList.filter(s => s.status !== 'CHECKED OUT' && s.status !== 'Checked Out').length}
+          </div>
+          <p className="text-[10px] text-emerald-400/80 mt-1 font-mono truncate">Inside gate (not clocked out)</p>
+        </div>
+
+        {/* CLOCKED OUT */}
+        <div 
+          onClick={() => openDrillDown('Clocked Out Students Today')}
+          className="group rounded-2xl bg-slate-900 p-4 border border-slate-800 shadow-xl cursor-pointer hover:border-amber-500/40 transition"
+        >
+          <div className="flex justify-between items-center text-amber-400 text-[10px] font-black uppercase tracking-wider font-mono">
+            <span>CLOCKED OUT</span>
+            <div className="p-1.5 rounded-lg bg-amber-500/10 border border-amber-500/20 text-amber-400">
+              <Clock className="w-4 h-4" />
+            </div>
+          </div>
+          <div className="text-2xl lg:text-3xl font-black mt-2 text-amber-400 font-mono">
+            {presentStudentsList.filter(s => s.status === 'CHECKED OUT' || s.status === 'Checked Out').length}
+          </div>
+          <p className="text-[10px] text-slate-500 mt-1 font-mono truncate">Departed school campus</p>
         </div>
 
         {/* ATTENDANCE RATE */}
-        <div className="rounded-2xl bg-gradient-to-br from-emerald-950/30 via-slate-900 to-slate-900 p-5 border border-emerald-500/30 shadow-xl">
-          <div className="flex justify-between items-center text-emerald-300 text-xs font-black uppercase tracking-wider font-mono">
+        <div className="col-span-2 sm:col-span-1 rounded-2xl bg-slate-900 p-4 border border-slate-800 shadow-xl">
+          <div className="flex justify-between items-center text-indigo-300 text-[10px] font-black uppercase tracking-wider font-mono">
             <span>ATTENDANCE RATE</span>
-            <div className="p-2 rounded-xl bg-emerald-500/10 border border-emerald-500/20 text-emerald-400">
-              <TrendingUp className="w-5 h-5" />
+            <div className="p-1.5 rounded-lg bg-indigo-500/10 text-indigo-400">
+              <TrendingUp className="w-4 h-4" />
             </div>
           </div>
-          <div className="text-3xl lg:text-4xl font-black mt-3 text-emerald-400 font-mono flex items-baseline gap-2">
-            <span>{attendanceRate}%</span>
-            <span className="text-xs font-bold text-slate-400">({columnTotals.grandTotal} / {totalRegistered})</span>
+          <div className="text-2xl lg:text-3xl font-black mt-2 text-indigo-300 font-mono">
+            {attendanceRate}%
           </div>
-          {/* Progress bar */}
-          <div className="w-full bg-slate-800 h-2 rounded-full mt-3 overflow-hidden">
+          <div className="w-full bg-slate-800 h-1.5 rounded-full mt-2 overflow-hidden">
             <div 
-              className="bg-gradient-to-r from-emerald-500 to-teal-400 h-full rounded-full transition-all duration-500" 
+              className="bg-gradient-to-r from-indigo-500 to-emerald-400 h-full rounded-full transition-all duration-500" 
               style={{ width: `${Math.min(100, parseFloat(attendanceRate))}%` }}
             />
           </div>

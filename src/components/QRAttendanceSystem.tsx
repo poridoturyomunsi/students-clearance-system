@@ -35,6 +35,7 @@ import {
 } from '../lib/attendanceStore.ts';
 import { Html5Qrcode } from 'html5-qrcode';
 import * as XLSX from 'xlsx';
+import { LiveAttendanceDashboard } from './LiveAttendanceDashboard.tsx';
 
 interface QRAttendanceSystemProps {
   students: Student[];
@@ -235,6 +236,9 @@ export default function QRAttendanceSystem({ students, onSelectStudent }: QRAtte
 
   return (
     <div className="space-y-6 animate-fade-in max-w-7xl mx-auto pb-12">
+      {/* PROMINENT LIVE ATTENDANCE DASHBOARD OVERVIEW */}
+      <LiveAttendanceDashboard students={students} />
+
       {/* Top Header Banner */}
       <div className="bg-gradient-to-r from-blue-900 via-indigo-900 to-blue-950 text-white p-6 rounded-2xl shadow-xl flex flex-col md:flex-row justify-between items-start md:items-center gap-4 relative overflow-hidden border border-blue-700/40">
         <div className="relative z-10">

@@ -293,35 +293,51 @@ export function getAttendanceStats(studentsList: Student[], dateStr: string = fo
   const currentlyInside = presentRecords.length;
   const clockedOutCount = checkedOutRecords.length;
   const totalClockedIn = currentlyInside + clockedOutCount;
+  const attendanceRate = totalStudents > 0 ? ((totalClockedIn / totalStudents) * 100).toFixed(1) : '0.0';
   
   // Students who have not scanned in today
   const scannedStudentIds = new Set(todayRecords.map(r => r.studentId || r.studentNo));
   const notArrivedCount = Math.max(0, totalStudents - scannedStudentIds.size);
 
-  // Class and Stream Breakdown
+  // Class and Stream Breakdown Matrix
   const classes = ['S.1', 'S.2', 'S.3', 'S.4', 'S.5', 'S.6'];
   const streamBreakdown: Array<{ grade: string; stream: string; clockedIn: number; inside: number; clockedOut: number }> = [];
+  const classMatrix: Record<string, {
+    A: { clockedIn: number; inside: number; clockedOut: number };
+    B: { clockedIn: number; inside: number; clockedOut: number };
+    C: { clockedIn: number; inside: number; clockedOut: number };
+    total: { clockedIn: number; inside: number; clockedOut: number };
+  }> = {};
 
   classes.forEach(grade => {
-    const streams = grade === 'S.5' || grade === 'S.6'
-      ? ['A (ARTS)', 'B (SCIENCES)', 'C']
-      : ['A', 'B', 'C'];
+    classMatrix[grade] = {
+      A: { clockedIn: 0, inside: 0, clockedOut: 0 },
+      B: { clockedIn: 0, inside: 0, clockedOut: 0 },
+      C: { clockedIn: 0, inside: 0, clockedOut: 0 },
+      total: { clockedIn: 0, inside: 0, clockedOut: 0 }
+    };
 
-    streams.forEach(stream => {
-      const fullClassName = `${grade} ${stream}`.toLowerCase();
+    ['A', 'B', 'C'].forEach(stKey => {
+      const fullClassName = `${grade} ${stKey}`.toLowerCase();
       
       const streamRecords = todayRecords.filter(r => {
         const cls = (r.gradeClass || '').toLowerCase();
-        return cls === fullClassName || cls.startsWith(fullClassName) || (cls.includes(grade.toLowerCase()) && cls.includes(stream.toLowerCase()));
+        return cls === fullClassName || cls.startsWith(fullClassName) || (cls.includes(grade.toLowerCase()) && (cls.includes(stKey.toLowerCase()) || (stKey === 'A' && cls.includes('arts')) || (stKey === 'B' && cls.includes('sciences'))));
       });
 
       const inside = streamRecords.filter(r => r.status === 'PRESENT').length;
       const out = streamRecords.filter(r => r.status === 'CHECKED OUT').length;
       const clockedIn = inside + out;
 
+      const stKeyProp = stKey as 'A' | 'B' | 'C';
+      classMatrix[grade][stKeyProp] = { clockedIn, inside, clockedOut: out };
+      classMatrix[grade].total.clockedIn += clockedIn;
+      classMatrix[grade].total.inside += inside;
+      classMatrix[grade].total.clockedOut += out;
+
       streamBreakdown.push({
         grade,
-        stream,
+        stream: grade === 'S.5' || grade === 'S.6' ? (stKey === 'A' ? 'A (ARTS)' : stKey === 'B' ? 'B (SCIENCES)' : 'C') : stKey,
         clockedIn,
         inside,
         clockedOut: out
@@ -336,7 +352,9 @@ export function getAttendanceStats(studentsList: Student[], dateStr: string = fo
     presentCount: currentlyInside,
     checkedOutCount: clockedOutCount,
     notArrivedCount,
+    attendanceRate,
     todayRecords,
-    streamBreakdown
+    streamBreakdown,
+    classMatrix
   };
 }
