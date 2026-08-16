@@ -73,23 +73,57 @@ export default function QRAttendanceSystem({ students, onSelectStudent }: QRAtte
         await stopCamera();
       }
 
+      const containerEl = document.getElementById(scannerContainerId);
+      if (!containerEl) {
+        setCameraError("Camera container element not ready. Please try again.");
+        return;
+      }
+
       const html5QrCode = new Html5Qrcode(scannerContainerId);
       html5QrCodeRef.current = html5QrCode;
 
-      await html5QrCode.start(
-        { facingMode: 'environment' },
-        {
-          fps: 15,
-          qrbox: { width: 220, height: 220 },
-        },
-        (decodedText) => {
-          handleQRScanTrigger(decodedText);
-        },
-        () => {
-          // ignore scan errors per frame
+      const qrConfig = {
+        fps: 15,
+        qrbox: (viewfinderWidth: number, viewfinderHeight: number) => {
+          const minDim = Math.min(viewfinderWidth, viewfinderHeight);
+          return {
+            width: Math.max(160, Math.floor(minDim * 0.75)),
+            height: Math.max(160, Math.floor(minDim * 0.75))
+          };
         }
-      );
-      setIsCameraActive(true);
+      };
+
+      const qrCallback = (decodedText: string) => {
+        handleQRScanTrigger(decodedText);
+      };
+
+      // Attempt 1: Try rear environment camera
+      try {
+        await html5QrCode.start({ facingMode: 'environment' }, qrConfig, qrCallback, () => {});
+        setIsCameraActive(true);
+        return;
+      } catch (e1) {
+        console.warn("Rear camera failed, attempting front/user camera:", e1);
+      }
+
+      // Attempt 2: Try front user camera
+      try {
+        await html5QrCode.start({ facingMode: 'user' }, qrConfig, qrCallback, () => {});
+        setIsCameraActive(true);
+        return;
+      } catch (e2) {
+        console.warn("User camera failed, querying camera list:", e2);
+      }
+
+      // Attempt 3: Query camera device list
+      const cameras = await Html5Qrcode.getCameras();
+      if (cameras && cameras.length > 0) {
+        const cameraId = cameras[0].id;
+        await html5QrCode.start(cameraId, qrConfig, qrCallback, () => {});
+        setIsCameraActive(true);
+      } else {
+        throw new Error("No camera device found on this computer or phone. Please connect a camera or enter student ID manually.");
+      }
     } catch (err: any) {
       console.warn("Camera scanner error:", err);
       setCameraError(err?.message || 'Could not access camera. Please allow camera permissions or enter ID manually.');
