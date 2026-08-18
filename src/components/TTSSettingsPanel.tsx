@@ -1,9 +1,10 @@
 import React, { useState, useEffect } from 'react';
-import { Volume2, VolumeX, Play, Sliders, Settings, Clock, Check } from 'lucide-react';
+import { Volume2, VolumeX, Play, Sliders, Settings, Clock, Check, Heart, Sparkles } from 'lucide-react';
 import { 
   loadTTSSettings, 
   saveTTSSettings, 
   getAvailableVoices, 
+  findCalmFemaleVoice,
   speechQueue, 
   TTSSettings 
 } from '../utils/speechService.ts';
@@ -33,30 +34,57 @@ export function TTSSettingsPanel() {
     setTimeout(() => setSavedSuccess(false), 2000);
   };
 
+  const handleApplyCalmFemalePreset = () => {
+    const femaleVoice = findCalmFemaleVoice(voices);
+    const updated = {
+      ...settings,
+      voiceURI: femaleVoice?.voiceURI || null,
+      rate: 0.90,
+      pitch: 1.08,
+      volume: 0.95
+    };
+    setSettings(updated);
+    saveTTSSettings(updated);
+    setSavedSuccess(true);
+    setTimeout(() => setSavedSuccess(false), 2000);
+    speechQueue.testVoice('Welcome Namulinda Salima! Have a wonderful and productive day.');
+  };
+
   const handleTestAudio = () => {
-    speechQueue.testVoice('Welcome Kato! Audio text to speech is functioning cleanly.');
+    speechQueue.testVoice('Welcome Namulinda Salima! Good morning! You have successfully checked in.');
   };
 
   return (
     <div className="bg-slate-950 border border-slate-800 rounded-2xl p-5 md:p-6 space-y-6 shadow-xl text-slate-200">
-      <div className="flex items-center justify-between border-b border-slate-850 pb-4">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between border-b border-slate-850 pb-4 gap-3">
         <div className="flex items-center gap-3">
-          <div className="w-10 h-10 rounded-xl bg-indigo-950 border border-indigo-800 flex items-center justify-center text-indigo-400">
+          <div className="w-10 h-10 rounded-xl bg-pink-950 border border-pink-800 flex items-center justify-center text-pink-400">
             {settings.enabled ? <Volume2 className="w-5 h-5" /> : <VolumeX className="w-5 h-5 text-slate-500" />}
           </div>
           <div>
             <h3 className="text-sm font-black uppercase text-white tracking-wider flex items-center gap-2">
               Audio Speech &amp; Voice Settings
             </h3>
-            <p className="text-[11px] text-slate-400 font-medium">Configure Text-to-Speech announcements, voice speed, and late threshold time.</p>
+            <p className="text-[11px] text-slate-400 font-medium">Configure Text-to-Speech voice, calm tone defaults, and late arrival alerts.</p>
           </div>
         </div>
 
-        {savedSuccess && (
-          <span className="inline-flex items-center gap-1 text-[10px] font-bold uppercase text-emerald-400 bg-emerald-950 border border-emerald-800 px-3 py-1 rounded-full animate-fade-in">
-            <Check className="w-3 h-3" /> Saved
-          </span>
-        )}
+        <div className="flex items-center gap-2">
+          <button
+            onClick={handleApplyCalmFemalePreset}
+            className="px-3 py-1.5 bg-gradient-to-r from-pink-600 via-rose-600 to-purple-600 hover:from-pink-500 hover:to-purple-500 text-white text-[10px] font-black uppercase tracking-wider rounded-xl shadow-md flex items-center gap-1.5 cursor-pointer transition-all border border-pink-400/30"
+            title="Set Voice to Calm, Soft & Warm Female Tone (0.90x Speed, 1.08 Pitch)"
+          >
+            <Sparkles className="w-3.5 h-3.5 text-amber-300" />
+            <span>Calm Female Voice Preset</span>
+          </button>
+
+          {savedSuccess && (
+            <span className="inline-flex items-center gap-1 text-[10px] font-bold uppercase text-emerald-400 bg-emerald-950 border border-emerald-800 px-3 py-1 rounded-full animate-fade-in">
+              <Check className="w-3 h-3" /> Saved
+            </span>
+          )}
+        </div>
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
@@ -80,19 +108,25 @@ export function TTSSettingsPanel() {
 
         {/* Voice Selector */}
         <div className="space-y-1.5">
-          <label className="text-[10px] font-black uppercase text-slate-400 tracking-wider block">Speech Voice</label>
+          <label className="text-[10px] font-black uppercase text-slate-400 tracking-wider block flex justify-between items-center">
+            <span>Speech Voice</span>
+            <span className="text-[9px] text-pink-400 font-semibold">🌸 Calm Female Recommended</span>
+          </label>
           <select
             value={settings.voiceURI || ''}
             onChange={(e) => handleChange('voiceURI', e.target.value || null)}
             disabled={!settings.enabled}
-            className="w-full px-3 py-2 bg-slate-900 border border-slate-800 rounded-xl text-xs text-white outline-none focus:border-indigo-500 disabled:opacity-50 cursor-pointer"
+            className="w-full px-3 py-2 bg-slate-900 border border-slate-800 rounded-xl text-xs text-white outline-none focus:border-pink-500 disabled:opacity-50 cursor-pointer font-medium"
           >
-            <option value="">Default System Voice</option>
-            {voices.map((v) => (
-              <option key={v.voiceURI} value={v.voiceURI}>
-                {v.name} ({v.lang})
-              </option>
-            ))}
+            <option value="">Auto-Select Calm Female Voice (Default)</option>
+            {voices.map((v) => {
+              const isFemale = /jenny|aria|ana|zira|female|samantha|victoria|karen|moira|veena|fiona/i.test(v.name);
+              return (
+                <option key={v.voiceURI} value={v.voiceURI}>
+                  {isFemale ? '👩 ' : ''}{v.name} ({v.lang})
+                </option>
+              );
+            })}
           </select>
         </div>
 

@@ -13,9 +13,9 @@ export interface TTSSettings {
 const DEFAULT_SETTINGS: TTSSettings = {
   enabled: true,
   voiceURI: null,
-  rate: 0.95,
-  volume: 1.0,
-  pitch: 1.0,
+  rate: 0.90, // Calm, gentle, unhurried rate
+  volume: 0.95, // Soft, clear volume
+  pitch: 1.08, // Soft, warm feminine pitch
   announcementDelayMs: 300,
   lateThresholdTime: '19:45'
 };
@@ -51,6 +51,27 @@ export function getAvailableVoices(): SpeechSynthesisVoice[] {
     return window.speechSynthesis.getVoices() || [];
   }
   return [];
+}
+
+export function findCalmFemaleVoice(voices: SpeechSynthesisVoice[]): SpeechSynthesisVoice | null {
+  if (!voices || voices.length === 0) return null;
+
+  // Prioritize calm, soft, natural female voices
+  const priorityKeywords = [
+    'jenny', 'aria', 'ana', 'zira', 'natural', 
+    'google uk english female', 'samantha', 'victoria', 
+    'karen', 'moira', 'veena', 'fiona', 'female'
+  ];
+
+  for (const kw of priorityKeywords) {
+    const found = voices.find(v => v.name.toLowerCase().includes(kw));
+    if (found) return found;
+  }
+
+  const enFemale = voices.find(v => v.lang.startsWith('en') && (v.name.toLowerCase().includes('female') || v.name.toLowerCase().includes('zira')));
+  if (enFemale) return enFemale;
+
+  return voices.find(v => v.lang.startsWith('en')) || voices[0] || null;
 }
 
 interface QueueItem {
@@ -160,11 +181,18 @@ class SpeechQueueManager {
           utterance.pitch = settings.pitch;
 
           const voices = getAvailableVoices();
+          let targetVoice: SpeechSynthesisVoice | null = null;
+
           if (settings.voiceURI) {
-            const selectedVoice = voices.find(v => v.voiceURI === settings.voiceURI);
-            if (selectedVoice) {
-              utterance.voice = selectedVoice;
-            }
+            targetVoice = voices.find(v => v.voiceURI === settings.voiceURI) || null;
+          }
+
+          if (!targetVoice) {
+            targetVoice = findCalmFemaleVoice(voices);
+          }
+
+          if (targetVoice) {
+            utterance.voice = targetVoice;
           }
 
           let hasResolved = false;
