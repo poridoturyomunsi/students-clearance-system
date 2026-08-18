@@ -4250,11 +4250,14 @@ app.post('/api/attendance/scan', async (req, res) => {
       // Safeguard: Do not send a clock-in message / allow duplicate clock-in if already clocked in for same school day
       if (existingLog && existingLog.time_in) {
         const welcomeMsg = `Welcome, ${studentFirstName}! 👋\nGood morning!\nYou have successfully checked in.\nHave a wonderful and productive day!`;
-        return res.status(400).json({
+        return res.json({
+          success: true,
           error: `ALREADY_CLOCKED_IN`,
           isDuplicate: true,
+          direction: 'in',
           student,
           studentFirstName,
+          log: existingLog,
           welcomeMessage: welcomeMsg,
           message: `${student.name} is already clocked in today at ${existingLog.time_in}.`
         });
@@ -4334,11 +4337,14 @@ app.post('/api/attendance/scan', async (req, res) => {
       // Safeguard: Do not send a clock-out message if student has already clocked out.
       if (existingLog.time_out) {
         const goodbyeMsg = `Goodbye, ${studentFirstName}! 👋\nYou have successfully checked out.\nHave a safe journey home!`;
-        return res.status(400).json({
+        return res.json({
+          success: true,
           error: `ALREADY_CLOCKED_OUT`,
           isDuplicate: true,
+          direction: 'out',
           student,
           studentFirstName,
+          log: existingLog,
           goodbyeMessage: goodbyeMsg,
           message: `${student.name} has already clocked out today at ${existingLog.time_out}.`
         });

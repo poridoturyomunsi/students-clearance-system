@@ -190,12 +190,12 @@ export default function QRAttendanceSystem({ students, onSelectStudent }: QRAtte
           scanValue: result.student.adminNo || result.student.studentNo || result.student.id,
           direction: scanMode === 'CHECK_OUT' ? 'clock-out' : scanMode === 'CHECK_IN' ? 'clock-in' : 'auto'
         })
-      }).then(() => {
+      }).catch(err => {
+        console.warn('[QRAttendance] Backend API scan sync notice:', err.message);
+      }).finally(() => {
         if (typeof window !== 'undefined') {
           window.dispatchEvent(new CustomEvent('attendance-updated', { detail: result }));
         }
-      }).catch(err => {
-        console.warn('[QRAttendance] Backend API scan sync notice:', err.message);
       });
     }
 

@@ -18,8 +18,8 @@ import {
   TrendingUp,
   AlertCircle
 } from 'lucide-react';
-import { fetchAttendanceGrid } from '../utils/api.ts';
-import { getStoredAttendance, formatTodayDate } from '../lib/attendanceStore.ts';
+import { fetchAttendanceGrid, scanGateCard } from '../utils/api.ts';
+import { getStoredAttendance, formatTodayDate, processQRScan } from '../lib/attendanceStore.ts';
 import { Student } from '../types.ts';
 
 interface ClassStreamCounts {
@@ -365,6 +365,23 @@ export const LiveAttendanceDashboard: React.FC<LiveAttendanceDashboardProps> = (
     setModalFilter({ className, streamName });
     setModalSearch('');
     setModalOpen(true);
+  };
+
+  const handleDirectCheckOut = async (st: PresentStudentItem) => {
+    try {
+      processQRScan(st.adminNo || st.id, students, 'CHECK_OUT');
+      await scanGateCard({
+        scanValue: st.adminNo || st.id,
+        direction: 'clock-out'
+      });
+    } catch (e) {
+      console.warn('[LiveAttendance] Direct check out notice:', e);
+    } finally {
+      if (typeof window !== 'undefined') {
+        window.dispatchEvent(new CustomEvent('attendance-updated'));
+      }
+      loadAttendanceData();
+    }
   };
 
   // Max value for bar chart scaling
@@ -936,14 +953,27 @@ export const LiveAttendanceDashboard: React.FC<LiveAttendanceDashboardProps> = (
                       </div>
 
                       <span className={`px-2.5 py-1 rounded-lg text-[10px] font-black uppercase tracking-wider border ${
-                        st.status === 'Very Late' 
+                        st.status === 'Checked Out' || st.status === 'CHECKED OUT' || st.time_out
+                          ? 'bg-amber-950/60 border-amber-800 text-amber-350'
+                          : st.status === 'Very Late' 
                           ? 'bg-rose-950/60 border-rose-800 text-rose-350'
                           : st.status === 'Late'
                           ? 'bg-amber-950/60 border-amber-800 text-amber-350'
                           : 'bg-emerald-950/60 border-emerald-800 text-emerald-350'
                       }`}>
-                        {st.status || 'Present'}
+                        {st.time_out || st.status === 'Checked Out' ? 'Checked Out' : (st.status || 'Present')}
                       </span>
+
+                      {!Boolean(st.time_out || st.status === 'Checked Out' || st.status === 'CHECKED OUT') && (
+                        <button
+                          onClick={() => handleDirectCheckOut(st)}
+                          className="px-3 py-1 bg-amber-600 hover:bg-amber-500 text-white rounded-lg text-[10px] font-black uppercase tracking-wider transition cursor-pointer shadow-md flex items-center gap-1 shrink-0"
+                          title="Check out student immediately"
+                        >
+                          <Clock className="w-3 h-3" />
+                          Check Out
+                        </button>
+                      )}
                     </div>
                   </div>
                 ))
