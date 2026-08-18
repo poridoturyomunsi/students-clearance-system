@@ -1486,6 +1486,14 @@ async function ensureDbInitialized() {
       // Ignore if column migration is already applied
     }
 
+    try {
+      await pool.query("ALTER TABLE attendance_logs ADD INDEX idx_date_status_time (date, status, time_in, time_out)");
+    } catch (e) {}
+
+    try {
+      await pool.query("ALTER TABLE students ADD INDEX idx_lookup_multi (adminNo, verification_token)");
+    } catch (e) {}
+
     // Seed default settings and some locations/devices if they don't exist
     try {
       const defaultSettings = [
@@ -4430,76 +4438,122 @@ app.get('/api/attendance/dashboard', async (req, res) => {
   try {
     const today = new Date().toLocaleDateString('en-CA', { timeZone: 'Africa/Kampala' });
 
-    // 1. Master Total Active Registered Students
-    const [totalRows] = await pool.query('SELECT COUNT(*) as count FROM students');
+    // Execute all 12 dashboard metric queries concurrently via Promise.all
+    const [
+      [totalRows],
+      [presentRows],
+      [insideRows],
+      [outRows],
+      [lateRows],
+      [earlyRows],
+      [hourlyRows],
+      [dailyRows],
+      [weeklyRows],
+      [classRows],
+      [boarderRows],
+      [genderRows]
+    ] = await Promise.all([
+      pool.query('SELECT COUNT(*) as count FROM students'),
+      pool.query(
+        `SELECT COUNT(DISTINCT COALESCE(s.id, al.student_id)) as count 
+         FROM attendance_logs al
+         LEFT JOIN students s ON (al.student_id = s.id OR al.student_id = s.adminNo OR al.student_id = s.verification_token)
+         WHERE al.date = ? AND (al.time_in IS NOT NULL OR al.status IN ('Present', 'Late', 'Very Late', 'Checked Out', 'PRESENT', 'CHECKED OUT'))`,
+        [today]
+      ),
+      pool.query(
+        `SELECT COUNT(DISTINCT COALESCE(s.id, al.student_id)) as count 
+         FROM attendance_logs al
+         LEFT JOIN students s ON (al.student_id = s.id OR al.student_id = s.adminNo OR al.student_id = s.verification_token)
+         WHERE al.date = ? AND al.time_in IS NOT NULL AND al.time_out IS NULL AND al.status NOT IN ('Checked Out', 'CHECKED OUT')`,
+        [today]
+      ),
+      pool.query(
+        `SELECT COUNT(DISTINCT COALESCE(s.id, al.student_id)) as count 
+         FROM attendance_logs al
+         LEFT JOIN students s ON (al.student_id = s.id OR al.student_id = s.adminNo OR al.student_id = s.verification_token)
+         WHERE al.date = ? AND (al.time_out IS NOT NULL OR al.status IN ('Checked Out', 'CHECKED OUT'))`,
+        [today]
+      ),
+      pool.query(
+        `SELECT COUNT(DISTINCT COALESCE(s.id, al.student_id)) as count 
+         FROM attendance_logs al
+         LEFT JOIN students s ON (al.student_id = s.id OR al.student_id = s.adminNo OR al.student_id = s.verification_token)
+         WHERE al.date = ? AND al.status IN ('Late', 'Very Late')`,
+        [today]
+      ),
+      pool.query(
+        `SELECT COUNT(DISTINCT COALESCE(s.id, al.student_id)) as count 
+         FROM attendance_logs al
+         LEFT JOIN students s ON (al.student_id = s.id OR al.student_id = s.adminNo OR al.student_id = s.verification_token)
+         WHERE al.date = ? AND al.departure_status != 'Normal Departure' AND al.departure_status IS NOT NULL`,
+        [today]
+      ),
+      pool.query(
+        `SELECT HOUR(time_in) as hour, COUNT(*) as count 
+         FROM attendance_logs 
+         WHERE date = ? AND time_in IS NOT NULL 
+         GROUP BY HOUR(time_in) 
+         ORDER BY hour`,
+        [today]
+      ),
+      pool.query(
+        `SELECT date, COUNT(DISTINCT COALESCE(s.id, al.student_id)) as present
+         FROM attendance_logs al
+         LEFT JOIN students s ON (al.student_id = s.id OR al.student_id = s.adminNo OR al.student_id = s.verification_token)
+         WHERE al.time_in IS NOT NULL OR al.status IN ('Present', 'Late', 'Very Late', 'Checked Out', 'PRESENT', 'CHECKED OUT')
+         GROUP BY date 
+         ORDER BY date DESC 
+         LIMIT 7`
+      ),
+      pool.query(
+        `SELECT WEEK(date) as wk, COUNT(DISTINCT COALESCE(s.id, al.student_id)) as total, COUNT(CASE WHEN status='Late' OR status='Very Late' THEN 1 END) as lates
+         FROM attendance_logs al
+         LEFT JOIN students s ON (al.student_id = s.id OR al.student_id = s.adminNo OR al.student_id = s.verification_token)
+         GROUP BY WEEK(date) 
+         ORDER BY wk DESC LIMIT 4`
+      ),
+      pool.query(
+        `SELECT s.gradeClass, COUNT(DISTINCT COALESCE(s.id, al.student_id)) as presentCount
+         FROM attendance_logs al
+         JOIN students s ON (al.student_id = s.id OR al.student_id = s.adminNo OR al.student_id = s.verification_token)
+         WHERE al.date = ? AND (al.time_in IS NOT NULL OR al.status IN ('Present', 'Late', 'Very Late', 'Checked Out', 'PRESENT', 'CHECKED OUT'))
+         GROUP BY s.gradeClass
+         ORDER BY presentCount DESC
+         LIMIT 6`,
+        [today]
+      ),
+      pool.query(
+        `SELECT s.boardingStatus, COUNT(DISTINCT COALESCE(s.id, al.student_id)) as count 
+         FROM attendance_logs al
+         JOIN students s ON (al.student_id = s.id OR al.student_id = s.adminNo OR al.student_id = s.verification_token)
+         WHERE al.date = ? AND (al.time_in IS NOT NULL OR al.status IN ('Present', 'Late', 'Very Late', 'Checked Out', 'PRESENT', 'CHECKED OUT'))
+         GROUP BY s.boardingStatus`,
+        [today]
+      ),
+      pool.query(
+        `SELECT s.gender, COUNT(DISTINCT COALESCE(s.id, al.student_id)) as count 
+         FROM attendance_logs al
+         JOIN students s ON (al.student_id = s.id OR al.student_id = s.adminNo OR al.student_id = s.verification_token)
+         WHERE al.date = ? AND (al.time_in IS NOT NULL OR al.status IN ('Present', 'Late', 'Very Late', 'Checked Out', 'PRESENT', 'CHECKED OUT'))
+         GROUP BY s.gender`,
+        [today]
+      )
+    ]);
+
     const totalStudents = totalRows[0].count;
-
-    // 2. Unique Students Present Today (All students who successfully clocked in today, regardless of whether they have checked out)
-    const [presentRows] = await pool.query(
-      `SELECT COUNT(DISTINCT COALESCE(s.id, al.student_id)) as count 
-       FROM attendance_logs al
-       LEFT JOIN students s ON (al.student_id = s.id OR al.student_id = s.adminNo OR al.student_id = s.verification_token)
-       WHERE al.date = ? AND (al.time_in IS NOT NULL OR al.status IN ('Present', 'Late', 'Very Late', 'Checked Out', 'PRESENT', 'CHECKED OUT'))`,
-      [today]
-    );
     const presentToday = presentRows[0].count;
-
-    // 3. Currently On Campus (Inside gate, not clocked out)
-    const [insideRows] = await pool.query(
-      `SELECT COUNT(DISTINCT COALESCE(s.id, al.student_id)) as count 
-       FROM attendance_logs al
-       LEFT JOIN students s ON (al.student_id = s.id OR al.student_id = s.adminNo OR al.student_id = s.verification_token)
-       WHERE al.date = ? AND al.time_in IS NOT NULL AND al.time_out IS NULL AND al.status NOT IN ('Checked Out', 'CHECKED OUT')`,
-      [today]
-    );
     const insideSchool = insideRows[0].count;
-
-    // 4. Clocked Out (Departed campus today)
-    const [outRows] = await pool.query(
-      `SELECT COUNT(DISTINCT COALESCE(s.id, al.student_id)) as count 
-       FROM attendance_logs al
-       LEFT JOIN students s ON (al.student_id = s.id OR al.student_id = s.adminNo OR al.student_id = s.verification_token)
-       WHERE al.date = ? AND (al.time_out IS NOT NULL OR al.status IN ('Checked Out', 'CHECKED OUT'))`,
-      [today]
-    );
     const clockedOut = outRows[0].count;
-
-    // 5. Late Arrivals
-    const [lateRows] = await pool.query(
-      `SELECT COUNT(DISTINCT COALESCE(s.id, al.student_id)) as count 
-       FROM attendance_logs al
-       LEFT JOIN students s ON (al.student_id = s.id OR al.student_id = s.adminNo OR al.student_id = s.verification_token)
-       WHERE al.date = ? AND al.status IN ('Late', 'Very Late')`,
-      [today]
-    );
     const lateToday = lateRows[0].count;
-
-    const [earlyRows] = await pool.query(
-      `SELECT COUNT(DISTINCT COALESCE(s.id, al.student_id)) as count 
-       FROM attendance_logs al
-       LEFT JOIN students s ON (al.student_id = s.id OR al.student_id = s.adminNo OR al.student_id = s.verification_token)
-       WHERE al.date = ? AND al.departure_status != 'Normal Departure' AND al.departure_status IS NOT NULL`,
-      [today]
-    );
     const earlyDepartures = earlyRows[0].count;
 
-    // 6. Not Clocked In / Absent
     const absentToday = Math.max(0, totalStudents - presentToday);
     const attendanceRate = totalStudents > 0 ? parseFloat(((presentToday / totalStudents) * 100).toFixed(1)) : 0.0;
 
     const teachersPresent = 14; 
     const visitorsToday = 6;
 
-    // Charts
-    // 1. Hourly: Clock ins by hour
-    const [hourlyRows] = await pool.query(
-      `SELECT HOUR(time_in) as hour, COUNT(*) as count 
-       FROM attendance_logs 
-       WHERE date = ? AND time_in IS NOT NULL 
-       GROUP BY HOUR(time_in) 
-       ORDER BY hour`,
-      [today]
-    );
     const hourlyData = Array.from({ length: 12 }, (_, i) => {
       const h = i + 6; // 6 AM to 5 PM
       const match = hourlyRows.find(r => r.hour === h);
@@ -4509,74 +4563,27 @@ app.get('/api/attendance/dashboard', async (req, res) => {
       };
     });
 
-    // 2. Daily: Attendance rate for last 7 school days
-    const [dailyRows] = await pool.query(
-      `SELECT date, COUNT(DISTINCT COALESCE(s.id, al.student_id)) as present
-       FROM attendance_logs al
-       LEFT JOIN students s ON (al.student_id = s.id OR al.student_id = s.adminNo OR al.student_id = s.verification_token)
-       WHERE al.time_in IS NOT NULL OR al.status IN ('Present', 'Late', 'Very Late', 'Checked Out', 'PRESENT', 'CHECKED OUT')
-       GROUP BY date 
-       ORDER BY date DESC 
-       LIMIT 7`
-    );
     const dailyData = dailyRows.map(r => ({
       label: r.date,
       value: totalStudents > 0 ? Math.round((r.present / totalStudents) * 100) : 100
     })).reverse();
 
-    // 3. Weekly/Monthly trends
-    const [weeklyRows] = await pool.query(
-      `SELECT WEEK(date) as wk, COUNT(DISTINCT COALESCE(s.id, al.student_id)) as total, COUNT(CASE WHEN status='Late' OR status='Very Late' THEN 1 END) as lates
-       FROM attendance_logs al
-       LEFT JOIN students s ON (al.student_id = s.id OR al.student_id = s.adminNo OR al.student_id = s.verification_token)
-       GROUP BY WEEK(date) 
-       ORDER BY wk DESC LIMIT 4`
-    );
     const weeklyData = weeklyRows.map(r => ({
       label: `Week ${r.wk}`,
       value: r.total,
       lates: r.lates
     })).reverse();
 
-    // 4. Class comparison (top 6 classes)
-    const [classRows] = await pool.query(
-      `SELECT s.gradeClass, COUNT(DISTINCT COALESCE(s.id, al.student_id)) as presentCount
-       FROM attendance_logs al
-       JOIN students s ON (al.student_id = s.id OR al.student_id = s.adminNo OR al.student_id = s.verification_token)
-       WHERE al.date = ? AND (al.time_in IS NOT NULL OR al.status IN ('Present', 'Late', 'Very Late', 'Checked Out', 'PRESENT', 'CHECKED OUT'))
-       GROUP BY s.gradeClass
-       ORDER BY presentCount DESC
-       LIMIT 6`,
-      [today]
-    );
     const classComparison = classRows.map(r => ({
       label: r.gradeClass,
       value: r.presentCount
     }));
 
-    // 5. Boarding splits
-    const [boarderRows] = await pool.query(
-      `SELECT s.boardingStatus, COUNT(DISTINCT COALESCE(s.id, al.student_id)) as count 
-       FROM attendance_logs al
-       JOIN students s ON (al.student_id = s.id OR al.student_id = s.adminNo OR al.student_id = s.verification_token)
-       WHERE al.date = ? AND (al.time_in IS NOT NULL OR al.status IN ('Present', 'Late', 'Very Late', 'Checked Out', 'PRESENT', 'CHECKED OUT'))
-       GROUP BY s.boardingStatus`,
-      [today]
-    );
     const boardingSplits = {
       boarders: boarderRows.find(r => r.boardingStatus && r.boardingStatus.toLowerCase().startsWith('board'))?.count || 0,
       dayscholars: boarderRows.find(r => r.boardingStatus && r.boardingStatus.toLowerCase().startsWith('day'))?.count || 0
     };
 
-    // 6. Gender splits
-    const [genderRows] = await pool.query(
-      `SELECT s.gender, COUNT(DISTINCT COALESCE(s.id, al.student_id)) as count 
-       FROM attendance_logs al
-       JOIN students s ON (al.student_id = s.id OR al.student_id = s.adminNo OR al.student_id = s.verification_token)
-       WHERE al.date = ? AND (al.time_in IS NOT NULL OR al.status IN ('Present', 'Late', 'Very Late', 'Checked Out', 'PRESENT', 'CHECKED OUT'))
-       GROUP BY s.gender`,
-      [today]
-    );
     const genderSplits = {
       male: genderRows.find(r => r.gender && r.gender.toLowerCase().startsWith('m'))?.count || 0,
       female: genderRows.find(r => r.gender && r.gender.toLowerCase().startsWith('f'))?.count || 0
@@ -4625,8 +4632,19 @@ app.get('/api/attendance/grid', async (req, res) => {
       dateCondition = 'al.date >= DATE_SUB(?, INTERVAL 30 DAY)';
     }
 
-    // 1. All registered master students
-    const [students] = await pool.query('SELECT id, adminNo, name, gradeClass, photo, boardingStatus, gender FROM students');
+    // Execute master students and attendance logs queries concurrently via Promise.all
+    const [[students], [logRows]] = await Promise.all([
+      pool.query('SELECT id, adminNo, name, gradeClass, photo, boardingStatus, gender FROM students'),
+      pool.query(
+        `SELECT al.student_id, al.date, al.time_in, al.time_out, al.status, al.id as log_id,
+                s.id as matched_id, s.adminNo as matched_adminNo, s.name as matched_name, s.gradeClass as matched_gradeClass, s.photo as matched_photo, s.boardingStatus as matched_boardingStatus, s.gender as matched_gender
+         FROM attendance_logs al
+         LEFT JOIN students s ON (al.student_id = s.id OR al.student_id = s.adminNo OR al.student_id = s.verification_token)
+         WHERE ${dateCondition} AND (al.time_in IS NOT NULL OR al.status IN ('Present', 'Late', 'Very Late', 'Checked Out', 'PRESENT', 'CHECKED OUT'))
+         ORDER BY al.date DESC, (CASE WHEN al.time_out IS NOT NULL OR al.status IN ('Checked Out', 'CHECKED OUT') THEN 1 ELSE 0 END) DESC, al.id DESC`,
+        queryParams
+      )
+    ]);
 
     // Helper to parse class and stream
     const parseClassStream = (gradeClass) => {
@@ -4671,17 +4689,6 @@ app.get('/api/attendance/grid', async (req, res) => {
         registeredMatrix[className].total += 1;
       }
     });
-
-    // 2. Attendance logs for specified date condition joined to master students
-    const [logRows] = await pool.query(
-      `SELECT al.student_id, al.date, al.time_in, al.time_out, al.status, al.id as log_id,
-              s.id as matched_id, s.adminNo as matched_adminNo, s.name as matched_name, s.gradeClass as matched_gradeClass, s.photo as matched_photo, s.boardingStatus as matched_boardingStatus, s.gender as matched_gender
-       FROM attendance_logs al
-       LEFT JOIN students s ON (al.student_id = s.id OR al.student_id = s.adminNo OR al.student_id = s.verification_token)
-       WHERE ${dateCondition} AND (al.time_in IS NOT NULL OR al.status IN ('Present', 'Late', 'Very Late', 'Checked Out', 'PRESENT', 'CHECKED OUT'))
-       ORDER BY al.date DESC, (CASE WHEN al.time_out IS NOT NULL OR al.status IN ('Checked Out', 'CHECKED OUT') THEN 1 ELSE 0 END) DESC, al.id DESC`,
-      queryParams
-    );
 
     // Filter unique student per day for counting
     const presentMatrix = {

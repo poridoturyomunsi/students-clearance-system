@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { 
   QrCode, 
   CheckCircle2, 
@@ -82,8 +82,8 @@ export default function QRAttendanceSystem({ students, onSelectStudent }: QRAtte
   const html5QrCodeRef = useRef<Html5Qrcode | null>(null);
   const scannerContainerId = 'qr-reader-container';
 
-  // Stats for selected date
-  const stats = getAttendanceStats(students, selectedDate);
+  // Stats for selected date (memoized to eliminate typing / re-render lag)
+  const stats = useMemo(() => getAttendanceStats(students, selectedDate), [students, selectedDate, scanHistory]);
 
   // Initialize camera scanner
   const startCamera = async () => {
