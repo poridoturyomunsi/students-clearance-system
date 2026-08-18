@@ -168,7 +168,12 @@ export function processQRScan(
   // Fetch current attendance history
   const allRecords = getStoredAttendance();
   const todayRecords = allRecords.filter(r => r.date === todayStr);
-  const existingRecordIndex = todayRecords.findIndex(r => r.studentId === student.id || r.studentNo === (student.studentNo || student.adminNo));
+  const existingRecordIndex = todayRecords.findIndex(r => 
+    r.studentId === student.id || 
+    r.studentId === student.adminNo || 
+    r.studentNo === student.id || 
+    r.studentNo === (student.studentNo || student.adminNo)
+  );
 
   let finalStatus: 'PRESENT' | 'CHECKED OUT' = 'PRESENT';
   let timeIn = nowTime;

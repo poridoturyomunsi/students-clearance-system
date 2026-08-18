@@ -862,7 +862,7 @@ export const LiveAttendanceDashboard: React.FC<LiveAttendanceDashboardProps> = (
                   {modalTitle}
                 </h3>
                 <p className="text-slate-400 text-xs font-mono mt-0.5">
-                  Showing {filteredModalStudents.length} student{filteredModalStudents.length === 1 ? '' : 's'} clocked in
+                  Showing {filteredModalStudents.length} student{filteredModalStudents.length === 1 ? '' : 's'} {modalTitle.includes('Clocked Out') ? 'clocked out' : modalTitle.includes('Currently On Campus') ? 'currently on campus' : 'matched'}
                 </p>
               </div>
 
@@ -892,7 +892,11 @@ export const LiveAttendanceDashboard: React.FC<LiveAttendanceDashboardProps> = (
             <div className="p-4 flex-1 overflow-y-auto space-y-2">
               {filteredModalStudents.length === 0 ? (
                 <div className="p-12 text-center text-slate-500 font-mono text-xs">
-                  No clocked-in student records match this filter.
+                  {modalTitle.includes('Clocked Out') 
+                    ? 'No clocked-out student records match this filter.' 
+                    : modalTitle.includes('Currently On Campus')
+                    ? 'No students currently on campus match this filter.'
+                    : 'No student records match this filter.'}
                 </div>
               ) : (
                 filteredModalStudents.map((st, idx) => (

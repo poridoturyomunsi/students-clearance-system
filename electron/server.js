@@ -4188,8 +4188,11 @@ app.post('/api/attendance/scan', async (req, res) => {
     const { dateStr: today, time24: timeNow, formattedTime } = getKampalaTimeDetails();
     const studentFirstName = getFirstName(student.name);
 
-    // 2. Fetch existing log for today
-    const [logRows] = await pool.query('SELECT * FROM attendance_logs WHERE student_id = ? AND date = ?', [studentId, today]);
+    // 2. Fetch existing log for today (Multi-key lookup across UUID, AdminNo, and Scanned Barcode)
+    const [logRows] = await pool.query(
+      'SELECT * FROM attendance_logs WHERE (student_id = ? OR student_id = ? OR student_id = ?) AND date = ? ORDER BY id DESC LIMIT 1', 
+      [student.id, student.adminNo, cleanedValue, today]
+    );
     const existingLog = logRows[0] || null;
 
     let targetDirection = direction || 'auto';
