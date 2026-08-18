@@ -316,11 +316,27 @@ export const LiveAttendanceDashboard: React.FC<LiveAttendanceDashboardProps> = (
     return Math.max(0, total - columnTotals.grandTotal);
   }, [totalRegistered, registeredColumnTotals.grandReg, columnTotals.grandTotal]);
 
+  const currentlyOnCampusCount = useMemo(() => {
+    return presentStudentsList.filter(s => {
+      const isOut = Boolean(s.time_out || s.status === 'CHECKED OUT' || s.status === 'Checked Out');
+      return !isOut;
+    }).length;
+  }, [presentStudentsList]);
+
+  const clockedOutCount = useMemo(() => {
+    return presentStudentsList.filter(s => {
+      return Boolean(s.time_out || s.status === 'CHECKED OUT' || s.status === 'Checked Out');
+    }).length;
+  }, [presentStudentsList]);
+
   // -------------------------------------------------------------
   // DRILL-DOWN MODAL LIST FILTERING
   // -------------------------------------------------------------
   const filteredModalStudents = useMemo(() => {
     return presentStudentsList.filter(st => {
+      const isOut = Boolean(st.time_out || st.status === 'CHECKED OUT' || st.status === 'Checked Out');
+      if (modalTitle.includes('Clocked Out') && !isOut) return false;
+      if (modalTitle.includes('Currently On Campus') && isOut) return false;
       if (modalFilter.className && st.className !== modalFilter.className) return false;
       if (modalFilter.streamName && st.streamName !== modalFilter.streamName) return false;
       if (modalSearch.trim()) {
@@ -332,7 +348,7 @@ export const LiveAttendanceDashboard: React.FC<LiveAttendanceDashboardProps> = (
       }
       return true;
     });
-  }, [presentStudentsList, modalFilter, modalSearch]);
+  }, [presentStudentsList, modalFilter, modalSearch, modalTitle]);
 
   const openDrillDown = (title: string, className?: string, streamName?: string) => {
     setModalTitle(title);
@@ -493,7 +509,7 @@ export const LiveAttendanceDashboard: React.FC<LiveAttendanceDashboardProps> = (
             </div>
           </div>
           <div className="text-2xl lg:text-3xl font-black mt-2 text-emerald-400 font-mono">
-            {presentStudentsList.filter(s => s.status !== 'CHECKED OUT' && s.status !== 'Checked Out').length}
+            {currentlyOnCampusCount}
           </div>
           <p className="text-[10px] text-emerald-400/80 mt-1 font-mono truncate">Inside gate (not clocked out)</p>
         </div>
@@ -510,7 +526,7 @@ export const LiveAttendanceDashboard: React.FC<LiveAttendanceDashboardProps> = (
             </div>
           </div>
           <div className="text-2xl lg:text-3xl font-black mt-2 text-amber-400 font-mono">
-            {presentStudentsList.filter(s => s.status === 'CHECKED OUT' || s.status === 'Checked Out').length}
+            {clockedOutCount}
           </div>
           <p className="text-[10px] text-slate-500 mt-1 font-mono truncate">Departed school campus</p>
         </div>

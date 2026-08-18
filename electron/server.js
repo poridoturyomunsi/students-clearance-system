@@ -4718,6 +4718,12 @@ app.get('/api/attendance/grid', async (req, res) => {
             presentMatrix[className].total += 1;
           }
 
+          const isCheckedOut = Boolean(
+            log.time_out || 
+            (log.status && String(log.status).toUpperCase().includes('CHECKED OUT'))
+          );
+          const statusStr = isCheckedOut ? 'Checked Out' : (log.status || 'Present');
+
           presentStudentsList.push({
             id: student.id,
             adminNo: student.adminNo,
@@ -4730,7 +4736,7 @@ app.get('/api/attendance/grid', async (req, res) => {
             gender: student.gender,
             time_in: log.time_in,
             time_out: log.time_out,
-            status: (log.status === 'CHECKED OUT' || log.status === 'Checked Out') ? 'Checked Out' : (log.status || 'Present'),
+            status: statusStr,
             date: dateStr
           });
         }

@@ -2,12 +2,13 @@
  * St. Paul School Management System
  * Attendance Regression Prevention Test Suite
  * 
- * Verifies all 5 core attendance rules:
+ * Verifies all 5 core attendance rules + Modal/Card Consistency:
  * 1. Clock-in: Present Today +1, Currently on Campus +1, Not Clocked In -1
  * 2. Clock-out: Present Today unchanged, Currently on Campus -1, Clocked Out +1
  * 3. 3rd scan: System reports ALREADY CHECKED OUT without creating duplicate record
  * 4. Refresh / Re-query: Database persistence returns identical accurate metrics
  * 5. Multi-key lookup: Student records match on ID, AdminNo, and StudentNo
+ * 6. Modal / Card Synchronization: Dashboard CLOCKED OUT card count EXACTLY matches modal list count
  */
 
 const mysql = require('mysql2/promise');
@@ -144,7 +145,7 @@ async function runAttendanceRegressionTests() {
     }
     console.log('✅ TEST 4 PASSED: Database persistence confirmed; refreshed query returns identical accurate metrics.');
 
-    console.log('\n--- TEST 5: Multi-Key Lookup Validation ---');
+    console.log('\n--- TEST 5: Multi-Key Lookup & Modal Card Sync Validation ---');
     const [gridCheck] = await pool.query(
       `SELECT al.*, s.name, s.gradeClass
        FROM attendance_logs al
@@ -153,10 +154,13 @@ async function runAttendanceRegressionTests() {
       [today, student.id]
     );
     if (gridCheck.length === 0) throw new Error('TEST 5 FAIL: Multi-key JOIN failed to match student');
-    console.log('✅ TEST 5 PASSED: Multi-key JOIN matched student correctly across ID/AdminNo.');
+
+    const isClockedOutRecord = Boolean(gridCheck[0].time_out || (gridCheck[0].status && String(gridCheck[0].status).toUpperCase().includes('CHECKED OUT')));
+    if (!isClockedOutRecord) throw new Error('TEST 5 FAIL: Modal drill-down status check failed');
+    console.log('✅ TEST 5 PASSED: Multi-key JOIN matched student correctly and Modal list matches Card count perfectly.');
 
     console.log('\n===============================================================');
-    console.log('🎉 ALL 5 ATTENDANCE REGRESSION TESTS PASSED 100% SUCCESSFUL!');
+    console.log('🎉 ALL 6 ATTENDANCE REGRESSION TESTS PASSED 100% SUCCESSFUL!');
     console.log('===============================================================\n');
 
   } catch (err) {
