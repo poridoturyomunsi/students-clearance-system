@@ -143,49 +143,37 @@ import {
 // Top-level helper so it's available before App renders
 function parseClassAndStream(combined: string): { className: string; streamName: string } {
   if (!combined) return { className: '', streamName: '' };
-  let normalized = combined.trim();
-  const sNoDotMatch = normalized.match(/^[sS]([1-6])(\s.*|$)/);
-  if (sNoDotMatch) {
-    normalized = 'S.' + sNoDotMatch[1] + sNoDotMatch[2];
+  let clean = combined.trim();
+  
+  const m = clean.match(/^(?:[sS]\.?|senior\s*|form\s*)([1-6])\s*(.*)$/i);
+  if (m) {
+    const num = m[1];
+    let rest = (m[2] || '').trim();
+    if (rest.toLowerCase().includes('art')) {
+      rest = 'Arts';
+    } else if (rest.toLowerCase().includes('science')) {
+      rest = 'Sciences';
+    } else if (rest.length === 1) {
+      rest = rest.toUpperCase();
+    }
+    return { className: `S.${num}`, streamName: rest };
   }
-  const parts = normalized.split(/\s+/);
+  
+  const parts = clean.split(/\s+/);
   if (parts.length >= 2) return { className: parts[0], streamName: parts.slice(1).join(' ') };
-  const m = normalized.match(/^(.*?)([A-Za-z])$/);
-  if (m) return { className: m[1], streamName: m[2] };
-  return { className: normalized, streamName: '' };
+  const singleMatch = clean.match(/^(.*?)([A-Za-z])$/);
+  if (singleMatch) return { className: singleMatch[1], streamName: singleMatch[2] };
+  return { className: clean, streamName: '' };
 }
 
-// Normalize grade class from Excel text
+// Normalize grade class from Excel text or input
 function normalizeGradeClass(input: string): string {
   if (!input) return SCHOOL_CLASSES[0];
-  const clean = input.trim().toLowerCase().replace(/\s+/g, ' ');
-  
-  const sMatch = clean.match(/^(?:s|senior|s\.)\s*([1-6])\s*(a|b|c|arts|science|sciences)?$/);
-  if (sMatch) {
-    const num = sMatch[1];
-    let stream = sMatch[2] || '';
-    
-    if (stream.includes('arts')) {
-      stream = 'Arts';
-    } else if (stream.includes('science')) {
-      stream = 'Sciences';
-    } else {
-      stream = stream.toUpperCase();
-    }
-    
-    if (['1', '2', '3', '4'].includes(num)) {
-      if (!stream || !['A', 'B', 'C'].includes(stream)) {
-        stream = 'A';
-      }
-      return `S.${num} ${stream}`;
-    } else if (['5', '6'].includes(num)) {
-      if (!stream || !['Arts', 'Sciences'].includes(stream)) {
-        stream = 'Sciences';
-      }
-      return `S.${num} ${stream}`;
-    }
+  const parsed = parseClassAndStream(input);
+  if (parsed.className) {
+    return parsed.streamName ? `${parsed.className} ${parsed.streamName}` : parsed.className;
   }
-  
+  const clean = input.trim().toLowerCase().replace(/\s+/g, ' ');
   const matched = SCHOOL_CLASSES.find(sc => sc.toLowerCase() === clean);
   if (matched) return matched;
   return SCHOOL_CLASSES[0];
@@ -654,11 +642,11 @@ function AppContent() {
       const isBoard = viewMode === 'board';
       const params: any = {
         page: isBoard ? 1 : currentPage,
-        limit: isBoard ? 250 : (pageSize === -1 ? -1 : pageSize),
+        limit: isBoard ? -1 : (pageSize === -1 ? -1 : pageSize),
         search: searchQuery,
         level: filterLevel === 'All' ? undefined : filterLevel,
         gradeClass: isBoard ? activeBoardClass : (filterClass === 'All' ? undefined : filterClass),
-        stream: isBoard ? activeBoardStream : (filterStream === 'All' ? undefined : filterStream),
+        stream: isBoard ? undefined : (filterStream === 'All' ? undefined : filterStream),
         gender: filterGender === 'All' ? undefined : filterGender,
         isCleared: filterClearance === 'All' ? undefined : filterClearance,
         boardingStatus: filterBoarding === 'All' ? undefined : filterBoarding,
@@ -667,10 +655,6 @@ function AppContent() {
         academicYear: filterAcademicYear === 'All' ? undefined : filterAcademicYear,
         sortBy
       };
-
-      if (pageSize === -1 && !isBoard) {
-        params.limit = -1;
-      }
 
       const res = await fetchStudentsFromDb(params);
       if (res && Array.isArray(res.data)) {

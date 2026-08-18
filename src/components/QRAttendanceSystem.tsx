@@ -31,11 +31,14 @@ import {
   ScanResult,
   formatTodayDate,
   formatCurrentTime,
-  formatDisplayDate
+  formatDisplayDate,
+  getFirstName
 } from '../lib/attendanceStore.ts';
 import { Html5Qrcode } from 'html5-qrcode';
 import * as XLSX from 'xlsx';
 import { LiveAttendanceDashboard } from './LiveAttendanceDashboard.tsx';
+import { announceScan } from '../utils/speechService.ts';
+import { TTSSettingsPanel } from './TTSSettingsPanel.tsx';
 
 interface QRAttendanceSystemProps {
   students: Student[];
@@ -158,27 +161,27 @@ export default function QRAttendanceSystem({ students, onSelectStudent }: QRAtte
     setScanHistory(prev => [result, ...prev.slice(0, 19)]);
     setManualInput('');
 
-    // Audio feedback
-    try {
-      const audioCtx = new (window.AudioContext || (window as any).webkitAudioContext)();
-      const osc = audioCtx.createOscillator();
-      const gain = audioCtx.createGain();
-      osc.connect(gain);
-      gain.connect(audioCtx.destination);
-      
-      if (result.verified) {
-        osc.frequency.setValueAtTime(880, audioCtx.currentTime); // A5 note (success)
-        gain.gain.setValueAtTime(0.1, audioCtx.currentTime);
-        osc.start();
-        osc.stop(audioCtx.currentTime + 0.15);
-      } else {
+    // Audio speech feedback
+    if (result.verified && result.student) {
+      const isClockIn = result.status === 'PRESENT';
+      announceScan(
+        result.student.name,
+        isClockIn ? 'clock-in' : 'clock-out',
+        result.timeIn || result.timeOut,
+        result.student.id || result.student.studentNo
+      );
+    } else {
+      try {
+        const audioCtx = new (window.AudioContext || (window as any).webkitAudioContext)();
+        const osc = audioCtx.createOscillator();
+        const gain = audioCtx.createGain();
+        osc.connect(gain);
+        gain.connect(audioCtx.destination);
         osc.frequency.setValueAtTime(300, audioCtx.currentTime); // Low note (invalid)
         gain.gain.setValueAtTime(0.15, audioCtx.currentTime);
         osc.start();
         osc.stop(audioCtx.currentTime + 0.3);
-      }
-    } catch (e) {
-      // Audio not supported or blocked
+      } catch (e) {}
     }
   };
 
@@ -440,89 +443,108 @@ export default function QRAttendanceSystem({ students, onSelectStudent }: QRAtte
               <div className="space-y-4 animate-scale-in">
                 {/* Result Card: VERIFIED (PRESENT) */}
                 {lastScanResult.verified && lastScanResult.status === 'PRESENT' && (
-                  <div className="bg-white rounded-2xl border-2 border-emerald-500 overflow-hidden shadow-xl">
-                    {/* Header Banner */}
-                    <div className="bg-emerald-600 text-white px-6 py-4 flex items-center justify-between">
-                      <div className="flex items-center gap-3">
-                        <CheckCircle2 className="w-7 h-7 text-emerald-100" />
+                  <div className="space-y-4">
+                    {/* Student-Facing Welcome Message Banner */}
+                    <div className="bg-gradient-to-r from-emerald-600 via-teal-600 to-emerald-700 text-white p-5 rounded-2xl shadow-lg border border-emerald-400 animate-bounce-once">
+                      <div className="flex items-center gap-4">
+                        <div className="text-4xl shrink-0">👋</div>
                         <div>
-                          <h3 className="text-base font-black uppercase tracking-wider">VERIFIED</h3>
-                          <p className="text-xs text-emerald-100 font-medium">This is a registered student.</p>
-                        </div>
-                      </div>
-                      <span className="bg-emerald-800 text-emerald-100 text-xs font-black px-3 py-1 rounded-full uppercase tracking-wider">
-                        ✔ CHECK IN
-                      </span>
-                    </div>
-
-                    {/* Student Info Details */}
-                    <div className="p-6 flex flex-col md:flex-row gap-6 items-center md:items-start">
-                      {/* Photo */}
-                      <div className="w-32 h-36 shrink-0 border-2 border-emerald-400 rounded-xl overflow-hidden bg-slate-100 shadow-md">
-                        {lastScanResult.student?.photo ? (
-                          <img
-                            src={lastScanResult.student.photo}
-                            alt={lastScanResult.student.name}
-                            className="w-full h-full object-cover"
-                          />
-                        ) : (
-                          <div className="w-full h-full flex flex-col items-center justify-center text-slate-400">
-                            <Users className="w-10 h-10" />
-                            <span className="text-[8px] font-extrabold uppercase mt-1">NO PHOTO</span>
-                          </div>
-                        )}
-                      </div>
-
-                      {/* Details Grid */}
-                      <div className="flex-1 space-y-3 w-full">
-                        <div>
-                          <span className="text-[10px] font-black text-blue-700 uppercase tracking-wider">STUDENT NUMBER</span>
-                          <p className="text-lg font-black text-slate-950 uppercase">{lastScanResult.student?.studentNo || lastScanResult.student?.adminNo}</p>
-                        </div>
-
-                        <div>
-                          <span className="text-[10px] font-black text-blue-700 uppercase tracking-wider">NAME</span>
-                          <p className="text-lg font-black text-slate-950 uppercase">{lastScanResult.student?.name}</p>
-                        </div>
-
-                        <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 pt-1 border-t border-slate-100">
-                          <div>
-                            <span className="text-[9px] font-black text-blue-700 uppercase tracking-wider">CLASS</span>
-                            <p className="text-xs font-black text-slate-900 uppercase">{lastScanResult.student?.gradeClass}</p>
-                          </div>
-                          <div>
-                            <span className="text-[9px] font-black text-blue-700 uppercase tracking-wider">GENDER</span>
-                            <p className="text-xs font-black text-slate-900 uppercase">{lastScanResult.student?.gender || 'MALE'}</p>
-                          </div>
-                          <div>
-                            <span className="text-[9px] font-black text-blue-700 uppercase tracking-wider">STATUS</span>
-                            <p className="text-xs font-black text-slate-900 uppercase">{lastScanResult.student?.boardingStatus || 'DAY SCHOLAR'}</p>
-                          </div>
-                          <div>
-                            <span className="text-[9px] font-black text-blue-700 uppercase tracking-wider">CARD VALIDITY</span>
-                            <p className="text-xs font-black text-emerald-700 uppercase">✔ ACTIVE / VALID</p>
-                          </div>
+                          <h2 className="text-2xl font-black tracking-wide">
+                            Welcome, <span className="underline decoration-amber-300 decoration-4">{getFirstName(lastScanResult.student?.name)}</span>!
+                          </h2>
+                          <p className="text-sm font-semibold text-emerald-100 mt-1 leading-snug">
+                            Good morning!<br />
+                            You have successfully checked in.<br />
+                            Have a wonderful and productive day!
+                          </p>
                         </div>
                       </div>
                     </div>
 
-                    {/* Attendance Record Footer Band */}
-                    <div className="bg-emerald-50 px-6 py-4 border-t border-emerald-200 flex flex-wrap justify-between items-center gap-4">
-                      <div>
-                        <span className="text-[10px] font-black text-emerald-800 uppercase tracking-wider">ATTENDANCE STATUS</span>
-                        <p className="text-base font-black text-emerald-700 uppercase flex items-center gap-1.5">
-                          <Check className="w-5 h-5 stroke-[3]" /> PRESENT
-                        </p>
+                    <div className="bg-white rounded-2xl border-2 border-emerald-500 overflow-hidden shadow-xl">
+                      {/* Header Banner */}
+                      <div className="bg-emerald-600 text-white px-6 py-4 flex items-center justify-between">
+                        <div className="flex items-center gap-3">
+                          <CheckCircle2 className="w-7 h-7 text-emerald-100" />
+                          <div>
+                            <h3 className="text-base font-black uppercase tracking-wider">VERIFIED</h3>
+                            <p className="text-xs text-emerald-100 font-medium">This is a registered student.</p>
+                          </div>
+                        </div>
+                        <span className="bg-emerald-800 text-emerald-100 text-xs font-black px-3 py-1 rounded-full uppercase tracking-wider">
+                          ✔ CHECK IN
+                        </span>
                       </div>
 
-                      <div>
-                        <span className="text-[10px] font-black text-emerald-800 uppercase tracking-wider">TIME IN</span>
-                        <p className="text-base font-black text-slate-900 font-mono">{lastScanResult.timeIn || formatCurrentTime()}</p>
+                      {/* Student Info Details */}
+                      <div className="p-6 flex flex-col md:flex-row gap-6 items-center md:items-start">
+                        {/* Photo */}
+                        <div className="w-32 h-36 shrink-0 border-2 border-emerald-400 rounded-xl overflow-hidden bg-slate-100 shadow-md">
+                          {lastScanResult.student?.photo ? (
+                            <img
+                              src={lastScanResult.student.photo}
+                              alt={lastScanResult.student.name}
+                              className="w-full h-full object-cover"
+                            />
+                          ) : (
+                            <div className="w-full h-full flex flex-col items-center justify-center text-slate-400">
+                              <Users className="w-10 h-10" />
+                              <span className="text-[8px] font-extrabold uppercase mt-1">NO PHOTO</span>
+                            </div>
+                          )}
+                        </div>
+
+                        {/* Details Grid */}
+                        <div className="flex-1 space-y-3 w-full">
+                          <div>
+                            <span className="text-[10px] font-black text-blue-700 uppercase tracking-wider">STUDENT NUMBER</span>
+                            <p className="text-lg font-black text-slate-950 uppercase">{lastScanResult.student?.studentNo || lastScanResult.student?.adminNo}</p>
+                          </div>
+
+                          <div>
+                            <span className="text-[10px] font-black text-blue-700 uppercase tracking-wider">NAME</span>
+                            <p className="text-lg font-black text-slate-950 uppercase">{lastScanResult.student?.name}</p>
+                          </div>
+
+                          <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 pt-1 border-t border-slate-100">
+                            <div>
+                              <span className="text-[9px] font-black text-blue-700 uppercase tracking-wider">CLASS</span>
+                              <p className="text-xs font-black text-slate-900 uppercase">{lastScanResult.student?.gradeClass}</p>
+                            </div>
+                            <div>
+                              <span className="text-[9px] font-black text-blue-700 uppercase tracking-wider">GENDER</span>
+                              <p className="text-xs font-black text-slate-900 uppercase">{lastScanResult.student?.gender || 'MALE'}</p>
+                            </div>
+                            <div>
+                              <span className="text-[9px] font-black text-blue-700 uppercase tracking-wider">STATUS</span>
+                              <p className="text-xs font-black text-slate-900 uppercase">{lastScanResult.student?.boardingStatus || 'DAY SCHOLAR'}</p>
+                            </div>
+                            <div>
+                              <span className="text-[9px] font-black text-blue-700 uppercase tracking-wider">CARD VALIDITY</span>
+                              <p className="text-xs font-black text-emerald-700 uppercase">✔ ACTIVE / VALID</p>
+                            </div>
+                          </div>
+                        </div>
                       </div>
 
-                      <div>
-                        <span className="text-[10px] font-black text-emerald-800 uppercase tracking-wider">DATE</span>
-                        <p className="text-xs font-bold text-slate-700 font-mono">{formatDisplayDate(lastScanResult.dateStr)}</p>
+                      {/* Attendance Record Footer Band */}
+                      <div className="bg-emerald-50 px-6 py-4 border-t border-emerald-200 flex flex-wrap justify-between items-center gap-4">
+                        <div>
+                          <span className="text-[10px] font-black text-emerald-800 uppercase tracking-wider">ATTENDANCE STATUS</span>
+                          <p className="text-base font-black text-emerald-700 uppercase flex items-center gap-1.5">
+                            <Check className="w-5 h-5 stroke-[3]" /> PRESENT
+                          </p>
+                        </div>
+
+                        <div>
+                          <span className="text-[10px] font-black text-emerald-800 uppercase tracking-wider">TIME IN</span>
+                          <p className="text-base font-black text-slate-900 font-mono">{lastScanResult.timeIn || formatCurrentTime()}</p>
+                        </div>
+
+                        <div>
+                          <span className="text-[10px] font-black text-emerald-800 uppercase tracking-wider">DATE</span>
+                          <p className="text-xs font-bold text-slate-700 font-mono">{formatDisplayDate(lastScanResult.dateStr)}</p>
+                        </div>
                       </div>
                     </div>
                   </div>
@@ -530,42 +552,59 @@ export default function QRAttendanceSystem({ students, onSelectStudent }: QRAtte
 
                 {/* Result Card: CHECK OUT */}
                 {lastScanResult.verified && lastScanResult.status === 'CHECKED OUT' && (
-                  <div className="bg-white rounded-2xl border-2 border-amber-500 overflow-hidden shadow-xl">
-                    {/* Header Banner */}
-                    <div className="bg-amber-600 text-white px-6 py-4 flex items-center justify-between">
-                      <div className="flex items-center gap-3">
-                        <LogOut className="w-7 h-7 text-amber-100" />
+                  <div className="space-y-4">
+                    {/* Student-Facing Goodbye Message Banner */}
+                    <div className="bg-gradient-to-r from-amber-600 via-orange-600 to-amber-700 text-white p-5 rounded-2xl shadow-lg border border-amber-400 animate-bounce-once">
+                      <div className="flex items-center gap-4">
+                        <div className="text-4xl shrink-0">👋</div>
                         <div>
-                          <h3 className="text-base font-black uppercase tracking-wider">CHECK OUT</h3>
-                          <p className="text-xs text-amber-100 font-medium">Student departing campus.</p>
+                          <h2 className="text-2xl font-black tracking-wide">
+                            Goodbye, <span className="underline decoration-yellow-200 decoration-4">{getFirstName(lastScanResult.student?.name)}</span>!
+                          </h2>
+                          <p className="text-sm font-semibold text-amber-100 mt-1 leading-snug">
+                            You have successfully checked out.<br />
+                            Have a safe journey home!
+                          </p>
                         </div>
                       </div>
-                      <span className="bg-amber-800 text-amber-100 text-xs font-black px-3 py-1 rounded-full uppercase tracking-wider">
-                        CHECK OUT
-                      </span>
                     </div>
 
-                    {/* Student Info Details */}
-                    <div className="p-6 flex flex-col md:flex-row gap-6 items-center md:items-start">
-                      <div className="w-32 h-36 shrink-0 border-2 border-amber-400 rounded-xl overflow-hidden bg-slate-100 shadow-md">
-                        {lastScanResult.student?.photo ? (
-                          <img
-                            src={lastScanResult.student.photo}
-                            alt={lastScanResult.student.name}
-                            className="w-full h-full object-cover"
-                          />
-                        ) : (
-                          <div className="w-full h-full flex flex-col items-center justify-center text-slate-400">
-                            <Users className="w-10 h-10" />
+                    <div className="bg-white rounded-2xl border-2 border-amber-500 overflow-hidden shadow-xl">
+                      {/* Header Banner */}
+                      <div className="bg-amber-600 text-white px-6 py-4 flex items-center justify-between">
+                        <div className="flex items-center gap-3">
+                          <LogOut className="w-7 h-7 text-amber-100" />
+                          <div>
+                            <h3 className="text-base font-black uppercase tracking-wider">CHECK OUT</h3>
+                            <p className="text-xs text-amber-100 font-medium">Student departing campus.</p>
                           </div>
-                        )}
+                        </div>
+                        <span className="bg-amber-800 text-amber-100 text-xs font-black px-3 py-1 rounded-full uppercase tracking-wider">
+                          CHECK OUT
+                        </span>
                       </div>
 
-                      <div className="flex-1 space-y-3 w-full">
-                        <div>
-                          <span className="text-[10px] font-black text-blue-700 uppercase tracking-wider">STUDENT NUMBER</span>
-                          <p className="text-lg font-black text-slate-950 uppercase">{lastScanResult.student?.studentNo || lastScanResult.student?.adminNo}</p>
+                      {/* Student Info Details */}
+                      <div className="p-6 flex flex-col md:flex-row gap-6 items-center md:items-start">
+                        <div className="w-32 h-36 shrink-0 border-2 border-amber-400 rounded-xl overflow-hidden bg-slate-100 shadow-md">
+                          {lastScanResult.student?.photo ? (
+                            <img
+                              src={lastScanResult.student.photo}
+                              alt={lastScanResult.student.name}
+                              className="w-full h-full object-cover"
+                            />
+                          ) : (
+                            <div className="w-full h-full flex flex-col items-center justify-center text-slate-400">
+                              <Users className="w-10 h-10" />
+                            </div>
+                          )}
                         </div>
+
+                        <div className="flex-1 space-y-3 w-full">
+                          <div>
+                            <span className="text-[10px] font-black text-blue-700 uppercase tracking-wider">STUDENT NUMBER</span>
+                            <p className="text-lg font-black text-slate-950 uppercase">{lastScanResult.student?.studentNo || lastScanResult.student?.adminNo}</p>
+                          </div>
 
                         <div>
                           <span className="text-[10px] font-black text-blue-700 uppercase tracking-wider">NAME</span>
@@ -611,6 +650,7 @@ export default function QRAttendanceSystem({ students, onSelectStudent }: QRAtte
                       </div>
                     </div>
                   </div>
+                </div>
                 )}
 
                 {/* Result Card: DUPLICATE WARNING */}

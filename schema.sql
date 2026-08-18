@@ -261,7 +261,7 @@ CREATE TABLE IF NOT EXISTS attendance_notifications (
   recipient_type VARCHAR(20) NOT NULL,
   recipient_phone VARCHAR(20) NULL,
   message TEXT NOT NULL,
-  status ENUM('Sent', 'Delivered', 'Failed', 'Pending') NOT NULL DEFAULT 'Pending',
+  status ENUM('Sent', 'Delivered', 'Failed', 'Pending', 'Not Attempted') NOT NULL DEFAULT 'Pending',
   error_message TEXT NULL,
   sent_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
   FOREIGN KEY (student_id) REFERENCES students(id) ON DELETE CASCADE,
@@ -269,6 +269,7 @@ CREATE TABLE IF NOT EXISTS attendance_notifications (
   INDEX idx_student_notification (student_id),
   INDEX idx_status (status)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
 
 -- Create student_permissions table
 CREATE TABLE IF NOT EXISTS student_permissions (

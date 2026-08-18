@@ -13,13 +13,15 @@ import {
   fetchGatePermissions, saveGatePermission, returnStudentPermission, 
   fetchGateLocations, saveGateLocation, deleteGateLocation,
   fetchGateDevices, saveGateDevice, deleteGateDevice,
-  fetchAttendanceSettings, saveAttendanceSettings 
+  fetchAttendanceSettings, saveAttendanceSettings, fetchNotificationAuditLogs
 } from '../../utils/api.ts';
 import QRAttendanceSystem from '../QRAttendanceSystem.tsx';
 import { INITIAL_STUDENTS } from '../../data.ts';
+import { announceScan } from '../../utils/speechService.ts';
+import { TTSSettingsPanel } from '../TTSSettingsPanel.tsx';
 
 export default function AttendanceModule() {
-  const [activeTab, setActiveTab] = useState<'qr-guard' | 'dashboard' | 'gate' | 'monitor' | 'permissions' | 'reports' | 'setup'>('qr-guard');
+  const [activeTab, setActiveTab] = useState<'qr-guard' | 'dashboard' | 'gate' | 'monitor' | 'permissions' | 'reports' | 'audit-logs' | 'setup'>('qr-guard');
   
   // Dashboard states
   const [dashboardData, setDashboardData] = useState<any>(null);
@@ -67,6 +69,12 @@ export default function AttendanceModule() {
     gender: 'All',
     search: ''
   });
+
+  // Notification Audit Logs states
+  const [auditLogs, setAuditLogs] = useState<any[]>([]);
+  const [auditLogsLoading, setAuditLogsLoading] = useState(false);
+  const [auditStatusFilter, setAuditStatusFilter] = useState('ALL');
+  const [auditSearch, setAuditSearch] = useState('');
 
   // Setup states
   const [gates, setGates] = useState<any[]>([]);
@@ -228,7 +236,14 @@ export default function AttendanceModule() {
 
       if (response.success) {
         setScanResult(response);
-        triggerAudioFeedback(response.student.name, response.direction === 'in');
+        const isClockIn = response.direction === 'in';
+        const scanTime = response.log ? (response.log.time_in || response.log.time_out) : undefined;
+        announceScan(
+          response.student.name, 
+          isClockIn ? 'clock-in' : 'clock-out', 
+          scanTime, 
+          response.student.id || response.student.adminNo
+        );
         setScanValue('');
         // Focus scan input back
         setTimeout(() => scanInputRef.current?.focus(), 100);
@@ -324,6 +339,31 @@ export default function AttendanceModule() {
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [activeTab, filters.startDate, filters.endDate, filters.gradeClass, filters.stream, filters.status, filters.boardingStatus, filters.gender]);
+
+  // Load Notification Audit Logs
+  const loadAuditLogs = async () => {
+    setAuditLogsLoading(true);
+    try {
+      const data = await fetchNotificationAuditLogs({
+        status: auditStatusFilter,
+        search: auditSearch,
+        startDate: filters.startDate,
+        endDate: filters.endDate
+      });
+      setAuditLogs(data || []);
+    } catch (e) {
+      console.error('Failed to load notification audit logs', e);
+    } finally {
+      setAuditLogsLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    if (activeTab === 'audit-logs') {
+      loadAuditLogs();
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [activeTab, auditStatusFilter, auditSearch, filters.startDate, filters.endDate]);
 
   // Export Suite
   const handleExportCSV = () => {
@@ -600,12 +640,13 @@ export default function AttendanceModule() {
 
       {/* Tabs */}
       <div className="flex bg-slate-950 p-1 rounded-xl border border-slate-850 overflow-x-auto gap-1">
-        {(['qr-guard', 'dashboard', 'gate', 'monitor', 'permissions', 'reports', 'setup'] as const).map(tab => (
+        {(['qr-guard', 'dashboard', 'gate', 'monitor', 'permissions', 'reports', 'audit-logs', 'setup'] as const).map(tab => (
           <button
             key={tab}
             onClick={() => {
               setActiveTab(tab);
               if (tab === 'dashboard') loadDashboard();
+              if (tab === 'audit-logs') loadAuditLogs();
             }}
             className={`px-4 py-2.5 rounded-lg text-xs font-black uppercase tracking-wider whitespace-nowrap transition-all duration-200 cursor-pointer flex-1 text-center ${
               activeTab === tab 
@@ -619,6 +660,7 @@ export default function AttendanceModule() {
              tab === 'monitor' ? 'Live Gate Monitor' :
              tab === 'permissions' ? 'Permissions & Slips' :
              tab === 'reports' ? 'Reports & Exports' :
+             tab === 'audit-logs' ? '🔔 Notification Audit Logs' :
              'Gate Setup'}
           </button>
         ))}
@@ -1486,6 +1528,9 @@ export default function AttendanceModule() {
               </div>
             </div>
 
+            {/* Audio Speech Settings Panel */}
+            <TTSSettingsPanel />
+
             {/* School timings settings */}
             <div className="bg-slate-950/40 border border-slate-850 rounded-xl p-4 md:p-5 space-y-4">
               <h3 className="text-xs font-black uppercase text-indigo-400 tracking-wider flex items-center gap-1.5">
@@ -1535,6 +1580,182 @@ export default function AttendanceModule() {
                     <Save className="w-4 h-4" /> {savingSettings ? 'SAVING...' : 'SAVE TIMING SETTINGS'}
                   </button>
                 </div>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {activeTab === 'audit-logs' && (
+          <div className="space-y-6 animate-fade-in">
+            {/* Filter Bar */}
+            <div className="bg-slate-950/50 border border-slate-850 p-4 rounded-xl flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
+              <div className="flex flex-wrap items-center gap-3 w-full md:w-auto">
+                <div className="space-y-1">
+                  <label className="text-[10px] text-slate-400 font-bold uppercase block">Notification Status</label>
+                  <select
+                    value={auditStatusFilter}
+                    onChange={(e) => setAuditStatusFilter(e.target.value)}
+                    className="px-3 py-1.5 bg-slate-900 border border-slate-800 rounded-lg text-xs text-white outline-none focus:border-indigo-500 cursor-pointer"
+                  >
+                    <option value="ALL">All Delivery Statuses</option>
+                    <option value="Sent">Sent / Delivered</option>
+                    <option value="Failed">Failed Alerts</option>
+                    <option value="Not Attempted">Not Attempted (No WhatsApp #)</option>
+                  </select>
+                </div>
+
+                <div className="space-y-1 flex-1 md:w-64">
+                  <label className="text-[10px] text-slate-400 font-bold uppercase block">Search Student / Phone</label>
+                  <div className="relative">
+                    <input
+                      type="text"
+                      placeholder="Search student name, admin no, or phone..."
+                      value={auditSearch}
+                      onChange={(e) => setAuditSearch(e.target.value)}
+                      className="w-full pl-8 pr-3 py-1.5 bg-slate-900 border border-slate-800 rounded-lg text-xs text-white outline-none focus:border-indigo-500"
+                    />
+                    <Search className="w-3.5 h-3.5 text-slate-500 absolute left-2.5 top-2.5" />
+                  </div>
+                </div>
+              </div>
+
+              <button
+                onClick={loadAuditLogs}
+                className="px-4 py-2 bg-indigo-600 hover:bg-indigo-500 text-white rounded-lg text-xs font-bold uppercase tracking-wider flex items-center gap-2 transition cursor-pointer"
+              >
+                <RefreshCw className={`w-3.5 h-3.5 ${auditLogsLoading ? 'animate-spin' : ''}`} />
+                Refresh Audit Logs
+              </button>
+            </div>
+
+            {/* Audit Status Cards */}
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+              <div className="bg-slate-950/40 border border-slate-850 p-4 rounded-xl">
+                <p className="text-[10px] font-bold text-slate-400 uppercase">Total Audit Records</p>
+                <p className="text-xl font-black text-white mt-1">{auditLogs.length}</p>
+              </div>
+              <div className="bg-emerald-950/20 border border-emerald-900/40 p-4 rounded-xl">
+                <p className="text-[10px] font-bold text-emerald-400 uppercase">Sent / Delivered</p>
+                <p className="text-xl font-black text-emerald-400 mt-1">
+                  {auditLogs.filter(a => a.status === 'Sent' || a.status === 'Delivered').length}
+                </p>
+              </div>
+              <div className="bg-rose-950/20 border border-rose-900/40 p-4 rounded-xl">
+                <p className="text-[10px] font-bold text-rose-400 uppercase">Failed Notifications</p>
+                <p className="text-xl font-black text-rose-400 mt-1">
+                  {auditLogs.filter(a => a.status === 'Failed').length}
+                </p>
+              </div>
+              <div className="bg-amber-950/20 border border-amber-900/40 p-4 rounded-xl">
+                <p className="text-[10px] font-bold text-amber-400 uppercase">Not Attempted (No #)</p>
+                <p className="text-xl font-black text-amber-400 mt-1">
+                  {auditLogs.filter(a => a.status === 'Not Attempted').length}
+                </p>
+              </div>
+            </div>
+
+            {/* Audit Logs Table with Pictures */}
+            <div className="bg-slate-950/40 border border-slate-850 rounded-xl overflow-hidden shadow-lg">
+              <div className="overflow-x-auto">
+                <table className="w-full text-left text-xs text-slate-300">
+                  <thead className="bg-slate-900 text-[10px] font-black uppercase text-slate-400 tracking-wider border-b border-slate-850">
+                    <tr>
+                      <th className="px-4 py-3">Student Photo &amp; Info</th>
+                      <th className="px-4 py-3">Event Type</th>
+                      <th className="px-4 py-3">Recipient &amp; Phone</th>
+                      <th className="px-4 py-3">WhatsApp Message</th>
+                      <th className="px-4 py-3">Notification Status</th>
+                      <th className="px-4 py-3">Kampala Timestamp</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-850/60 font-medium">
+                    {auditLogs.map((log) => (
+                      <tr key={log.id} className="hover:bg-slate-900/50 transition">
+                        {/* Student Photo */}
+                        <td className="px-4 py-3">
+                          <div className="flex items-center gap-3">
+                            <div className="w-10 h-12 bg-slate-900 rounded-lg overflow-hidden border border-slate-800 shrink-0 flex items-center justify-center">
+                              {log.student_photo ? (
+                                <img src={log.student_photo} alt={log.student_name} className="w-full h-full object-cover" />
+                              ) : (
+                                <Users className="w-5 h-5 text-slate-600" />
+                              )}
+                            </div>
+                            <div>
+                              <p className="font-bold text-white uppercase text-xs">{log.student_name}</p>
+                              <p className="text-[10px] text-slate-400 font-mono">{log.student_adminNo} &bull; {log.gradeClass}</p>
+                            </div>
+                          </div>
+                        </td>
+
+                        {/* Event Type */}
+                        <td className="px-4 py-3">
+                          <span className={`px-2 py-0.5 rounded text-[10px] font-black uppercase tracking-wider ${
+                            log.type === 'ClockIn' ? 'bg-emerald-950 text-emerald-400 border border-emerald-800' : 'bg-amber-950 text-amber-400 border border-amber-800'
+                          }`}>
+                            {log.type === 'ClockIn' ? '✔ Clock In' : '🚪 Clock Out'}
+                          </span>
+                        </td>
+
+                        {/* Recipient Phone */}
+                        <td className="px-4 py-3 font-mono text-[11px]">
+                          {log.recipient_phone ? (
+                            <div>
+                              <span className="text-white font-bold">{log.recipient_phone}</span>
+                              <span className="text-[9px] text-slate-400 block uppercase font-sans">{log.recipient_type}</span>
+                            </div>
+                          ) : (
+                            <span className="text-slate-500 italic">No Phone Registered</span>
+                          )}
+                        </td>
+
+                        {/* Message Body */}
+                        <td className="px-4 py-3 max-w-xs">
+                          <p className="text-[11px] text-slate-300 line-clamp-2" title={log.message}>
+                            {log.message}
+                          </p>
+                        </td>
+
+                        {/* Notification Status */}
+                        <td className="px-4 py-3">
+                          {log.status === 'Sent' || log.status === 'Delivered' ? (
+                            <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[10px] font-black uppercase bg-emerald-950 text-emerald-400 border border-emerald-800">
+                              <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400" /> {log.status}
+                            </span>
+                          ) : log.status === 'Failed' ? (
+                            <div className="space-y-0.5">
+                              <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[10px] font-black uppercase bg-rose-950 text-rose-400 border border-rose-800">
+                                <AlertCircle className="w-3.5 h-3.5 text-rose-400" /> Failed
+                              </span>
+                              {log.error_message && (
+                                <p className="text-[9px] text-rose-400 max-w-xs truncate" title={log.error_message}>
+                                  {log.error_message}
+                                </p>
+                              )}
+                            </div>
+                          ) : (
+                            <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[10px] font-black uppercase bg-amber-950 text-amber-400 border border-amber-800" title="Attendance recorded, WhatsApp not attempted as no number was registered">
+                              ⚪ Not Attempted
+                            </span>
+                          )}
+                        </td>
+
+                        {/* Timestamp */}
+                        <td className="px-4 py-3 font-mono text-[11px] text-slate-400 whitespace-nowrap">
+                          {log.sent_at ? new Date(log.sent_at).toLocaleString('en-US', { timeZone: 'Africa/Kampala' }) : '-'}
+                        </td>
+                      </tr>
+                    ))}
+
+                    {auditLogs.length === 0 && !auditLogsLoading && (
+                      <tr>
+                        <td colSpan={6} className="px-4 py-12 text-center text-slate-500 uppercase font-bold text-xs">
+                          No notification audit logs found matching your filters.
+                        </td>
+                      </tr>
+                    )}
+                  </tbody>
+                </table>
               </div>
             </div>
           </div>

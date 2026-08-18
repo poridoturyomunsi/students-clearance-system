@@ -1,5 +1,18 @@
 const { jsPDF } = require('jspdf');
 
+function formatReportSurePayCode(codeStr) {
+  let cleaned = String(codeStr || '').replace(/\s+/g, '').toUpperCase();
+  if (cleaned.startsWith('2664')) {
+    cleaned = '0' + cleaned;
+  } else if (/^\d+$/.test(cleaned) && !cleaned.startsWith('0') && cleaned.length >= 7) {
+    cleaned = '0' + cleaned;
+  }
+  if (/^02664\d{5}$/.test(cleaned)) {
+    return `${cleaned.slice(0, 5)} ${cleaned.slice(5, 9)} ${cleaned.slice(9)}`;
+  }
+  return cleaned || 'N/A';
+}
+
 function getOLevelGrade(mark) {
   if (mark >= 80) return { grade: 'A', label: 'Exceptional' };
   if (mark >= 70) return { grade: 'B', label: 'Outstanding' };
@@ -594,7 +607,7 @@ async function compileReportsPdf({
       doc.setFont('helvetica', 'bold');
       doc.setTextColor(15, 23, 42); // Dark slate
       doc.text(student.name.toUpperCase(), 30, 59);
-      doc.text(String(student.studentNo || student.adminNo || 'N/A').toUpperCase(), 154, 59);
+      doc.text(formatReportSurePayCode(student.studentNo || student.adminNo), 154, 59);
       doc.text(`${student.gradeClass} (Senior Five)`, 30, 65);
       doc.text(String(year), 127, 65);
       
@@ -636,7 +649,7 @@ async function compileReportsPdf({
       doc.setFont('helvetica', 'bold');
       doc.setTextColor(15, 23, 42); // Slate 900
       doc.text(student.name.toUpperCase(), 45, infoY + 6);
-      doc.text(String(student.studentNo || student.adminNo || 'N/A'), 57, infoY + 12.5);
+      doc.text(formatReportSurePayCode(student.studentNo || student.adminNo), 57, infoY + 12.5);
       doc.text(student.gradeClass, 45, infoY + 19);
       doc.text(classTeacherName, 45, infoY + 25.5);
 

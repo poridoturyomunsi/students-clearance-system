@@ -1421,13 +1421,19 @@ async function ensureDbInitialized() {
         recipient_type VARCHAR(20) NOT NULL,
         recipient_phone VARCHAR(20) NULL,
         message TEXT NOT NULL,
-        status ENUM('Sent', 'Delivered', 'Failed', 'Pending') NOT NULL DEFAULT 'Pending',
+        status ENUM('Sent', 'Delivered', 'Failed', 'Pending', 'Not Attempted') NOT NULL DEFAULT 'Pending',
         error_message TEXT NULL,
         sent_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
         FOREIGN KEY (student_id) REFERENCES students(id) ON DELETE CASCADE,
         FOREIGN KEY (log_id) REFERENCES attendance_logs(id) ON DELETE CASCADE,
         INDEX idx_student_notification (student_id),
         INDEX idx_status (status)
+      ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;`,
+      `CREATE TABLE IF NOT EXISTS audit_logs (
+        id INT AUTO_INCREMENT PRIMARY KEY,
+        action VARCHAR(100) NOT NULL,
+        details TEXT NULL,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
       ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;`,
       `CREATE TABLE IF NOT EXISTS student_permissions (
         id INT AUTO_INCREMENT PRIMARY KEY,
@@ -1472,6 +1478,12 @@ async function ensureDbInitialized() {
 
     for (const q of tableQueries) {
       await pool.query(q);
+    }
+
+    try {
+      await pool.query("ALTER TABLE attendance_notifications MODIFY COLUMN status ENUM('Sent','Delivered','Failed','Pending','Not Attempted') NOT NULL DEFAULT 'Pending'");
+    } catch (e) {
+      // Ignore if column migration is already applied
     }
 
     // Seed default settings and some locations/devices if they don't exist
@@ -1612,6 +1624,25 @@ async function ensureDbInitialized() {
     // OPTIMIZED: Add composite index for common search patterns
     try {
       await pool.query('ALTER TABLE students ADD INDEX idx_search_composite (name(50), adminNo, gradeClass)');
+    } catch (e) {}
+
+    // Normalize gradeClass in database for consistent querying across the app
+    try {
+      await pool.query(`
+        UPDATE students 
+        SET gradeClass = CONCAT('S.', SUBSTRING(gradeClass, 2))
+        WHERE gradeClass REGEXP '^S[1-6][[:space:]]'
+      `);
+      await pool.query(`
+        UPDATE students 
+        SET gradeClass = CONCAT('S.', SUBSTRING(gradeClass, 2, 1), ' ', SUBSTRING(gradeClass, 3))
+        WHERE gradeClass REGEXP '^S[1-6][A-Za-z]'
+      `);
+      await pool.query(`
+        UPDATE students 
+        SET gradeClass = CONCAT('S.', SUBSTRING(gradeClass, 8))
+        WHERE gradeClass REGEXP '^Senior[[:space:]]*[1-6]'
+      `);
     } catch (e) {}
     try {
       await pool.query('ALTER TABLE olevel_marks ADD INDEX idx_olevel_student_term_year (student_id, term, year)');
@@ -2804,6 +2835,73 @@ app.post('/api/admin/calculate-rankings', async (req, res) => {
 });
 
 
+// Helper to construct flexible WHERE clauses for gradeClass filtering
+function buildGradeClassWhereClause(filterClass, filterStream) {
+  if (!filterClass || filterClass === 'All') {
+    if (!filterStream || filterStream === 'All') return null;
+    return {
+      sql: '(gradeClass LIKE ? OR gradeClass LIKE ?)',
+      params: [`% ${filterStream}`, `%${filterStream}`]
+    };
+  }
+
+  let clean = String(filterClass).trim();
+  let numMatch = clean.match(/(?:[sS]\.?|senior\s*|form\s*)([1-6])/i);
+  let classDigit = numMatch ? numMatch[1] : null;
+
+  let stream = (filterStream && filterStream !== 'All') ? String(filterStream).trim() : null;
+  if (!stream) {
+    const parts = clean.split(/\s+/);
+    if (parts.length > 1) {
+      stream = parts.slice(1).join(' ');
+    }
+  }
+
+  if (classDigit) {
+    let patterns = [
+      `S.${classDigit}%`,
+      `S${classDigit}%`,
+      `Senior ${classDigit}%`,
+      `Form ${classDigit}%`
+    ];
+
+    if (stream) {
+      let clauses = patterns.map(() => `(gradeClass LIKE ? AND (gradeClass LIKE ? OR gradeClass LIKE ?))`);
+      let params = [];
+      patterns.forEach(p => {
+        params.push(p, `% ${stream}%`, `%${stream}`);
+      });
+      clauses.push('gradeClass = ?');
+      params.push(`${clean}`);
+
+      return {
+        sql: `(${clauses.join(' OR ')})`,
+        params: params
+      };
+    } else {
+      let clauses = patterns.map(() => `gradeClass LIKE ?`);
+      clauses.push('gradeClass = ?');
+      let params = [...patterns, clean];
+
+      return {
+        sql: `(${clauses.join(' OR ')})`,
+        params: params
+      };
+    }
+  }
+
+  if (stream) {
+    return {
+      sql: '(gradeClass = ? OR gradeClass LIKE ?)',
+      params: [`${clean} ${stream}`, `${clean}%`]
+    };
+  }
+  return {
+    sql: '(gradeClass = ? OR gradeClass LIKE ?)',
+    params: [clean, `${clean} %`]
+  };
+}
+
 // GET paginated, filtered students (EXCLUDE photo column)
 app.get('/api/students', async (req, res) => {
   try {
@@ -2895,16 +2993,14 @@ app.get('/api/students', async (req, res) => {
     }
 
     if (filterClass && filterClass !== 'All') {
-      if (filterStream && filterStream !== 'All') {
-        whereClauses.push('gradeClass = ?');
-        queryParams.push(`${filterClass} ${filterStream}`);
-      } else {
-        whereClauses.push('(gradeClass = ? OR gradeClass LIKE ?)');
-        queryParams.push(filterClass, `${filterClass} %`);
+      const classWhere = buildGradeClassWhereClause(filterClass, filterStream);
+      if (classWhere) {
+        whereClauses.push(classWhere.sql);
+        queryParams.push(...classWhere.params);
       }
     } else if (filterStream && filterStream !== 'All') {
-      whereClauses.push('gradeClass LIKE ?');
-      queryParams.push(`% ${filterStream}`);
+      whereClauses.push('(gradeClass LIKE ? OR gradeClass LIKE ?)');
+      queryParams.push(`% ${filterStream}`, `%${filterStream}`);
     }
 
     let whereSql = '';
@@ -3830,71 +3926,130 @@ async function sendTwilioWhatsApp(toPhone, messageBody) {
   }
 }
 
-// Background notifier
+const { sendWhatsAppNotification, formatPhoneNumber } = require('./metaWhatsAppService');
+
+function getKampalaTimeDetails() {
+  const now = new Date();
+  const dateStr = now.toLocaleDateString('en-CA', { timeZone: 'Africa/Kampala' }); // YYYY-MM-DD
+  const time24 = now.toLocaleTimeString('en-GB', { timeZone: 'Africa/Kampala' }); // HH:mm:ss
+  const formattedTime = now.toLocaleTimeString('en-US', { timeZone: 'Africa/Kampala', hour: '2-digit', minute: '2-digit', hour12: true });
+  return { dateStr, time24, formattedTime, timestamp: now.getTime() };
+}
+
+function getFirstName(fullName) {
+  if (!fullName) return 'Student';
+  const firstWord = String(fullName).trim().split(/\s+/)[0];
+  if (firstWord === firstWord.toUpperCase()) {
+    return firstWord.charAt(0).toUpperCase() + firstWord.slice(1).toLowerCase();
+  }
+  return firstWord.charAt(0).toUpperCase() + firstWord.slice(1);
+}
+
+const pendingNotificationDispatches = new Set();
+
+// Background notifier for Parent Attendance Alerts (Meta WhatsApp Cloud API)
 async function sendParentNotification(studentId, logId, type, studentName, gradeClass, timeString) {
+  const dispatchKey = `${studentId}-${logId}-${type}`;
+  if (pendingNotificationDispatches.has(dispatchKey)) {
+    console.log(`[Notification] Dispatch already in progress for ${dispatchKey}. Preventing duplicate.`);
+    return;
+  }
+  pendingNotificationDispatches.add(dispatchKey);
+
   try {
+    // 1. Check if notification for this student, log, and type has already been recorded/sent
+    const [existingNotifs] = await pool.query(
+      "SELECT id, status FROM attendance_notifications WHERE student_id = ? AND log_id = ? AND type = ? AND status IN ('Sent', 'Delivered', 'Pending')",
+      [studentId, logId, type]
+    );
+
+    if (existingNotifs.length > 0) {
+      console.log(`[Notification] Duplicate notification dispatch prevented for student ${studentName} (${studentId}), log ${logId}, type ${type}. Existing status: ${existingNotifs[0].status}`);
+      return;
+    }
+
+    // 2. Fetch parent contact
     const [pRows] = await pool.query('SELECT * FROM parent_contacts WHERE student_id = ?', [studentId]);
-    if (pRows.length === 0) return;
-    const pc = pRows[0];
-    
-    const pref = pc.preferred_notification || 'SMS';
-    const fatherPhone = pc.father_phone || pc.father_whatsapp;
-    const motherPhone = pc.mother_phone || pc.mother_whatsapp;
-    const guardianPhone = pc.guardian_phone || pc.guardian_whatsapp;
+    let pc = pRows[0] || null;
+
+    let fatherPhone = pc ? (pc.father_whatsapp || pc.father_phone) : null;
+    let motherPhone = pc ? (pc.mother_whatsapp || pc.mother_phone) : null;
+    let guardianPhone = pc ? (pc.guardian_whatsapp || pc.guardian_phone) : null;
+
+    if (!fatherPhone && !motherPhone && !guardianPhone) {
+      const [stRows] = await pool.query('SELECT parentContact FROM students WHERE id = ?', [studentId]);
+      if (stRows.length > 0 && stRows[0].parentContact) {
+        guardianPhone = stRows[0].parentContact;
+      }
+    }
+
     const recipientPhone = fatherPhone || motherPhone || guardianPhone;
-    const recipientType = fatherPhone ? 'Father' : (motherPhone ? 'Mother' : 'Guardian');
-    
-    if (!recipientPhone) return;
-    
-    let message = '';
-    if (type === 'ClockIn') {
-      message = `Dear Parent, Your child ${studentName} (${gradeClass}) has successfully arrived at St Paul Senior Secondary School today at ${timeString}. Thank you. St Paul Senior Secondary School`;
-    } else {
-      message = `Dear Parent, Your child ${studentName} has left school today at ${timeString}. Thank you. St Paul Senior Secondary School`;
+    const recipientType = fatherPhone ? 'Father' : (motherPhone ? 'Mother' : (guardianPhone ? 'Guardian' : 'Parent'));
+
+    // Requirement: If parent has no registered WhatsApp number, record attendance normally but do not attempt WhatsApp.
+    // Record audit log entry as 'Not Attempted'
+    if (!recipientPhone) {
+      console.log(`[Notification] No registered parent phone/WhatsApp contact for student "${studentName}" (${studentId}). Recording audit log status as 'Not Attempted'.`);
+      const notAttemptedMsg = `Dear Parent, Your child ${studentName} (${gradeClass || 'Student'}) was ${type === 'ClockIn' ? 'checked in' : 'checked out'} today at ${timeString}. (No parent WhatsApp number registered)`;
+      
+      await pool.query(
+        `INSERT INTO attendance_notifications (student_id, log_id, type, channel, recipient_type, recipient_phone, message, status, error_message)
+         VALUES (?, ?, ?, 'WhatsApp', 'Parent', NULL, ?, 'Not Attempted', 'No registered parent phone/WhatsApp contact in database')`,
+        [studentId, logId, type, notAttemptedMsg]
+      );
+      return;
     }
-    
-    let channel = 'SMS';
-    let status = 'Delivered';
+
+    const formattedPhone = formatPhoneNumber(recipientPhone);
+    const pref = pc?.preferred_notification || 'WhatsApp';
+
+    let status = 'Pending';
     let errorMessage = null;
-    
-    if (pref === 'WhatsApp' || pref === 'Both') {
-      const hasWhatsApp = pc.father_whatsapp || pc.mother_whatsapp || pc.guardian_whatsapp;
-      if (hasWhatsApp) {
-        channel = 'WhatsApp';
-        
-        // Trigger Twilio sending if credentials exist
-        const twilioResult = await sendTwilioWhatsApp(recipientPhone, message);
-        if (process.env.TWILIO_ACCOUNT_SID && process.env.TWILIO_AUTH_TOKEN) {
-          if (twilioResult.success) {
-            status = 'Delivered';
-          } else {
-            status = 'Failed';
-            errorMessage = twilioResult.error;
-          }
+    let channel = 'WhatsApp';
+    let messageBody = '';
+
+    if (pref === 'SMS') {
+      channel = 'SMS';
+      status = 'Delivered';
+      const statusText = type === 'ClockIn' ? 'Checked In' : 'Checked Out';
+      messageBody = `Dear Parent, Your child ${studentName} (${gradeClass || 'Student'}) has ${type === 'ClockIn' ? 'arrived at' : 'left'} St. Paul Senior Secondary School today at ${timeString}. Status: ${statusText}.`;
+    } else {
+      channel = 'WhatsApp';
+      try {
+        const waResult = await sendWhatsAppNotification({
+          to: formattedPhone,
+          studentName,
+          gradeClass,
+          timeString,
+          type,
+          schoolName: 'St. Paul Senior Secondary School'
+        });
+
+        messageBody = waResult ? waResult.message : '';
+        if (waResult && waResult.success) {
+          status = waResult.simulated ? 'Delivered' : 'Sent';
         } else {
-          status = 'Delivered'; // Simulated/Mock delivery when no credentials
+          status = 'Failed';
+          errorMessage = waResult ? waResult.error : 'Failed to send WhatsApp message';
         }
-      } else {
-        channel = 'SMS';
-        status = 'Delivered'; // Fallback
-      }
-    } else if (pref === 'Email') {
-      if (pc.email) {
-        channel = 'Email';
-        status = 'Sent';
-      } else {
-        channel = 'SMS';
-        status = 'Delivered'; // Fallback
+      } catch (waErr) {
+        status = 'Failed';
+        errorMessage = waErr.message || 'WhatsApp Cloud API Error';
+        messageBody = `Dear Parent, Your child ${studentName} (${gradeClass || 'Student'}) has ${type === 'ClockIn' ? 'arrived at' : 'left'} St. Paul Senior Secondary School today at ${timeString}.`;
       }
     }
-    
+
     await pool.query(
       `INSERT INTO attendance_notifications (student_id, log_id, type, channel, recipient_type, recipient_phone, message, status, error_message)
        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-      [studentId, logId, type, channel, recipientType, recipientPhone, message, status, errorMessage]
+      [studentId, logId, type, channel, recipientType, formattedPhone, messageBody, status, errorMessage]
     );
+
+    console.log(`[Notification] Registered alert for ${studentName} -> ${recipientType} (${formattedPhone}): status=${status}`);
   } catch (err) {
-    console.error('[Notification] Failed to send parent alert:', err.message);
+    console.error('[Notification] Failed to process parent alert:', err.message);
+  } finally {
+    pendingNotificationDispatches.delete(dispatchKey);
   }
 }
 
@@ -3920,6 +4075,7 @@ app.get('/api/attendance/live-stream', (req, res) => {
 // Snapshot of 20 most recent gate scans of today
 app.get('/api/attendance/live', async (req, res) => {
   try {
+    const { dateStr } = getKampalaTimeDetails();
     const [rows] = await pool.query(
       `SELECT al.*, s.name, s.adminNo, s.gradeClass, s.boardingStatus, s.photo,
               gl_in.name as gate_in_name, gl_out.name as gate_out_name
@@ -3927,9 +4083,10 @@ app.get('/api/attendance/live', async (req, res) => {
        JOIN students s ON al.student_id = s.id
        LEFT JOIN gate_locations gl_in ON al.gate_in_id = gl_in.id
        LEFT JOIN gate_locations gl_out ON al.gate_out_id = gl_out.id
-       WHERE al.date = CURRENT_DATE()
+       WHERE al.date = ?
        ORDER BY COALESCE(al.time_out, al.time_in) DESC, al.id DESC
-       LIMIT 20`
+       LIMIT 20`,
+      [dateStr]
     );
     res.json(rows);
   } catch (err) {
@@ -3976,9 +4133,8 @@ app.post('/api/attendance/scan', async (req, res) => {
     }
 
     const studentId = student.id;
-    const today = new Date().toISOString().split('T')[0];
-    const timeNow = new Date().toLocaleTimeString('en-US', { hour12: false });
-    const formattedTime = new Date().toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: true });
+    const { dateStr: today, time24: timeNow, formattedTime } = getKampalaTimeDetails();
+    const studentFirstName = getFirstName(student.name);
 
     // 2. Fetch existing log for today
     const [logRows] = await pool.query('SELECT * FROM attendance_logs WHERE student_id = ? AND date = ?', [studentId, today]);
@@ -3993,26 +4149,32 @@ app.post('/api/attendance/scan', async (req, res) => {
         const DEBOUNCE_WINDOW_MS = 30000; // 30 seconds protection
 
         if (nowTimeMs - lastScanTime < DEBOUNCE_WINDOW_MS) {
+          const welcomeMsg = `Welcome, ${studentFirstName}! 👋\nGood morning!\nYou have successfully checked in.\nHave a wonderful and productive day!`;
           return res.json({
             success: true,
             isDuplicate: true,
             status: 'ALREADY_CLOCKED_IN',
             direction: 'in',
             student,
+            studentFirstName,
             log: existingLog,
+            welcomeMessage: welcomeMsg,
             message: `⚠️ ALREADY CLOCKED IN — ${student.name} is already clocked in today at ${existingLog.time_in}.`
           });
         }
 
         targetDirection = 'clock-out';
       } else if (existingLog && existingLog.time_in && existingLog.time_out) {
+        const goodbyeMsg = `Goodbye, ${studentFirstName}! 👋\nYou have successfully checked out.\nHave a safe journey home!`;
         return res.json({
           success: true,
           isDuplicate: true,
           status: 'ALREADY_CLOCKED_OUT',
           direction: 'out',
           student,
+          studentFirstName,
           log: existingLog,
+          goodbyeMessage: goodbyeMsg,
           message: `⚠️ ALREADY CLOCKED OUT — ${student.name} already clocked out today at ${existingLog.time_out}.`
         });
       } else {
@@ -4020,10 +4182,19 @@ app.post('/api/attendance/scan', async (req, res) => {
       }
     }
 
-    // 3. Perform scan action
+    // 3. Perform scan action with safeguards
     if (targetDirection === 'clock-in') {
+      // Safeguard: Do not send a clock-in message / allow duplicate clock-in if already clocked in for same school day
       if (existingLog && existingLog.time_in) {
-        return res.status(400).json({ error: `${student.name} is already clocked in today at ${existingLog.time_in}.` });
+        const welcomeMsg = `Welcome, ${studentFirstName}! 👋\nGood morning!\nYou have successfully checked in.\nHave a wonderful and productive day!`;
+        return res.status(400).json({
+          error: `ALREADY_CLOCKED_IN`,
+          isDuplicate: true,
+          student,
+          studentFirstName,
+          welcomeMessage: welcomeMsg,
+          message: `${student.name} is already clocked in today at ${existingLog.time_in}.`
+        });
       }
 
       // Calculate status based on settings
@@ -4044,7 +4215,7 @@ app.post('/api/attendance/scan', async (req, res) => {
         attendanceStatus = 'Late';
       }
 
-      // Insert log
+      // Insert log with Kampala time
       const [insertRes] = await pool.query(
         `INSERT INTO attendance_logs (student_id, date, time_in, gate_in_id, device_in, operator_in, gps_in, status)
          VALUES (?, ?, ?, ?, ?, ?, ?, ?)
@@ -4055,11 +4226,11 @@ app.post('/api/attendance/scan', async (req, res) => {
       
       const logId = existingLog ? existingLog.id : insertRes.insertId;
 
-      // Log to audit logs
+      // Audit log entry
       await pool.query('INSERT INTO audit_logs (action, details) VALUES (?, ?)', 
         ['Gate Clock In', `Student: ${student.name} (${student.adminNo}) checked in today at ${timeNow} status: ${attendanceStatus}`]);
 
-      // Fire notification in background
+      // Fire parent notification (handles failure isolation & missing phone gracefully)
       sendParentNotification(studentId, logId, 'ClockIn', student.name, student.gradeClass, formattedTime);
 
       // SSE Broadcast
@@ -4075,26 +4246,44 @@ app.post('/api/attendance/scan', async (req, res) => {
       
       broadcastGateScan(fullLog[0]);
 
+      const welcomeMessage = `Welcome, ${studentFirstName}! 👋\nGood morning!\nYou have successfully checked in.\nHave a wonderful and productive day!`;
+
       return res.json({
         success: true,
         direction: 'in',
         student,
+        studentFirstName,
+        welcomeMessage,
         log: fullLog[0],
-        message: `Welcome ${student.name}. Clock In Successful.`
+        message: `Welcome ${studentFirstName}. Clock In Successful.`
       });
 
     } else {
-      // Clock Out
+      // Clock Out Safeguards:
+      // Safeguard: A student must clock in before they can clock out.
       if (!existingLog || !existingLog.time_in) {
-        return res.status(400).json({ error: `Cannot Clock Out ${student.name} before Clock In.` });
+        return res.status(400).json({
+          error: `MUST_CLOCK_IN_FIRST`,
+          message: `🚫 Cannot Clock Out ${student.name} before Clock In. Student must clock in first.`
+        });
       }
+
+      // Safeguard: Do not send a clock-out message if student has already clocked out.
       if (existingLog.time_out) {
-        return res.status(400).json({ error: `${student.name} has already clocked out today at ${existingLog.time_out}.` });
+        const goodbyeMsg = `Goodbye, ${studentFirstName}! 👋\nYou have successfully checked out.\nHave a safe journey home!`;
+        return res.status(400).json({
+          error: `ALREADY_CLOCKED_OUT`,
+          isDuplicate: true,
+          student,
+          studentFirstName,
+          goodbyeMessage: goodbyeMsg,
+          message: `${student.name} has already clocked out today at ${existingLog.time_out}.`
+        });
       }
 
       const departureReason = req.body.departureReason || 'Normal Departure';
 
-      // Update log
+      // Update log with Kampala time
       await pool.query(
         `UPDATE attendance_logs 
          SET time_out = ?, gate_out_id = ?, device_out = ?, operator_out = ?, gps_out = ?, departure_status = ?, reason_for_leaving = ?
@@ -4102,11 +4291,11 @@ app.post('/api/attendance/scan', async (req, res) => {
         [timeNow, gateId || null, deviceId || null, operatorName || 'Gate Officer', gps || null, departureReason, departureReason, existingLog.id]
       );
 
-      // Log to audit logs
+      // Audit log entry
       await pool.query('INSERT INTO audit_logs (action, details) VALUES (?, ?)', 
         ['Gate Clock Out', `Student: ${student.name} (${student.adminNo}) checked out today at ${timeNow} reason: ${departureReason}`]);
 
-      // Fire notification
+      // Fire parent notification (handles failure isolation & missing phone gracefully)
       sendParentNotification(studentId, existingLog.id, 'ClockOut', student.name, student.gradeClass, formattedTime);
 
       // SSE Broadcast
@@ -4123,15 +4312,60 @@ app.post('/api/attendance/scan', async (req, res) => {
       
       broadcastGateScan(fullLog[0]);
 
+      const goodbyeMessage = `Goodbye, ${studentFirstName}! 👋\nYou have successfully checked out.\nHave a safe journey home!`;
+
       return res.json({
         success: true,
         direction: 'out',
         student,
+        studentFirstName,
+        goodbyeMessage,
         log: fullLog[0],
-        message: `Goodbye ${student.name}. Have a safe journey.`
+        message: `Goodbye ${studentFirstName}. Have a safe journey.`
       });
     }
 
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// GET Notification Audit Logs (with student photos and detailed delivery status)
+app.get('/api/attendance/notification-audit-logs', async (req, res) => {
+  try {
+    const { status, search, startDate, endDate } = req.query;
+    let queryStr = `
+      SELECT an.*, 
+             s.name as student_name, s.adminNo as student_adminNo, s.gradeClass, s.photo as student_photo,
+             al.time_in, al.time_out, al.date
+      FROM attendance_notifications an
+      JOIN students s ON an.student_id = s.id
+      LEFT JOIN attendance_logs al ON an.log_id = al.id
+      WHERE 1=1
+    `;
+    const params = [];
+
+    if (status && status !== 'ALL' && status !== 'All') {
+      queryStr += ' AND an.status = ?';
+      params.push(status);
+    }
+    if (startDate) {
+      queryStr += ' AND al.date >= ?';
+      params.push(startDate);
+    }
+    if (endDate) {
+      queryStr += ' AND al.date <= ?';
+      params.push(endDate);
+    }
+    if (search) {
+      queryStr += ' AND (s.name LIKE ? OR s.adminNo LIKE ? OR an.recipient_phone LIKE ?)';
+      params.push(`%${search}%`, `%${search}%`, `%${search}%`);
+    }
+
+    queryStr += ' ORDER BY an.sent_at DESC LIMIT 500';
+
+    const [rows] = await pool.query(queryStr, params);
+    res.json(rows);
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
@@ -4818,13 +5052,14 @@ app.post('/api/fees/payment', async (req, res) => {
 // --- INTEGRATION ENDPOINT (UNIFIED) ---
 app.get('/api/integration/student/:adminNo', async (req, res) => {
   try {
+    const target = req.params.adminNo;
     const [studentRows] = await pool.query(
       `SELECT id, adminNo, name, aliases, gender, gradeClass, boardingStatus, isCleared, 
               gateClearanceDate, mealsClearanceDate, remarks, printStatus, uace_combination, 
               parentName, parentContact, updatedAt, 
               IF(photo IS NOT NULL AND photo != '', 1, 0) as hasPhoto 
-       FROM students WHERE adminNo = ?`,
-      [req.params.adminNo]
+       FROM students WHERE adminNo = ? OR id = ? OR LOWER(adminNo) = LOWER(?)`,
+      [target, target, target]
     );
     if (studentRows.length === 0) {
       return res.status(404).json({ error: 'Student not found' });
@@ -5603,6 +5838,34 @@ app.post('/api/auth/login', async (req, res) => {
             token: token
           });
         }
+
+        // Fallback to teachers table if not in staff table
+        const [tchRows] = await pool.query('SELECT * FROM teachers WHERE username = ? OR id = ? LIMIT 1', ['teacher', 'T-DEFAULT']);
+        if (tchRows.length > 0) {
+          const tch = tchRows[0];
+          const subjects = typeof tch.subjects === 'string' ? JSON.parse(tch.subjects || '[]') : (tch.subjects || []);
+          const classes = typeof tch.classes === 'string' ? JSON.parse(tch.classes || '[]') : (tch.classes || []);
+          const profile = {
+            id: tch.id,
+            name: tch.name || 'Default Teacher',
+            username: tch.username || 'teacher',
+            status: 'Active',
+            category: 'Teaching',
+            position: tch.position || 'Teacher',
+            subjects,
+            classes,
+            assignments: subjects.flatMap(s => classes.map(c => ({ subject: s, grade_class: c }))),
+            classTeacherFor: []
+          };
+          const payload = { id: tch.id, role: 'teacher', username: tch.username };
+          const token = jwt.sign(payload, JWT_SECRET, { expiresIn: '24h' });
+          return res.json({
+            success: true,
+            role: 'teacher',
+            user: profile,
+            token: token
+          });
+        }
       }
 
       // Multi-column lookup: match by username, email, phone, id, employee_number, or full name
@@ -5672,7 +5935,10 @@ app.post('/api/auth/login', async (req, res) => {
     }
 
     if (role === 'student') {
-      if (username === 'student' && password === 'student123') {
+      const cleanUser = (username || '').trim();
+      const cleanPass = (password || '').trim();
+
+      if (cleanUser.toLowerCase() === 'student' && (cleanPass === 'student123' || cleanPass === '123')) {
         const [stRows] = await pool.query('SELECT id, name, adminNo, gradeClass FROM students LIMIT 1');
         if (stRows.length > 0) {
           const st = stRows[0];
@@ -5694,10 +5960,28 @@ app.post('/api/auth/login', async (req, res) => {
         return res.status(404).json({ error: 'No students found in the database.' });
       }
 
-      // Find student by adminNo
-      const [stRows] = await pool.query('SELECT id FROM students WHERE adminNo = ?', [username]);
+      // Multi-column lookup for student by adminNo, id, or name
+      let [stRows] = await pool.query(
+        `SELECT id FROM students 
+         WHERE LOWER(adminNo) = LOWER(?) 
+            OR LOWER(id) = LOWER(?) 
+            OR LOWER(name) = LOWER(?)`,
+        [cleanUser, cleanUser, cleanUser]
+      );
+
       if (stRows.length === 0) {
-        return res.status(401).json({ error: 'Student record not found in registry.' });
+        const partial = `%${cleanUser}%`;
+        [stRows] = await pool.query(
+          `SELECT id FROM students 
+           WHERE LOWER(adminNo) LIKE LOWER(?) 
+              OR LOWER(name) LIKE LOWER(?) 
+              OR LOWER(id) LIKE LOWER(?)`,
+          [partial, partial, partial]
+        );
+      }
+
+      if (stRows.length === 0) {
+        return res.status(401).json({ error: `Student record "${cleanUser}" not found in registry. Please check your Student Number or Admin No.` });
       }
       const studentId = stRows[0].id;
 
@@ -5719,9 +6003,20 @@ app.post('/api/auth/login', async (req, res) => {
       }
 
       const crypto = require('crypto');
-      const hash = crypto.createHash('sha256').update(password).digest('hex');
-      if (hash !== studentAcc.password_hash) {
-        return res.status(401).json({ error: 'Invalid student password.' });
+      const hash = crypto.createHash('sha256').update(cleanPass).digest('hex');
+      const default123Hash = crypto.createHash('sha256').update('123').digest('hex');
+      const defaultStudentHash = crypto.createHash('sha256').update('student123').digest('hex');
+
+      const isPasswordMatch = (
+        hash === studentAcc.password_hash ||
+        studentAcc.password_hash === cleanPass ||
+        (studentAcc.password_hash === default123Hash && (cleanPass === '123' || cleanPass === 'student123')) ||
+        (studentAcc.password_hash === defaultStudentHash && (cleanPass === '123' || cleanPass === 'student123')) ||
+        (!studentAcc.password_hash && (cleanPass === '123' || cleanPass === 'student123'))
+      );
+
+      if (!isPasswordMatch) {
+        return res.status(401).json({ error: 'Invalid student password. If this is your first time logging in, try default password "student123" or "123".' });
       }
 
       // Update last login
@@ -5886,10 +6181,15 @@ app.get('/api/teacher/students', async (req, res) => {
   try {
     const { gradeClass } = req.query;
     if (!gradeClass) return res.status(400).json({ error: 'Class required' });
-    const [rows] = await pool.query(
-      'SELECT id, adminNo, name, gender, gradeClass, boardingStatus FROM students WHERE gradeClass = ? ORDER BY name',
-      [gradeClass]
-    );
+    const classWhere = buildGradeClassWhereClause(gradeClass);
+    let sql = 'SELECT id, adminNo, name, gender, gradeClass, boardingStatus FROM students';
+    let params = [];
+    if (classWhere) {
+      sql += ` WHERE ${classWhere.sql}`;
+      params = classWhere.params;
+    }
+    sql += ' ORDER BY name';
+    const [rows] = await pool.query(sql, params);
     res.json(rows);
   } catch (err) {
     res.status(500).json({ error: err.message });

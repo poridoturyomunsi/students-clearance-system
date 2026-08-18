@@ -122,7 +122,15 @@ export default function ClearanceCard({
   const serialNo = `SPSSN-2026-${(student.adminNo || student.id || "0000").replace(/[^0-9]/g, "").slice(0, 5).padStart(5, "0")}`;
 
   const formatSurePayCode = (codeStr: string) => {
-    const cleaned = (codeStr || '').replace(/\s+/g, '').toUpperCase();
+    let cleaned = (codeStr || '').replace(/\s+/g, '').toUpperCase();
+    if (/^2664\d+/.test(cleaned)) {
+      cleaned = '0' + cleaned;
+    } else if (/^\d+$/.test(cleaned) && !cleaned.startsWith('0') && cleaned.length >= 7) {
+      cleaned = '0' + cleaned;
+    }
+    if (/^02664\d{5}$/.test(cleaned)) {
+      return `${cleaned.slice(0, 5)} ${cleaned.slice(5, 9)} ${cleaned.slice(9)}`;
+    }
     if (cleaned.length >= 6) {
       return cleaned.replace(/(.{4})/g, '$1  ').trim();
     }

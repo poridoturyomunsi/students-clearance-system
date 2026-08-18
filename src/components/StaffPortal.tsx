@@ -24,7 +24,8 @@ import {
   submitLeaveRequest,
   fetchStaffTimetable,
   saveStaffTimetable,
-  changeStaffPassword
+  changeStaffPassword,
+  fetchStaffProfile
 } from '../utils/api.ts';
 import ParticleBackground from './ParticleBackground.tsx';
 import { Staff, LeaveRequest, TimetableSlot } from '../types';
@@ -144,9 +145,8 @@ export default function StaffPortal({
   // Load staff profile details (including new clearance database columns)
   const loadProfileDetails = async () => {
     try {
-      const response = await fetch(`/api/staff/${staffId}`);
-      if (response.ok) {
-        const data = await response.json();
+      const data = await fetchStaffProfile(staffId);
+      if (data) {
         setStaffProfile(data);
       }
     } catch (e) {

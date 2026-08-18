@@ -848,6 +848,10 @@ export async function returnStudentPermission(id: number, data?: { actual_return
   });
 }
 
+export async function fetchStaffProfile(staffId: string): Promise<any> {
+  return await apiCall(`/api/staff/${staffId}`);
+}
+
 export async function fetchGateLocations(): Promise<any[]> {
   return await apiCall('/api/attendance/locations');
 }
@@ -892,6 +896,17 @@ export async function saveAttendanceSettings(settings: any): Promise<{ success: 
     body: JSON.stringify(settings),
   });
 }
+
+export async function fetchNotificationAuditLogs(filters: {
+  status?: string;
+  search?: string;
+  startDate?: string;
+  endDate?: string;
+} = {}): Promise<any[]> {
+  const queryParams = new URLSearchParams(filters as any).toString();
+  return await apiCall(`/api/attendance/notification-audit-logs?${queryParams}`);
+}
+
 
 export async function fetchParentPortalData(studentId: string): Promise<any> {
   return await apiCall(`/api/parent/student-data/${studentId}`);

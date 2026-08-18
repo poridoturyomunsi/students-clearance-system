@@ -43,7 +43,7 @@ export default function LoginGateway({ onLogin, schoolLogo, dbConnectionError }:
             role: response.role,
             user: response.user
           });
-        }, 1200);
+        }, 150);
       } else {
         setError(response.error || 'Login failed.');
       }

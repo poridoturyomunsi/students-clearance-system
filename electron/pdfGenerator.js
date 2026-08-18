@@ -368,8 +368,15 @@ function drawCardFrontPdf(
     drawSafeWatermark(doc, logoBase64, infoX + 2.0, photoFrameY - 1.0, 26.0, 26.0, 0.05);
   }
 
-  const rawCode = (student.studentNo || student.adminNo || '').toUpperCase();
-  const formattedSurePay = rawCode.length >= 6 ? rawCode.replace(/(.{4})/g, '$1  ').trim() : rawCode;
+  let rawCode = (student.studentNo || student.adminNo || '').replace(/\s+/g, '').toUpperCase();
+  if (/^2664\d+/.test(rawCode)) {
+    rawCode = '0' + rawCode;
+  } else if (/^\d+$/.test(rawCode) && !rawCode.startsWith('0') && rawCode.length >= 7) {
+    rawCode = '0' + rawCode;
+  }
+  const formattedSurePay = /^02664\d{5}$/.test(rawCode)
+    ? `${rawCode.slice(0, 5)} ${rawCode.slice(5, 9)} ${rawCode.slice(9)}`
+    : (rawCode.length >= 6 ? rawCode.replace(/(.{4})/g, '$1  ').trim() : rawCode);
 
   const fields = [
     { label: 'STUDENT SUREPAY CODE', val: formattedSurePay },

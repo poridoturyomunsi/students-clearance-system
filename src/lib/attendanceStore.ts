@@ -43,6 +43,7 @@ export function saveAttendanceRecords(records: AttendanceRecord[]): void {
 
 export function formatCurrentTime(dateObj = new Date()): string {
   return dateObj.toLocaleTimeString('en-US', {
+    timeZone: 'Africa/Kampala',
     hour: '2-digit',
     minute: '2-digit',
     hour12: true
@@ -50,10 +51,18 @@ export function formatCurrentTime(dateObj = new Date()): string {
 }
 
 export function formatTodayDate(dateObj = new Date()): string {
-  const year = dateObj.getFullYear();
-  const month = String(dateObj.getMonth() + 1).padStart(2, '0');
-  const day = String(dateObj.getDate()).padStart(2, '0');
-  return `${year}-${month}-${day}`; // YYYY-MM-DD
+  return dateObj.toLocaleDateString('en-CA', {
+    timeZone: 'Africa/Kampala'
+  }); // YYYY-MM-DD
+}
+
+export function getFirstName(fullName?: string): string {
+  if (!fullName) return 'Student';
+  const firstWord = String(fullName).trim().split(/\s+/)[0];
+  if (firstWord === firstWord.toUpperCase()) {
+    return firstWord.charAt(0).toUpperCase() + firstWord.slice(1).toLowerCase();
+  }
+  return firstWord.charAt(0).toUpperCase() + firstWord.slice(1);
 }
 
 export function formatDisplayDate(dateStr: string): string {
@@ -74,6 +83,9 @@ export interface ScanResult {
   record?: AttendanceRecord;
   status: 'PRESENT' | 'CHECKED OUT' | 'INVALID' | 'DUPLICATE_WARNING';
   message: string;
+  studentFirstName?: string;
+  welcomeMessage?: string;
+  goodbyeMessage?: string;
   timeIn?: string;
   timeOut?: string;
   dateStr: string;
@@ -145,7 +157,7 @@ export function processQRScan(
     };
   }
 
-  console.log(`[QR-SCAN-DEBUG] Scan matched student: "${student.name}" (${student.studentNo || student.adminNo})`);
+  const studentFirstName = getFirstName(student.name);
 
   // Fetch current attendance history
   const allRecords = getStoredAttendance();
@@ -156,7 +168,9 @@ export function processQRScan(
   let timeIn = nowTime;
   let timeOut: string | undefined = undefined;
   let isDuplicate = false;
-  let message = '✔ VERIFIED - Attendance recorded successfully.';
+
+  const welcomeMessage = `Welcome, ${studentFirstName}! 👋\nGood morning!\nYou have successfully checked in.\nHave a wonderful and productive day!`;
+  const goodbyeMessage = `Goodbye, ${studentFirstName}! 👋\nYou have successfully checked out.\nHave a safe journey home!`;
 
   if (existingRecordIndex >= 0) {
     const existing = todayRecords[existingRecordIndex];
@@ -168,6 +182,8 @@ export function processQRScan(
         return {
           verified: true,
           student,
+          studentFirstName,
+          welcomeMessage,
           record: existing,
           status: 'DUPLICATE_WARNING',
           message: `⚠️ ALREADY CLOCKED IN — ${student.name} is already clocked in today at ${existing.timeIn}.`,
@@ -180,13 +196,24 @@ export function processQRScan(
         // Re-entry
         finalStatus = 'PRESENT';
         timeIn = existing.timeIn || nowTime;
-        message = `✔ VERIFIED - Re-entered school at ${nowTime}.`;
       }
     } else if (actionMode === 'CHECK_OUT') {
+      if (!existing.timeIn) {
+        return {
+          verified: false,
+          student,
+          studentFirstName,
+          status: 'INVALID',
+          message: `🚫 Cannot Clock Out ${student.name} before Clock In. Student must clock in first.`,
+          dateStr: todayStr
+        };
+      }
       if (existing.status === 'CHECKED OUT') {
         return {
           verified: true,
           student,
+          studentFirstName,
+          goodbyeMessage,
           record: existing,
           status: 'DUPLICATE_WARNING',
           message: `⚠️ ALREADY CLOCKED OUT — ${student.name} already clocked out today at ${existing.timeOut}.`,
@@ -199,7 +226,6 @@ export function processQRScan(
         finalStatus = 'CHECKED OUT';
         timeIn = existing.timeIn || nowTime;
         timeOut = nowTime;
-        message = `✔ CHECK OUT - ${student.name} clocked out at ${nowTime}.`;
       }
     } else {
       // AUTO mode:
@@ -209,6 +235,8 @@ export function processQRScan(
           return {
             verified: true,
             student,
+            studentFirstName,
+            welcomeMessage,
             record: existing,
             status: 'DUPLICATE_WARNING',
             message: `⚠️ ALREADY CLOCKED IN — ${student.name} is already clocked in today at ${existing.timeIn}.`,
@@ -223,12 +251,13 @@ export function processQRScan(
         finalStatus = 'CHECKED OUT';
         timeIn = existing.timeIn || nowTime;
         timeOut = nowTime;
-        message = `✔ CHECK OUT - ${student.name} clocked out at ${nowTime}.`;
       } else {
         // Already checked out
         return {
           verified: true,
           student,
+          studentFirstName,
+          goodbyeMessage,
           record: existing,
           status: 'DUPLICATE_WARNING',
           message: `⚠️ ALREADY CLOCKED OUT — ${student.name} already clocked out today at ${existing.timeOut}.`,
@@ -241,10 +270,17 @@ export function processQRScan(
     }
   } else {
     // Brand new check in for today
-    finalStatus = actionMode === 'CHECK_OUT' ? 'CHECKED OUT' : 'PRESENT';
-    if (finalStatus === 'CHECKED OUT') {
-      timeOut = nowTime;
+    if (actionMode === 'CHECK_OUT') {
+      return {
+        verified: false,
+        student,
+        studentFirstName,
+        status: 'INVALID',
+        message: `🚫 Cannot Clock Out ${student.name} before Clock In. Student must clock in first.`,
+        dateStr: todayStr
+      };
     }
+    finalStatus = 'PRESENT';
   }
 
   // Construct new or updated record
@@ -269,9 +305,14 @@ export function processQRScan(
   updatedRecords.unshift(newRecord);
   saveAttendanceRecords(updatedRecords);
 
+  const message = finalStatus === 'PRESENT' ? welcomeMessage : goodbyeMessage;
+
   return {
     verified: true,
     student,
+    studentFirstName,
+    welcomeMessage: finalStatus === 'PRESENT' ? welcomeMessage : undefined,
+    goodbyeMessage: finalStatus === 'CHECKED OUT' ? goodbyeMessage : undefined,
     record: newRecord,
     status: finalStatus,
     message,

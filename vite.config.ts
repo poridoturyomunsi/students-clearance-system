@@ -6,7 +6,7 @@ import fs from 'fs';
 
 export default defineConfig(() => {
   return {
-    base: process.env.VERCEL ? '/' : './',
+    base: process.env.ELECTRON_BUILD === 'true' ? './' : '/',
     plugins: [react(), tailwindcss()],
     resolve: {
       alias: {
