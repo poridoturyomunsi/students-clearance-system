@@ -23,6 +23,7 @@ import {
   Info
 } from 'lucide-react';
 import { Student } from '../types.ts';
+import { apiCall } from '../utils/api.ts';
 import { 
   processQRScan, 
   getAttendanceStats, 
@@ -175,6 +176,28 @@ export default function QRAttendanceSystem({ students, onSelectStudent }: QRAtte
     setLastScanResult(result);
     setScanHistory(prev => [result, ...prev.slice(0, 19)]);
     setManualInput('');
+
+    // Dispatch custom event to trigger instant LiveAttendanceDashboard refresh
+    if (typeof window !== 'undefined') {
+      window.dispatchEvent(new CustomEvent('attendance-updated', { detail: result }));
+    }
+
+    // Persist scan to backend database API
+    if (result.verified && result.student) {
+      apiCall('/api/attendance/scan', {
+        method: 'POST',
+        body: JSON.stringify({
+          scanValue: result.student.adminNo || result.student.studentNo || result.student.id,
+          direction: 'auto'
+        })
+      }).then(() => {
+        if (typeof window !== 'undefined') {
+          window.dispatchEvent(new CustomEvent('attendance-updated', { detail: result }));
+        }
+      }).catch(err => {
+        console.warn('[QRAttendance] Backend API scan sync notice:', err.message);
+      });
+    }
 
     // Audio speech feedback
     if (result.verified && result.student) {

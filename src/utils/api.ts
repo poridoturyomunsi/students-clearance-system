@@ -40,7 +40,7 @@ export function getApiBaseUrl() {
 import { fetchWithPerf } from './fetchWithPerf';
 import { getCached, setCached, simpleApiCache } from './api_cache';
 
-async function apiCall(path: string, options: RequestInit = {}) {
+export async function apiCall(path: string, options: RequestInit = {}) {
   const url = `${apiBaseUrl}${path}`;
   const token = typeof window !== 'undefined' ? localStorage.getItem('spss_token') : null;
   const defaultHeaders: Record<string, string> = {

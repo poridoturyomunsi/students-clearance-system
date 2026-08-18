@@ -299,9 +299,15 @@ export const LiveAttendanceDashboard: React.FC<LiveAttendanceDashboardProps> = (
   }, [registeredMatrix]);
 
   const attendanceRate = useMemo(() => {
-    if (totalRegistered === 0) return '0.0';
-    return ((columnTotals.grandTotal / totalRegistered) * 100).toFixed(1);
-  }, [columnTotals.grandTotal, totalRegistered]);
+    const total = totalRegistered || registeredColumnTotals.grandReg;
+    if (total === 0) return '0.0';
+    return ((columnTotals.grandTotal / total) * 100).toFixed(1);
+  }, [columnTotals.grandTotal, totalRegistered, registeredColumnTotals.grandReg]);
+
+  const notClockedIn = useMemo(() => {
+    const total = totalRegistered || registeredColumnTotals.grandReg;
+    return Math.max(0, total - columnTotals.grandTotal);
+  }, [totalRegistered, registeredColumnTotals.grandReg, columnTotals.grandTotal]);
 
   // -------------------------------------------------------------
   // DRILL-DOWN MODAL LIST FILTERING
@@ -394,33 +400,48 @@ export const LiveAttendanceDashboard: React.FC<LiveAttendanceDashboardProps> = (
           </div>
         </div>
 
-        {/* Timeframe Filters Tabs */}
-        <div className="flex items-center bg-slate-900 p-1.5 rounded-xl border border-slate-800 self-start md:self-auto shadow-inner">
-          {(['today', 'week', 'month'] as const).map(tab => (
+        <div className="flex items-center gap-3 self-end sm:self-auto">
+          {/* Timeframe Selector */}
+          <div className="bg-slate-950 p-1 rounded-xl border border-slate-800 flex items-center gap-1 text-xs">
             <button
-              key={tab}
-              onClick={() => setPeriod(tab)}
-              className={`px-4 py-1.5 rounded-lg text-xs font-mono font-black uppercase tracking-wider transition-all duration-150 cursor-pointer ${
-                period === tab 
-                  ? 'bg-gradient-to-r from-indigo-600 to-violet-600 text-white shadow-md' 
-                  : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800/50'
+              onClick={() => setPeriod('today')}
+              className={`px-3 py-1.5 rounded-lg font-bold text-[11px] uppercase transition cursor-pointer ${
+                period === 'today' ? 'bg-indigo-600 text-white shadow-md' : 'text-slate-400 hover:text-slate-200'
               }`}
             >
-              {tab === 'today' ? 'Today' : tab === 'week' ? 'This Week' : 'This Month'}
+              Today
             </button>
-          ))}
+            <button
+              onClick={() => setPeriod('week')}
+              className={`px-3 py-1.5 rounded-lg font-bold text-[11px] uppercase transition cursor-pointer ${
+                period === 'week' ? 'bg-indigo-600 text-white shadow-md' : 'text-slate-400 hover:text-slate-200'
+              }`}
+            >
+              7 Days
+            </button>
+            <button
+              onClick={() => setPeriod('month')}
+              className={`px-3 py-1.5 rounded-lg font-bold text-[11px] uppercase transition cursor-pointer ${
+                period === 'month' ? 'bg-indigo-600 text-white shadow-md' : 'text-slate-400 hover:text-slate-200'
+              }`}
+            >
+              30 Days
+            </button>
+          </div>
+
           <button
-            onClick={loadAttendanceData}
-            title="Refresh Attendance Counts"
-            className="p-2 text-slate-400 hover:text-indigo-400 rounded-lg hover:bg-slate-800 transition ml-1 cursor-pointer"
+            onClick={() => loadAttendanceData()}
+            disabled={loading}
+            className="p-2.5 bg-slate-800 hover:bg-slate-700 text-slate-200 rounded-xl transition border border-slate-700 disabled:opacity-50 cursor-pointer"
+            title="Refresh Attendance Data"
           >
-            <RefreshCw className={`w-3.5 h-3.5 ${loading ? 'animate-spin text-indigo-400' : ''}`} />
+            <RefreshCw className={`w-4 h-4 ${loading ? 'animate-spin text-indigo-400' : ''}`} />
           </button>
         </div>
       </div>
 
-      {/* 2. SUMMARY STATISTICS CARDS (5 CARDS) */}
-      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3">
+      {/* 2. SUMMARY STATISTICS CARDS (6 CARDS) */}
+      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3">
         {/* TOTAL REGISTERED */}
         <div className="rounded-2xl bg-slate-900 p-4 border border-slate-800 shadow-xl">
           <div className="flex justify-between items-center text-slate-400 text-[10px] font-black uppercase tracking-wider font-mono">
@@ -430,9 +451,9 @@ export const LiveAttendanceDashboard: React.FC<LiveAttendanceDashboardProps> = (
             </div>
           </div>
           <div className="text-2xl lg:text-3xl font-black mt-2 text-slate-100 font-mono">
-            {totalRegistered.toLocaleString()}
+            {(totalRegistered || registeredColumnTotals.grandReg).toLocaleString()}
           </div>
-          <p className="text-[10px] text-slate-500 mt-1 font-mono font-medium truncate">Total student population</p>
+          <p className="text-[10px] text-slate-500 mt-1 font-mono font-medium truncate">Total master population</p>
         </div>
 
         {/* PRESENT TODAY */}
@@ -487,8 +508,22 @@ export const LiveAttendanceDashboard: React.FC<LiveAttendanceDashboardProps> = (
           <p className="text-[10px] text-slate-500 mt-1 font-mono truncate">Departed school campus</p>
         </div>
 
+        {/* NOT CLOCKED IN */}
+        <div className="rounded-2xl bg-slate-900 p-4 border border-slate-800 shadow-xl">
+          <div className="flex justify-between items-center text-purple-400 text-[10px] font-black uppercase tracking-wider font-mono">
+            <span>NOT CLOCKED IN</span>
+            <div className="p-1.5 rounded-lg bg-purple-500/10 border border-purple-500/20 text-purple-400">
+              <AlertCircle className="w-4 h-4" />
+            </div>
+          </div>
+          <div className="text-2xl lg:text-3xl font-black mt-2 text-purple-400 font-mono">
+            {notClockedIn.toLocaleString()}
+          </div>
+          <p className="text-[10px] text-slate-500 mt-1 font-mono truncate">Awaiting arrival today</p>
+        </div>
+
         {/* ATTENDANCE RATE */}
-        <div className="col-span-2 sm:col-span-1 rounded-2xl bg-slate-900 p-4 border border-slate-800 shadow-xl">
+        <div className="rounded-2xl bg-slate-900 p-4 border border-slate-800 shadow-xl">
           <div className="flex justify-between items-center text-indigo-300 text-[10px] font-black uppercase tracking-wider font-mono">
             <span>ATTENDANCE RATE</span>
             <div className="p-1.5 rounded-lg bg-indigo-500/10 text-indigo-400">

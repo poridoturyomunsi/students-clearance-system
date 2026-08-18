@@ -1879,7 +1879,8 @@ async function initDb(config) {
       queueLimit: 0,
       connectTimeout: 30000,
       enableKeepAlive: true,
-      keepAliveInitialDelay: 10000
+      keepAliveInitialDelay: 10000,
+      dateStrings: true
     };
 
     pool = mysql.createPool(poolConfig);
@@ -4422,31 +4423,52 @@ app.get('/api/attendance/notification-audit-logs', async (req, res) => {
   }
 });
 
-// Dashboard aggregates and charts
 app.get('/api/attendance/dashboard', async (req, res) => {
   try {
-    const today = new Date().toISOString().split('T')[0];
+    const today = new Date().toLocaleDateString('en-CA', { timeZone: 'Africa/Kampala' });
 
-    // Counts
+    // 1. Master Total Active Registered Students
     const [totalRows] = await pool.query('SELECT COUNT(*) as count FROM students');
     const totalStudents = totalRows[0].count;
 
-    const [insideRows] = await pool.query('SELECT COUNT(*) as count FROM attendance_logs WHERE date = ? AND time_in IS NOT NULL AND time_out IS NULL', [today]);
+    // 2. Unique Students Present Today
+    const [presentRows] = await pool.query(
+      "SELECT COUNT(DISTINCT student_id) as count FROM attendance_logs WHERE date = ? AND (time_in IS NOT NULL OR status IN ('Present', 'Late', 'Very Late', 'Checked Out'))",
+      [today]
+    );
+    const presentToday = presentRows[0].count;
+
+    // 3. Currently On Campus (Inside gate, not clocked out)
+    const [insideRows] = await pool.query(
+      "SELECT COUNT(DISTINCT student_id) as count FROM attendance_logs WHERE date = ? AND time_in IS NOT NULL AND time_out IS NULL AND status != 'Checked Out'",
+      [today]
+    );
     const insideSchool = insideRows[0].count;
 
-    const [outRows] = await pool.query('SELECT COUNT(*) as count FROM attendance_logs WHERE date = ? AND time_out IS NOT NULL', [today]);
+    // 4. Clocked Out (Departed campus today)
+    const [outRows] = await pool.query(
+      "SELECT COUNT(DISTINCT student_id) as count FROM attendance_logs WHERE date = ? AND (time_out IS NOT NULL OR status = 'Checked Out')",
+      [today]
+    );
     const clockedOut = outRows[0].count;
 
-    const [lateRows] = await pool.query("SELECT COUNT(*) as count FROM attendance_logs WHERE date = ? AND status IN ('Late', 'Very Late')", [today]);
+    // 5. Late Arrivals
+    const [lateRows] = await pool.query(
+      "SELECT COUNT(DISTINCT student_id) as count FROM attendance_logs WHERE date = ? AND status IN ('Late', 'Very Late')",
+      [today]
+    );
     const lateToday = lateRows[0].count;
 
-    const [earlyRows] = await pool.query("SELECT COUNT(*) as count FROM attendance_logs WHERE date = ? AND departure_status != 'Normal Departure' AND departure_status IS NOT NULL", [today]);
+    const [earlyRows] = await pool.query(
+      "SELECT COUNT(DISTINCT student_id) as count FROM attendance_logs WHERE date = ? AND departure_status != 'Normal Departure' AND departure_status IS NOT NULL",
+      [today]
+    );
     const earlyDepartures = earlyRows[0].count;
 
-    // Absents
-    const absentToday = Math.max(0, totalStudents - insideSchool - clockedOut);
+    // 6. Not Clocked In / Absent
+    const absentToday = Math.max(0, totalStudents - presentToday);
+    const attendanceRate = totalStudents > 0 ? parseFloat(((presentToday / totalStudents) * 100).toFixed(1)) : 0.0;
 
-    // Dynamic teachers present simulation (or check active assignments/attendance)
     const teachersPresent = 14; 
     const visitorsToday = 6;
 
@@ -4471,20 +4493,21 @@ app.get('/api/attendance/dashboard', async (req, res) => {
 
     // 2. Daily: Attendance rate for last 7 school days
     const [dailyRows] = await pool.query(
-      `SELECT date, COUNT(CASE WHEN time_in IS NOT NULL THEN 1 END) as present
+      `SELECT date, COUNT(DISTINCT student_id) as present
        FROM attendance_logs 
+       WHERE time_in IS NOT NULL OR status IN ('Present', 'Late', 'Very Late', 'Checked Out')
        GROUP BY date 
        ORDER BY date DESC 
        LIMIT 7`
     );
     const dailyData = dailyRows.map(r => ({
-      label: new Date(r.date).toLocaleDateString('en-US', { weekday: 'short', month: 'numeric', day: 'numeric' }),
+      label: r.date,
       value: totalStudents > 0 ? Math.round((r.present / totalStudents) * 100) : 100
     })).reverse();
 
     // 3. Weekly/Monthly trends
     const [weeklyRows] = await pool.query(
-      `SELECT WEEK(date) as wk, COUNT(*) as total, COUNT(CASE WHEN status='Late' OR status='Very Late' THEN 1 END) as lates
+      `SELECT WEEK(date) as wk, COUNT(DISTINCT student_id) as total, COUNT(CASE WHEN status='Late' OR status='Very Late' THEN 1 END) as lates
        FROM attendance_logs 
        GROUP BY WEEK(date) 
        ORDER BY wk DESC LIMIT 4`
@@ -4497,10 +4520,10 @@ app.get('/api/attendance/dashboard', async (req, res) => {
 
     // 4. Class comparison (top 6 classes)
     const [classRows] = await pool.query(
-      `SELECT s.gradeClass, COUNT(al.id) as presentCount
+      `SELECT s.gradeClass, COUNT(DISTINCT al.student_id) as presentCount
        FROM attendance_logs al
        JOIN students s ON al.student_id = s.id
-       WHERE al.date = ? AND al.time_in IS NOT NULL
+       WHERE al.date = ? AND (al.time_in IS NOT NULL OR al.status IN ('Present', 'Late', 'Very Late', 'Checked Out'))
        GROUP BY s.gradeClass
        ORDER BY presentCount DESC
        LIMIT 6`,
@@ -4513,42 +4536,44 @@ app.get('/api/attendance/dashboard', async (req, res) => {
 
     // 5. Boarding splits
     const [boarderRows] = await pool.query(
-      `SELECT s.boardingStatus, COUNT(*) as count 
+      `SELECT s.boardingStatus, COUNT(DISTINCT al.student_id) as count 
        FROM attendance_logs al
        JOIN students s ON al.student_id = s.id
-       WHERE al.date = ? AND al.time_in IS NOT NULL
+       WHERE al.date = ? AND (al.time_in IS NOT NULL OR al.status IN ('Present', 'Late', 'Very Late', 'Checked Out'))
        GROUP BY s.boardingStatus`,
       [today]
     );
     const boardingSplits = {
-      boarders: boarderRows.find(r => r.boardingStatus.toLowerCase().startsWith('board'))?.count || 0,
-      dayscholars: boarderRows.find(r => r.boardingStatus.toLowerCase().startsWith('day'))?.count || 0
+      boarders: boarderRows.find(r => r.boardingStatus && r.boardingStatus.toLowerCase().startsWith('board'))?.count || 0,
+      dayscholars: boarderRows.find(r => r.boardingStatus && r.boardingStatus.toLowerCase().startsWith('day'))?.count || 0
     };
 
     // 6. Gender splits
     const [genderRows] = await pool.query(
-      `SELECT s.gender, COUNT(*) as count 
+      `SELECT s.gender, COUNT(DISTINCT al.student_id) as count 
        FROM attendance_logs al
        JOIN students s ON al.student_id = s.id
-       WHERE al.date = ? AND al.time_in IS NOT NULL
+       WHERE al.date = ? AND (al.time_in IS NOT NULL OR al.status IN ('Present', 'Late', 'Very Late', 'Checked Out'))
        GROUP BY s.gender`,
       [today]
     );
     const genderSplits = {
-      male: genderRows.find(r => r.gender.toLowerCase().startsWith('m'))?.count || 0,
-      female: genderRows.find(r => r.gender.toLowerCase().startsWith('f'))?.count || 0
+      male: genderRows.find(r => r.gender && r.gender.toLowerCase().startsWith('m'))?.count || 0,
+      female: genderRows.find(r => r.gender && r.gender.toLowerCase().startsWith('f'))?.count || 0
     };
 
     res.json({
       metrics: {
         totalStudents,
+        presentToday,
         insideSchool,
         clockedOut,
         absentToday,
         lateToday,
         earlyDepartures,
         visitorsToday,
-        teachersPresent
+        teachersPresent,
+        attendanceRate
       },
       charts: {
         hourlyData,
@@ -4569,21 +4594,23 @@ app.get('/api/attendance/dashboard', async (req, res) => {
 app.get('/api/attendance/grid', async (req, res) => {
   try {
     const period = req.query.period || 'today';
-    const todayStr = new Date().toISOString().split('T')[0];
+    const todayStr = new Date().toLocaleDateString('en-CA', { timeZone: 'Africa/Kampala' });
 
-    let dateCondition = 'al.date = CURRENT_DATE()';
+    let dateCondition = 'al.date = ?';
+    let queryParams = [todayStr];
+
     if (period === 'week') {
-      dateCondition = 'al.date >= DATE_SUB(CURRENT_DATE(), INTERVAL 7 DAY)';
+      dateCondition = 'al.date >= DATE_SUB(?, INTERVAL 7 DAY)';
     } else if (period === 'month') {
-      dateCondition = 'al.date >= DATE_SUB(CURRENT_DATE(), INTERVAL 30 DAY)';
+      dateCondition = 'al.date >= DATE_SUB(?, INTERVAL 30 DAY)';
     }
 
-    // 1. All registered students
+    // 1. All registered master students
     const [students] = await pool.query('SELECT id, adminNo, name, gradeClass, photo, boardingStatus, gender FROM students');
 
     // Helper to parse class and stream
     const parseClassStream = (gradeClass) => {
-      if (!gradeClass) return { className: 'Unknown', streamName: 'A' };
+      if (!gradeClass) return { className: 'S.1', streamName: 'A' };
       let normalized = String(gradeClass).trim();
       const sMatch = normalized.match(/^[sS]([1-6])(\s.*|$)/);
       if (sMatch) {
@@ -4625,10 +4652,11 @@ app.get('/api/attendance/grid', async (req, res) => {
 
     // 2. Attendance logs for specified date condition
     const [logRows] = await pool.query(
-      `SELECT DISTINCT al.student_id, al.date, al.time_in, al.status, al.id as log_id
+      `SELECT al.student_id, al.date, al.time_in, al.time_out, al.status, al.id as log_id
        FROM attendance_logs al
-       WHERE ${dateCondition} AND al.time_in IS NOT NULL
-       ORDER BY al.date DESC, al.time_in DESC`
+       WHERE ${dateCondition} AND (al.time_in IS NOT NULL OR al.status IN ('Present', 'Late', 'Very Late', 'Checked Out'))
+       ORDER BY al.date DESC, al.id DESC`,
+      queryParams
     );
 
     // Filter unique student per day for counting
@@ -4647,7 +4675,9 @@ app.get('/api/attendance/grid', async (req, res) => {
     logRows.forEach(log => {
       const student = studentClassMap.get(log.student_id);
       if (student) {
-        const uniqueKey = `${log.student_id}_${new Date(log.date).toISOString().split('T')[0]}`;
+        const dateStr = typeof log.date === 'string' ? log.date.split('T')[0] : log.date;
+        const uniqueKey = `${log.student_id}_${dateStr}`;
+
         if (!countedStudentsToday.has(uniqueKey)) {
           countedStudentsToday.add(uniqueKey);
 
@@ -4668,8 +4698,9 @@ app.get('/api/attendance/grid', async (req, res) => {
             boardingStatus: student.boardingStatus,
             gender: student.gender,
             time_in: log.time_in,
+            time_out: log.time_out,
             status: log.status || 'Present',
-            date: log.date
+            date: dateStr
           });
         }
       }
