@@ -4766,10 +4766,15 @@ app.get('/api/attendance/logs', async (req, res) => {
     const { startDate, endDate, gradeClass, stream, status, boardingStatus, gender, search } = req.query;
     
     let queryStr = `
-      SELECT al.*, s.name, s.adminNo, s.gender, s.gradeClass, s.boardingStatus,
+      SELECT al.*, 
+             COALESCE(s.name, al.student_id) as name, 
+             COALESCE(s.adminNo, al.student_id) as adminNo, 
+             COALESCE(s.gender, 'Male') as gender, 
+             COALESCE(s.gradeClass, 'S.1 A') as gradeClass, 
+             COALESCE(s.boardingStatus, 'Day Scholar') as boardingStatus,
              gl_in.name as gate_in_name, gl_out.name as gate_out_name
       FROM attendance_logs al
-      JOIN students s ON al.student_id = s.id
+      LEFT JOIN students s ON (al.student_id = s.id OR al.student_id = s.adminNo OR al.student_id = s.verification_token)
       LEFT JOIN gate_locations gl_in ON al.gate_in_id = gl_in.id
       LEFT JOIN gate_locations gl_out ON al.gate_out_id = gl_out.id
       WHERE 1=1
