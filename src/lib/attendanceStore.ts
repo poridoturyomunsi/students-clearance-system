@@ -175,27 +175,43 @@ export function processQRScan(
   if (existingRecordIndex >= 0) {
     const existing = todayRecords[existingRecordIndex];
     const timeSinceLastScan = Date.now() - (existing.timestamp || 0);
-    const DEBOUNCE_WINDOW_MS = 30000; // 30 seconds protection
+    const DOUBLE_TAP_DEBOUNCE_MS = 3000; // 3 seconds protection against accidental double-taps
 
     if (actionMode === 'CHECK_IN') {
       if (existing.status === 'PRESENT') {
+        // 2nd scan in explicit check in mode -> perform check out
+        if (timeSinceLastScan < DOUBLE_TAP_DEBOUNCE_MS) {
+          return {
+            verified: true,
+            student,
+            studentFirstName,
+            welcomeMessage,
+            record: existing,
+            status: 'DUPLICATE_WARNING',
+            message: `⚠️ ALREADY CHECKED IN — ${student.name} is already checked in today at ${existing.timeIn}.`,
+            timeIn: existing.timeIn,
+            timeOut: existing.timeOut,
+            dateStr: todayStr,
+            isDuplicate: true
+          };
+        }
+        finalStatus = 'CHECKED OUT';
+        timeIn = existing.timeIn || nowTime;
+        timeOut = nowTime;
+      } else {
+        // Already checked out for today
         return {
           verified: true,
           student,
           studentFirstName,
-          welcomeMessage,
           record: existing,
           status: 'DUPLICATE_WARNING',
-          message: `⚠️ ALREADY CLOCKED IN — ${student.name} is already clocked in today at ${existing.timeIn}.`,
+          message: `⚠️ ALREADY CHECKED IN & OUT — ${student.name} has already checked in (at ${existing.timeIn}) and checked out (at ${existing.timeOut}) today.`,
           timeIn: existing.timeIn,
           timeOut: existing.timeOut,
           dateStr: todayStr,
           isDuplicate: true
         };
-      } else {
-        // Re-entry
-        finalStatus = 'PRESENT';
-        timeIn = existing.timeIn || nowTime;
       }
     } else if (actionMode === 'CHECK_OUT') {
       if (!existing.timeIn) {
@@ -204,7 +220,7 @@ export function processQRScan(
           student,
           studentFirstName,
           status: 'INVALID',
-          message: `🚫 Cannot Clock Out ${student.name} before Clock In. Student must clock in first.`,
+          message: `🚫 Cannot Check Out ${student.name} before Check In. Student must check in first.`,
           dateStr: todayStr
         };
       }
@@ -216,7 +232,7 @@ export function processQRScan(
           goodbyeMessage,
           record: existing,
           status: 'DUPLICATE_WARNING',
-          message: `⚠️ ALREADY CLOCKED OUT — ${student.name} already clocked out today at ${existing.timeOut}.`,
+          message: `⚠️ ALREADY CHECKED IN & OUT — ${student.name} has already checked in (at ${existing.timeIn}) and checked out (at ${existing.timeOut}) today.`,
           timeIn: existing.timeIn,
           timeOut: existing.timeOut,
           dateStr: todayStr,
@@ -228,10 +244,9 @@ export function processQRScan(
         timeOut = nowTime;
       }
     } else {
-      // AUTO mode:
+      // AUTO mode: 1st scan = PRESENT, 2nd scan = CHECKED OUT, 3rd+ scan = ALREADY CHECKED OUT
       if (existing.status === 'PRESENT') {
-        // Check 30-second duplicate scan protection window
-        if (timeSinceLastScan < DEBOUNCE_WINDOW_MS) {
+        if (timeSinceLastScan < DOUBLE_TAP_DEBOUNCE_MS) {
           return {
             verified: true,
             student,
@@ -239,7 +254,7 @@ export function processQRScan(
             welcomeMessage,
             record: existing,
             status: 'DUPLICATE_WARNING',
-            message: `⚠️ ALREADY CLOCKED IN — ${student.name} is already clocked in today at ${existing.timeIn}.`,
+            message: `⚠️ ALREADY CHECKED IN — ${student.name} is already checked in today at ${existing.timeIn}.`,
             timeIn: existing.timeIn,
             timeOut: existing.timeOut,
             dateStr: todayStr,
@@ -247,12 +262,12 @@ export function processQRScan(
           };
         }
 
-        // Clock Out after 30 seconds
+        // 2nd scan: update to CHECKED OUT
         finalStatus = 'CHECKED OUT';
         timeIn = existing.timeIn || nowTime;
         timeOut = nowTime;
       } else {
-        // Already checked out
+        // 3rd+ scan: Already checked in and checked out
         return {
           verified: true,
           student,
@@ -260,7 +275,7 @@ export function processQRScan(
           goodbyeMessage,
           record: existing,
           status: 'DUPLICATE_WARNING',
-          message: `⚠️ ALREADY CLOCKED OUT — ${student.name} already clocked out today at ${existing.timeOut}.`,
+          message: `⚠️ ALREADY CHECKED IN & OUT — ${student.name} has already checked in (at ${existing.timeIn}) and checked out (at ${existing.timeOut}) today.`,
           timeIn: existing.timeIn,
           timeOut: existing.timeOut,
           dateStr: todayStr,
@@ -269,14 +284,14 @@ export function processQRScan(
       }
     }
   } else {
-    // Brand new check in for today
+    // Brand new check in for today (1st scan)
     if (actionMode === 'CHECK_OUT') {
       return {
         verified: false,
         student,
         studentFirstName,
         status: 'INVALID',
-        message: `🚫 Cannot Clock Out ${student.name} before Clock In. Student must clock in first.`,
+        message: `🚫 Cannot Check Out ${student.name} before Check In. Student must check in first.`,
         dateStr: todayStr
       };
     }

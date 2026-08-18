@@ -1396,7 +1396,7 @@ async function ensureDbInitialized() {
         operator_out VARCHAR(100) NULL,
         gps_in VARCHAR(50) NULL,
         gps_out VARCHAR(50) NULL,
-        status ENUM('Present', 'Late', 'Very Late', 'Absent') NOT NULL DEFAULT 'Present',
+        status VARCHAR(50) NOT NULL DEFAULT 'Present',
         departure_status ENUM('Normal Departure', 'Permission', 'Medical', 'Sports', 'Trip', 'Suspension', 'Emergency', 'Other') NULL,
         reason_for_leaving VARCHAR(255) NULL,
         remarks VARCHAR(255) NULL,
