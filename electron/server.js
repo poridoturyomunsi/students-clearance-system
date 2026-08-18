@@ -3987,11 +3987,13 @@ function getKampalaTimeDetails() {
 
 function getFirstName(fullName) {
   if (!fullName) return 'Student';
-  const firstWord = String(fullName).trim().split(/\s+/)[0];
-  if (firstWord === firstWord.toUpperCase()) {
-    return firstWord.charAt(0).toUpperCase() + firstWord.slice(1).toLowerCase();
+  const parts = String(fullName).trim().split(/\s+/).filter(Boolean);
+  if (parts.length >= 2) {
+    const secondWord = parts[1];
+    return secondWord.charAt(0).toUpperCase() + secondWord.slice(1).toLowerCase();
   }
-  return firstWord.charAt(0).toUpperCase() + firstWord.slice(1);
+  const firstWord = parts[0] || 'Student';
+  return firstWord.charAt(0).toUpperCase() + firstWord.slice(1).toLowerCase();
 }
 
 const pendingNotificationDispatches = new Set();
