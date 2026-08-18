@@ -40,6 +40,21 @@ import { LiveAttendanceDashboard } from './LiveAttendanceDashboard.tsx';
 import { announceScan } from '../utils/speechService.ts';
 import { TTSSettingsPanel } from './TTSSettingsPanel.tsx';
 
+function parseClassAndStream(combined?: string): { className: string; streamName: string } {
+  if (!combined) return { className: 'UNKNOWN', streamName: 'A' };
+  const clean = combined.trim();
+  const m = clean.match(/^(?:[sS]\.?|senior\s*|form\s*)([1-6])\s*(.*)$/i);
+  if (m) {
+    const num = m[1];
+    let rest = (m[2] || '').trim();
+    if (rest.toLowerCase() === 'arts' || rest.toLowerCase() === 'art') rest = 'ARTS';
+    else if (rest.toLowerCase() === 'sciences' || rest.toLowerCase() === 'science') rest = 'SCIENCES';
+    else if (rest.length === 1) rest = rest.toUpperCase();
+    return { className: `S.${num}`, streamName: rest || 'A' };
+  }
+  return { className: 'S.1', streamName: clean.toUpperCase() || 'A' };
+}
+
 interface QRAttendanceSystemProps {
   students: Student[];
   onSelectStudent?: (student: Student) => void;
@@ -271,7 +286,7 @@ export default function QRAttendanceSystem({ students, onSelectStudent }: QRAtte
             }`}
           >
             <Camera className="w-4 h-4" />
-            Guard Scanner
+            STUDENT CHECK-IN
           </button>
 
           <button
@@ -300,7 +315,7 @@ export default function QRAttendanceSystem({ students, onSelectStudent }: QRAtte
         </div>
       </div>
 
-      {/* VIEW 1: SECURITY GUARD SCANNER VIEW */}
+      {/* VIEW 1: STUDENT CHECK-IN SCANNER VIEW */}
       {activeTab === 'scanner' && (
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
           {/* Left Column: Phone Scanner Frame */}
@@ -315,7 +330,7 @@ export default function QRAttendanceSystem({ students, onSelectStudent }: QRAtte
               <div className="w-full bg-blue-900 text-white py-2.5 px-4 rounded-xl flex justify-between items-center mb-3 shadow-sm">
                 <div className="flex items-center gap-2">
                   <Smartphone className="w-4 h-4 text-blue-300" />
-                  <span className="text-xs font-black uppercase tracking-wider">QR SCANNER</span>
+                  <span className="text-xs font-black uppercase tracking-wider">STUDENT CHECK-IN</span>
                 </div>
                 <span className="text-[10px] font-mono font-bold bg-blue-800/60 px-2 py-0.5 rounded text-blue-200">
                   LIVE
@@ -357,12 +372,13 @@ export default function QRAttendanceSystem({ students, onSelectStudent }: QRAtte
                 {!isCameraActive && (
                   <div className="absolute inset-0 flex flex-col items-center justify-center p-6 text-center bg-slate-950/90 backdrop-blur-xs">
                     <QrCode className="w-16 h-16 text-blue-500 mb-3 animate-pulse" />
-                    <p className="text-xs font-bold text-slate-300 mb-4">
-                      Click below to activate live camera feed or enter student number manually.
-                    </p>
+                    <div className="bg-amber-950/60 border border-amber-800/80 rounded-xl p-3 mb-3 text-amber-200 text-center">
+                      <p className="text-[11px] font-bold uppercase tracking-wider text-amber-400">CAMERA NOT AVAILABLE</p>
+                      <p className="text-[10px] text-amber-100 mt-0.5">Use manual student number entry below or connect a camera.</p>
+                    </div>
                     <button
                       onClick={startCamera}
-                      className="px-5 py-2.5 bg-blue-600 hover:bg-blue-500 text-white text-xs font-black uppercase tracking-wider rounded-xl shadow-lg flex items-center gap-2 transition-all"
+                      className="px-5 py-2.5 bg-blue-600 hover:bg-blue-500 text-white text-xs font-black uppercase tracking-wider rounded-xl shadow-lg flex items-center gap-2 transition-all cursor-pointer"
                     >
                       <Camera className="w-4 h-4" />
                       Start Camera Scanner
@@ -392,15 +408,16 @@ export default function QRAttendanceSystem({ students, onSelectStudent }: QRAtte
               {isCameraActive && (
                 <button
                   onClick={stopCamera}
-                  className="mt-3 px-4 py-1.5 bg-slate-800 hover:bg-slate-700 text-slate-300 text-[10px] font-bold rounded-lg transition-all"
+                  className="mt-3 px-4 py-1.5 bg-slate-800 hover:bg-slate-700 text-slate-300 text-[10px] font-bold rounded-lg transition-all cursor-pointer"
                 >
                   Stop Camera Scanner
                 </button>
               )}
 
               {cameraError && (
-                <div className="mt-2 text-[10px] text-rose-400 bg-rose-950/60 p-2 rounded-lg text-center border border-rose-800">
-                  {cameraError}
+                <div className="mt-2 text-[10px] text-amber-300 bg-amber-950/80 p-2.5 rounded-xl text-center border border-amber-700/80 space-y-0.5">
+                  <p className="font-black uppercase tracking-wider text-amber-400">CAMERA NOT AVAILABLE</p>
+                  <p className="text-[10px] text-amber-200">Use manual student number entry or connect a camera.</p>
                 </div>
               )}
 
@@ -409,14 +426,14 @@ export default function QRAttendanceSystem({ students, onSelectStudent }: QRAtte
                 <div className="relative flex items-center">
                   <input
                     type="text"
-                    placeholder="Enter or scan Admin No (e.g. ADM-2026-9008766)..."
+                    placeholder="Enter Admin/Student No (e.g. 266403202)..."
                     value={manualInput}
                     onChange={(e) => setManualInput(e.target.value)}
-                    className="w-full pl-3 pr-9 py-2 bg-slate-800 border border-slate-700 text-white placeholder-slate-400 text-xs rounded-xl focus:outline-none focus:border-blue-500 font-mono"
+                    className="w-full pl-3 pr-14 py-2 bg-slate-800 border border-slate-700 text-white placeholder-slate-400 text-xs rounded-xl focus:outline-none focus:border-blue-500 font-mono font-bold"
                   />
                   <button
                     type="submit"
-                    className="absolute right-1 px-2.5 py-1 bg-blue-600 hover:bg-blue-500 text-white rounded-lg text-xs font-bold transition-all"
+                    className="absolute right-1 px-3 py-1 bg-blue-600 hover:bg-blue-500 text-white rounded-lg text-xs font-bold transition-all uppercase tracking-wider cursor-pointer"
                   >
                     Scan
                   </button>
@@ -436,16 +453,16 @@ export default function QRAttendanceSystem({ students, onSelectStudent }: QRAtte
                   Ready to Scan Student QR Code
                 </h3>
                 <p className="text-xs text-slate-500 max-w-sm mt-1">
-                  Point the camera at the student clearance card QR code or type the student number to perform instant verification and record attendance.
+                  Point the camera at the student clearance card QR code or enter the student number manually to perform instant check-in.
                 </p>
               </div>
             ) : (
               <div className="space-y-4 animate-scale-in">
-                {/* Result Card: VERIFIED (PRESENT) */}
-                {lastScanResult.verified && lastScanResult.status === 'PRESENT' && (
+                {/* Result Card: STUDENT FOUND & CHECK-IN SUCCESSFUL */}
+                {lastScanResult.verified && (lastScanResult.status === 'PRESENT' || !lastScanResult.isDuplicate) && (
                   <div className="space-y-4">
-                    {/* Student-Facing Welcome Message Banner */}
-                    <div className="bg-gradient-to-r from-emerald-600 via-teal-600 to-emerald-700 text-white p-5 rounded-2xl shadow-lg border border-emerald-400 animate-bounce-once">
+                    {/* Welcome Banner */}
+                    <div className="bg-gradient-to-r from-emerald-600 via-teal-600 to-emerald-700 text-white p-5 rounded-2xl shadow-lg border border-emerald-400">
                       <div className="flex items-center gap-4">
                         <div className="text-4xl shrink-0">👋</div>
                         <div>
@@ -467,19 +484,19 @@ export default function QRAttendanceSystem({ students, onSelectStudent }: QRAtte
                         <div className="flex items-center gap-3">
                           <CheckCircle2 className="w-7 h-7 text-emerald-100" />
                           <div>
-                            <h3 className="text-base font-black uppercase tracking-wider">VERIFIED</h3>
-                            <p className="text-xs text-emerald-100 font-medium">This is a registered student.</p>
+                            <h3 className="text-base font-black uppercase tracking-wider">STUDENT FOUND</h3>
+                            <p className="text-xs text-emerald-100 font-medium">Registered student found.</p>
                           </div>
                         </div>
                         <span className="bg-emerald-800 text-emerald-100 text-xs font-black px-3 py-1 rounded-full uppercase tracking-wider">
-                          ✔ CHECK IN
+                          ✔ CHECK-IN SUCCESSFUL
                         </span>
                       </div>
 
                       {/* Student Info Details */}
                       <div className="p-6 flex flex-col md:flex-row gap-6 items-center md:items-start">
-                        {/* Photo */}
-                        <div className="w-32 h-36 shrink-0 border-2 border-emerald-400 rounded-xl overflow-hidden bg-slate-100 shadow-md">
+                        {/* Student Photo */}
+                        <div className="w-32 h-36 shrink-0 border-2 border-emerald-400 rounded-xl overflow-hidden bg-slate-100 shadow-md flex items-center justify-center">
                           {lastScanResult.student?.photo ? (
                             <img
                               src={lastScanResult.student.photo}
@@ -487,9 +504,9 @@ export default function QRAttendanceSystem({ students, onSelectStudent }: QRAtte
                               className="w-full h-full object-cover"
                             />
                           ) : (
-                            <div className="w-full h-full flex flex-col items-center justify-center text-slate-400">
+                            <div className="w-full h-full flex flex-col items-center justify-center text-slate-400 bg-slate-100">
                               <Users className="w-10 h-10" />
-                              <span className="text-[8px] font-extrabold uppercase mt-1">NO PHOTO</span>
+                              <span className="text-[9px] font-extrabold uppercase mt-1 text-slate-500">NO PHOTO</span>
                             </div>
                           )}
                         </div>
@@ -498,30 +515,30 @@ export default function QRAttendanceSystem({ students, onSelectStudent }: QRAtte
                         <div className="flex-1 space-y-3 w-full">
                           <div>
                             <span className="text-[10px] font-black text-blue-700 uppercase tracking-wider">STUDENT NUMBER</span>
-                            <p className="text-lg font-black text-slate-950 uppercase">{lastScanResult.student?.studentNo || lastScanResult.student?.adminNo}</p>
+                            <p className="text-xl font-black text-slate-950 uppercase font-mono">{lastScanResult.student?.studentNo || lastScanResult.student?.adminNo}</p>
                           </div>
 
                           <div>
                             <span className="text-[10px] font-black text-blue-700 uppercase tracking-wider">NAME</span>
-                            <p className="text-lg font-black text-slate-950 uppercase">{lastScanResult.student?.name}</p>
+                            <p className="text-xl font-black text-slate-950 uppercase">{lastScanResult.student?.name}</p>
                           </div>
 
-                          <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 pt-1 border-t border-slate-100">
+                          <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 pt-2 border-t border-slate-100">
                             <div>
                               <span className="text-[9px] font-black text-blue-700 uppercase tracking-wider">CLASS</span>
-                              <p className="text-xs font-black text-slate-900 uppercase">{lastScanResult.student?.gradeClass}</p>
+                              <p className="text-xs font-black text-slate-900 uppercase">{parseClassAndStream(lastScanResult.student?.gradeClass).className}</p>
+                            </div>
+                            <div>
+                              <span className="text-[9px] font-black text-blue-700 uppercase tracking-wider">STREAM</span>
+                              <p className="text-xs font-black text-slate-900 uppercase">{parseClassAndStream(lastScanResult.student?.gradeClass).streamName}</p>
                             </div>
                             <div>
                               <span className="text-[9px] font-black text-blue-700 uppercase tracking-wider">GENDER</span>
-                              <p className="text-xs font-black text-slate-900 uppercase">{lastScanResult.student?.gender || 'MALE'}</p>
+                              <p className="text-xs font-black text-slate-900 uppercase">{lastScanResult.student?.gender || 'FEMALE'}</p>
                             </div>
                             <div>
                               <span className="text-[9px] font-black text-blue-700 uppercase tracking-wider">STATUS</span>
-                              <p className="text-xs font-black text-slate-900 uppercase">{lastScanResult.student?.boardingStatus || 'DAY SCHOLAR'}</p>
-                            </div>
-                            <div>
-                              <span className="text-[9px] font-black text-blue-700 uppercase tracking-wider">CARD VALIDITY</span>
-                              <p className="text-xs font-black text-emerald-700 uppercase">✔ ACTIVE / VALID</p>
+                              <p className="text-xs font-black text-slate-900 uppercase">{lastScanResult.student?.boardingStatus || 'BOARDER'}</p>
                             </div>
                           </div>
                         </div>
@@ -531,7 +548,7 @@ export default function QRAttendanceSystem({ students, onSelectStudent }: QRAtte
                       <div className="bg-emerald-50 px-6 py-4 border-t border-emerald-200 flex flex-wrap justify-between items-center gap-4">
                         <div>
                           <span className="text-[10px] font-black text-emerald-800 uppercase tracking-wider">ATTENDANCE STATUS</span>
-                          <p className="text-base font-black text-emerald-700 uppercase flex items-center gap-1.5">
+                          <p className="text-lg font-black text-emerald-700 uppercase flex items-center gap-1.5">
                             <Check className="w-5 h-5 stroke-[3]" /> PRESENT
                           </p>
                         </div>
@@ -550,43 +567,39 @@ export default function QRAttendanceSystem({ students, onSelectStudent }: QRAtte
                   </div>
                 )}
 
-                {/* Result Card: CHECK OUT */}
-                {lastScanResult.verified && lastScanResult.status === 'CHECKED OUT' && (
+                {/* Result Card: DUPLICATE CHECK-IN WARNING */}
+                {lastScanResult.verified && (lastScanResult.status === 'DUPLICATE_WARNING' || lastScanResult.isDuplicate) && (
                   <div className="space-y-4">
-                    {/* Student-Facing Goodbye Message Banner */}
-                    <div className="bg-gradient-to-r from-amber-600 via-orange-600 to-amber-700 text-white p-5 rounded-2xl shadow-lg border border-amber-400 animate-bounce-once">
+                    <div className="bg-amber-500 text-white p-5 rounded-2xl shadow-lg border border-amber-400">
                       <div className="flex items-center gap-4">
-                        <div className="text-4xl shrink-0">👋</div>
+                        <AlertTriangle className="w-10 h-10 text-amber-100 shrink-0" />
                         <div>
-                          <h2 className="text-2xl font-black tracking-wide">
-                            Goodbye, <span className="underline decoration-yellow-200 decoration-4">{getFirstName(lastScanResult.student?.name)}</span>!
+                          <h2 className="text-2xl font-black uppercase tracking-wide">
+                            ALREADY CHECKED IN
                           </h2>
-                          <p className="text-sm font-semibold text-amber-100 mt-1 leading-snug">
-                            You have successfully checked out.<br />
-                            Have a safe journey home!
+                          <p className="text-sm font-bold text-amber-100 mt-1">
+                            {lastScanResult.student?.name} is already checked in for today.
                           </p>
                         </div>
                       </div>
                     </div>
 
                     <div className="bg-white rounded-2xl border-2 border-amber-500 overflow-hidden shadow-xl">
-                      {/* Header Banner */}
                       <div className="bg-amber-600 text-white px-6 py-4 flex items-center justify-between">
                         <div className="flex items-center gap-3">
-                          <LogOut className="w-7 h-7 text-amber-100" />
+                          <CheckCircle2 className="w-7 h-7 text-amber-100" />
                           <div>
-                            <h3 className="text-base font-black uppercase tracking-wider">CHECK OUT</h3>
-                            <p className="text-xs text-amber-100 font-medium">Student departing campus.</p>
+                            <h3 className="text-base font-black uppercase tracking-wider">STUDENT FOUND</h3>
+                            <p className="text-xs text-amber-100 font-medium">Registered student found.</p>
                           </div>
                         </div>
                         <span className="bg-amber-800 text-amber-100 text-xs font-black px-3 py-1 rounded-full uppercase tracking-wider">
-                          CHECK OUT
+                          ALREADY CHECKED IN
                         </span>
                       </div>
 
-                      {/* Student Info Details */}
                       <div className="p-6 flex flex-col md:flex-row gap-6 items-center md:items-start">
-                        <div className="w-32 h-36 shrink-0 border-2 border-amber-400 rounded-xl overflow-hidden bg-slate-100 shadow-md">
+                        <div className="w-32 h-36 shrink-0 border-2 border-amber-400 rounded-xl overflow-hidden bg-slate-100 shadow-md flex items-center justify-center">
                           {lastScanResult.student?.photo ? (
                             <img
                               src={lastScanResult.student.photo}
@@ -594,90 +607,81 @@ export default function QRAttendanceSystem({ students, onSelectStudent }: QRAtte
                               className="w-full h-full object-cover"
                             />
                           ) : (
-                            <div className="w-full h-full flex flex-col items-center justify-center text-slate-400">
+                            <div className="w-full h-full flex flex-col items-center justify-center text-slate-400 bg-slate-100">
                               <Users className="w-10 h-10" />
+                              <span className="text-[9px] font-extrabold uppercase mt-1 text-slate-500">NO PHOTO</span>
                             </div>
                           )}
                         </div>
 
                         <div className="flex-1 space-y-3 w-full">
                           <div>
-                            <span className="text-[10px] font-black text-blue-700 uppercase tracking-wider">STUDENT NUMBER</span>
-                            <p className="text-lg font-black text-slate-950 uppercase">{lastScanResult.student?.studentNo || lastScanResult.student?.adminNo}</p>
+                            <span className="text-[10px] font-black text-amber-800 uppercase tracking-wider">STUDENT NUMBER</span>
+                            <p className="text-xl font-black text-slate-950 uppercase font-mono">{lastScanResult.student?.studentNo || lastScanResult.student?.adminNo}</p>
                           </div>
+
+                          <div>
+                            <span className="text-[10px] font-black text-amber-800 uppercase tracking-wider">NAME</span>
+                            <p className="text-xl font-black text-slate-950 uppercase">{lastScanResult.student?.name}</p>
+                          </div>
+
+                          <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 pt-2 border-t border-slate-100">
+                            <div>
+                              <span className="text-[9px] font-black text-amber-800 uppercase tracking-wider">CLASS</span>
+                              <p className="text-xs font-black text-slate-900 uppercase">{parseClassAndStream(lastScanResult.student?.gradeClass).className}</p>
+                            </div>
+                            <div>
+                              <span className="text-[9px] font-black text-amber-800 uppercase tracking-wider">STREAM</span>
+                              <p className="text-xs font-black text-slate-900 uppercase">{parseClassAndStream(lastScanResult.student?.gradeClass).streamName}</p>
+                            </div>
+                            <div>
+                              <span className="text-[9px] font-black text-amber-800 uppercase tracking-wider">GENDER</span>
+                              <p className="text-xs font-black text-slate-900 uppercase">{lastScanResult.student?.gender || 'FEMALE'}</p>
+                            </div>
+                            <div>
+                              <span className="text-[9px] font-black text-amber-800 uppercase tracking-wider">STATUS</span>
+                              <p className="text-xs font-black text-slate-900 uppercase">{lastScanResult.student?.boardingStatus || 'BOARDER'}</p>
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+
+                      <div className="bg-amber-50 px-6 py-4 border-t border-amber-200 flex flex-wrap justify-between items-center gap-4">
+                        <div>
+                          <span className="text-[10px] font-black text-amber-800 uppercase tracking-wider">ATTENDANCE STATUS</span>
+                          <p className="text-lg font-black text-amber-700 uppercase flex items-center gap-1.5">
+                            <AlertTriangle className="w-5 h-5" /> ALREADY CHECKED IN
+                          </p>
+                        </div>
 
                         <div>
-                          <span className="text-[10px] font-black text-blue-700 uppercase tracking-wider">NAME</span>
-                          <p className="text-lg font-black text-slate-950 uppercase">{lastScanResult.student?.name}</p>
+                          <span className="text-[10px] font-black text-amber-800 uppercase tracking-wider">ORIGINAL TIME IN</span>
+                          <p className="text-base font-black text-slate-900 font-mono">{lastScanResult.timeIn || formatCurrentTime()}</p>
                         </div>
 
-                        <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 pt-1 border-t border-slate-100">
-                          <div>
-                            <span className="text-[9px] font-black text-blue-700 uppercase tracking-wider">CLASS</span>
-                            <p className="text-xs font-black text-slate-900 uppercase">{lastScanResult.student?.gradeClass}</p>
-                          </div>
-                          <div>
-                            <span className="text-[9px] font-black text-blue-700 uppercase tracking-wider">GENDER</span>
-                            <p className="text-xs font-black text-slate-900 uppercase">{lastScanResult.student?.gender || 'MALE'}</p>
-                          </div>
-                          <div>
-                            <span className="text-[9px] font-black text-blue-700 uppercase tracking-wider">STATUS</span>
-                            <p className="text-xs font-black text-slate-900 uppercase">{lastScanResult.student?.boardingStatus || 'DAY SCHOLAR'}</p>
-                          </div>
-                          <div>
-                            <span className="text-[9px] font-black text-blue-700 uppercase tracking-wider">CARD VALIDITY</span>
-                            <p className="text-xs font-black text-emerald-700 uppercase">✔ ACTIVE / VALID</p>
-                          </div>
+                        <div>
+                          <span className="text-[10px] font-black text-amber-800 uppercase tracking-wider">DATE</span>
+                          <p className="text-xs font-bold text-slate-700 font-mono">{formatDisplayDate(lastScanResult.dateStr)}</p>
                         </div>
                       </div>
-                    </div>
-
-                    {/* Attendance Record Footer Band */}
-                    <div className="bg-amber-50 px-6 py-4 border-t border-amber-200 flex flex-wrap justify-between items-center gap-4">
-                      <div>
-                        <span className="text-[10px] font-black text-amber-800 uppercase tracking-wider">ATTENDANCE STATUS</span>
-                        <p className="text-base font-black text-amber-700 uppercase">CHECKED OUT</p>
-                      </div>
-
-                      <div>
-                        <span className="text-[10px] font-black text-amber-800 uppercase tracking-wider">TIME OUT</span>
-                        <p className="text-base font-black text-slate-900 font-mono">{lastScanResult.timeOut || formatCurrentTime()}</p>
-                      </div>
-
-                      <div>
-                        <span className="text-[10px] font-black text-amber-800 uppercase tracking-wider">DATE</span>
-                        <p className="text-xs font-bold text-slate-700 font-mono">{formatDisplayDate(lastScanResult.dateStr)}</p>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-                )}
-
-                {/* Result Card: DUPLICATE WARNING */}
-                {lastScanResult.verified && lastScanResult.status === 'DUPLICATE_WARNING' && (
-                  <div className="bg-amber-50 rounded-2xl border-2 border-amber-400 p-6 text-amber-900 flex items-center gap-4 shadow-md">
-                    <AlertTriangle className="w-10 h-10 text-amber-600 shrink-0" />
-                    <div>
-                      <h4 className="text-base font-black uppercase">DUPLICATE SCAN WARNING</h4>
-                      <p className="text-xs font-medium mt-0.5">{lastScanResult.message}</p>
                     </div>
                   </div>
                 )}
 
-                {/* Result Card: INVALID QR CODE */}
+                {/* Result Card: INVALID STUDENT / NOT FOUND */}
                 {!lastScanResult.verified && (
                   <div className="bg-white rounded-2xl border-2 border-rose-500 overflow-hidden shadow-xl p-8 flex flex-col items-center justify-center text-center">
                     <div className="w-20 h-20 bg-rose-100 rounded-full flex items-center justify-center text-rose-600 mb-4 animate-bounce">
                       <XCircle className="w-12 h-12" />
                     </div>
                     <h3 className="text-xl font-black text-rose-600 uppercase tracking-wide">
-                      INVALID QR CODE
+                      STUDENT NOT FOUND
                     </h3>
                     <p className="text-sm font-bold text-slate-700 mt-1">
-                      Student record not found.
+                      Student record not found in Master Database.
                     </p>
                     <p className="text-xs text-slate-500 max-w-sm mt-2">
-                      The scanned QR code is invalid or does not match any registered student in the database.
+                      The entered or scanned student number does not match any registered student.
                     </p>
                   </div>
                 )}
