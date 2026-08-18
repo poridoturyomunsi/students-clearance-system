@@ -4676,7 +4676,7 @@ app.get('/api/attendance/grid', async (req, res) => {
        FROM attendance_logs al
        LEFT JOIN students s ON (al.student_id = s.id OR al.student_id = s.adminNo OR al.student_id = s.verification_token)
        WHERE ${dateCondition} AND (al.time_in IS NOT NULL OR al.status IN ('Present', 'Late', 'Very Late', 'Checked Out', 'PRESENT', 'CHECKED OUT'))
-       ORDER BY al.date DESC, al.id DESC`,
+       ORDER BY al.date DESC, (CASE WHEN al.time_out IS NOT NULL OR al.status IN ('Checked Out', 'CHECKED OUT') THEN 1 ELSE 0 END) DESC, al.id DESC`,
       queryParams
     );
 

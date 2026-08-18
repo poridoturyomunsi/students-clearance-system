@@ -183,7 +183,15 @@ export const LiveAttendanceDashboard: React.FC<LiveAttendanceDashboardProps> = (
       const countedKeys = new Set<string>();
       const presentList: PresentStudentItem[] = [];
 
-      filteredLogs.forEach(log => {
+      const sortedLogs = [...filteredLogs].sort((a, b) => {
+        const aIsOut = Boolean((a as any).timeOut || (a as any).time_out || (a.status && String(a.status).toUpperCase().includes('CHECKED OUT')));
+        const bIsOut = Boolean((b as any).timeOut || (b as any).time_out || (b.status && String(b.status).toUpperCase().includes('CHECKED OUT')));
+        if (aIsOut && !bIsOut) return -1;
+        if (!aIsOut && bIsOut) return 1;
+        return 0;
+      });
+
+      sortedLogs.forEach((log: any) => {
         const st = studentMap.get(String(log.studentId)) || studentMap.get(String(log.studentNo));
         const realStudentId = st ? st.id : log.studentId;
         const uniqueKey = `${realStudentId}_${log.date}`;
@@ -198,6 +206,8 @@ export const LiveAttendanceDashboard: React.FC<LiveAttendanceDashboardProps> = (
             presMat[className].total += 1;
           }
 
+          const isCheckedOut = Boolean(log.timeOut || log.time_out || (log.status && String(log.status).toUpperCase().includes('CHECKED OUT')));
+
           presentList.push({
             id: realStudentId,
             adminNo: log.studentNo || (st ? st.adminNo : ''),
@@ -206,9 +216,9 @@ export const LiveAttendanceDashboard: React.FC<LiveAttendanceDashboardProps> = (
             className,
             streamName,
             photo: log.photoUrl || (st ? st.photo : undefined),
-            time_in: log.timeIn,
-            time_out: log.timeOut,
-            status: log.status === 'CHECKED OUT' ? 'Checked Out' : log.status === 'PRESENT' ? 'Present' : log.status,
+            time_in: log.timeIn || log.time_in,
+            time_out: log.timeOut || log.time_out,
+            status: isCheckedOut ? 'Checked Out' : (log.status === 'PRESENT' ? 'Present' : log.status),
             date: log.date
           });
         }

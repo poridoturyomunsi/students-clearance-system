@@ -355,21 +355,27 @@ export function getAttendanceStats(studentsList: Student[], dateStr: string = fo
     if (st.studentNo) studentMap.set(String(st.studentNo), st);
   });
 
-  const presentRecords = todayRecords.filter(r => r.status === 'PRESENT');
-  const checkedOutRecords = todayRecords.filter(r => r.status === 'CHECKED OUT');
+  // Count unique students for present, checked out, and inside
+  const uniqueClockedInIds = new Set<string>();
+  const uniqueCheckedOutIds = new Set<string>();
+
+  todayRecords.forEach(r => {
+    const st = studentMap.get(String(r.studentId)) || studentMap.get(String(r.studentNo));
+    const sId = st ? st.id : String(r.studentId || r.studentNo);
+    uniqueClockedInIds.add(sId);
+
+    const isOut = Boolean(r.timeOut || (r as any).time_out || (r.status && String(r.status).toUpperCase().includes('CHECKED OUT')));
+    if (isOut) {
+      uniqueCheckedOutIds.add(sId);
+    }
+  });
 
   const totalStudents = studentsList.length;
-  const currentlyInside = presentRecords.length;
-  const clockedOutCount = checkedOutRecords.length;
-  const totalClockedIn = currentlyInside + clockedOutCount;
+  const totalClockedIn = uniqueClockedInIds.size;
+  const clockedOutCount = uniqueCheckedOutIds.size;
+  const currentlyInside = Math.max(0, totalClockedIn - clockedOutCount);
   const attendanceRate = totalStudents > 0 ? ((totalClockedIn / totalStudents) * 100).toFixed(1) : '0.0';
-  
-  // Students who have not scanned in today
-  const scannedStudentIds = new Set(todayRecords.map(r => {
-    const st = studentMap.get(String(r.studentId)) || studentMap.get(String(r.studentNo));
-    return st ? st.id : (r.studentId || r.studentNo);
-  }));
-  const notArrivedCount = Math.max(0, totalStudents - scannedStudentIds.size);
+  const notArrivedCount = Math.max(0, totalStudents - totalClockedIn);
 
   // Class and Stream Breakdown Matrix
   const classes = ['S.1', 'S.2', 'S.3', 'S.4', 'S.5', 'S.6'];
