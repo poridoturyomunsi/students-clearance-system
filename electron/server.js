@@ -4206,10 +4206,10 @@ app.post('/api/attendance/scan', async (req, res) => {
     let targetDirection = direction || 'auto';
     if (targetDirection === 'auto') {
       if (existingLog && existingLog.time_in && !existingLog.time_out) {
-        // Check 30-second duplicate scan protection window
+        // Check 3-second duplicate scan protection window against accidental double-taps
         const lastScanTime = new Date(existingLog.updated_at || existingLog.created_at || Date.now()).getTime();
         const nowTimeMs = Date.now();
-        const DEBOUNCE_WINDOW_MS = 30000; // 30 seconds protection
+        const DEBOUNCE_WINDOW_MS = 3000; // 3 seconds protection against double-taps
 
         if (nowTimeMs - lastScanTime < DEBOUNCE_WINDOW_MS) {
           const welcomeMsg = `Welcome, ${studentFirstName}! 👋\nGood morning!\nYou have successfully checked in.\nHave a wonderful and productive day!`;
