@@ -639,20 +639,9 @@ function AppContent() {
     setIsTableLoading(true);
     setTableError(null);
     try {
-      const isBoard = viewMode === 'board';
+      // Always fetch all master student records from single source of truth
       const params: any = {
-        page: isBoard ? 1 : currentPage,
-        limit: isBoard ? -1 : (pageSize === -1 ? -1 : pageSize),
-        search: searchQuery,
-        level: filterLevel === 'All' ? undefined : filterLevel,
-        gradeClass: isBoard ? activeBoardClass : (filterClass === 'All' ? undefined : filterClass),
-        stream: isBoard ? undefined : (filterStream === 'All' ? undefined : filterStream),
-        gender: filterGender === 'All' ? undefined : filterGender,
-        isCleared: filterClearance === 'All' ? undefined : filterClearance,
-        boardingStatus: filterBoarding === 'All' ? undefined : filterBoarding,
-        photo: filterPhoto === 'All' ? undefined : filterPhoto,
-        printStatus: printNewOnly ? 'Not Printed' : undefined,
-        academicYear: filterAcademicYear === 'All' ? undefined : filterAcademicYear,
+        limit: -1,
         sortBy
       };
 
@@ -1338,11 +1327,8 @@ function AppContent() {
 
   const uniqueYears = ['All', '2024', '2025', '2026', '2027', '2028'];
 
-  // --- FILTERED AND SORTED STUDENTS (Optimized case-insensitive sorting) ---
+  // --- FILTERED AND SORTED STUDENTS (Master Single Source of Truth Filtering) ---
   const filteredStudents = useMemo(() => {
-    if (!dbConnectionError) {
-      return students;
-    }
     const query = searchQuery.trim().toLowerCase();
     
     // 1. Filter first
@@ -1431,8 +1417,7 @@ function AppContent() {
     filterAcademicYear,
     filterPhoto,
     sortBy,
-    printNewOnly,
-    dbConnectionError
+    printNewOnly
   ]);
 
   // --- HIGH-PERFORMANCE BOARD VIEW MEMOIZATION (1 Class + 1 Stream Layout) ---
@@ -1549,17 +1534,14 @@ function AppContent() {
   ]);
 
   const paginatedStudents = useMemo(() => {
-    if (!dbConnectionError) {
-      return students;
-    }
     if (pageSize === -1) return filteredStudents;
     const startIndex = (currentPage - 1) * pageSize;
     return filteredStudents.slice(startIndex, startIndex + pageSize);
-  }, [filteredStudents, currentPage, pageSize, dbConnectionError, students]);
+  }, [filteredStudents, currentPage, pageSize]);
 
   const effectiveTotalCount = useMemo(() => {
-    return dbConnectionError ? filteredStudents.length : totalStudentsCount;
-  }, [dbConnectionError, filteredStudents.length, totalStudentsCount]);
+    return filteredStudents.length;
+  }, [filteredStudents.length]);
 
   // Selected Student Object references
   const selectedStudentsData = useMemo(() => {
@@ -1639,21 +1621,60 @@ function AppContent() {
     return orderStreams(Array.from(set));
   }, [students]);
 
-  // --- STATS COMPUTATION ---
+  // --- DYNAMIC MASTER STATS COMPUTATION ---
   const stats = useMemo(() => {
     const selectCount = activeLevel === 'master' 
       ? selectedIds.length 
       : (activeLevel === 'selective' ? selectiveSelectedIds.length : 0);
+
+    const hasStudents = Array.isArray(students) && students.length > 0;
+
+    let total = dbStats.total || (hasStudents ? students.length : 0);
+    let lowerSecondaryTotal = dbStats.lowerSecondaryTotal || 0;
+    let upperSecondaryTotal = dbStats.upperSecondaryTotal || 0;
+    let clearedCount = dbStats.cleared || 0;
+    let balanceCount = dbStats.pending || 0;
+    let photoCount = dbStats.withPhoto || 0;
+
+    if (hasStudents && (students.length >= total || !dbStats.total)) {
+      total = students.length;
+      lowerSecondaryTotal = 0;
+      upperSecondaryTotal = 0;
+      clearedCount = 0;
+      photoCount = 0;
+
+      students.forEach(s => {
+        const parsed = parseClassAndStream(s.gradeClass);
+        if (['S.1', 'S.2', 'S.3', 'S.4'].includes(parsed.className)) {
+          lowerSecondaryTotal++;
+        } else if (['S.5', 'S.6'].includes(parsed.className)) {
+          upperSecondaryTotal++;
+        }
+        if (s.isCleared) clearedCount++;
+        if (s.hasPhoto || !!s.photo) photoCount++;
+      });
+
+      balanceCount = total - clearedCount;
+    }
+
+    const clearedPct = total > 0 ? Math.round((clearedCount / total) * 100) : 0;
+    const photoPct = total > 0 ? Math.round((photoCount / total) * 100) : 0;
+
     return {
-      ...dbStats,
-      clearedCount: dbStats.cleared || 0,
-      balanceCount: dbStats.pending || 0,
-      photoCount: dbStats.withPhoto || 0,
-      lowerSecondaryTotal: dbStats.lowerSecondaryTotal || 0,
-      upperSecondaryTotal: dbStats.upperSecondaryTotal || 0,
+      total,
+      cleared: clearedCount,
+      clearedCount,
+      pending: balanceCount,
+      balanceCount,
+      withPhoto: photoCount,
+      photoCount,
+      lowerSecondaryTotal,
+      upperSecondaryTotal,
+      clearedPct,
+      photoPct,
       selectCount
     };
-  }, [dbStats, selectedIds, selectiveSelectedIds, activeLevel]);
+  }, [dbStats, students, selectedIds, selectiveSelectedIds, activeLevel]);
 
   const isAdmin = useMemo(() => {
     return !isFirebaseConfigured() || !!adminUser;

@@ -3505,37 +3505,61 @@ app.delete('/api/students/:id', async (req, res) => {
 });
 
 // GET database-wide statistics
+async function getMasterStats() {
+  const [totalRows] = await pool.query('SELECT COUNT(*) as count FROM students');
+  const [clearedRows] = await pool.query('SELECT COUNT(*) as count FROM students WHERE isCleared = 1');
+  const [photoRows] = await pool.query('SELECT COUNT(*) as count FROM students WHERE photo IS NOT NULL AND photo != ""');
+  
+  const [lowerRows] = await pool.query("SELECT COUNT(*) as count FROM students WHERE gradeClass LIKE 'S.1%' OR gradeClass LIKE 'S.2%' OR gradeClass LIKE 'S.3%' OR gradeClass LIKE 'S.4%'");
+  const [upperRows] = await pool.query("SELECT COUNT(*) as count FROM students WHERE gradeClass LIKE 'S.5%' OR gradeClass LIKE 'S.6%'");
+
+  const [classRows] = await pool.query("SELECT gradeClass, COUNT(*) as count FROM students GROUP BY gradeClass");
+
+  const byClass = { 'S.1': 0, 'S.2': 0, 'S.3': 0, 'S.4': 0, 'S.5': 0, 'S.6': 0 };
+  const byStream = {};
+
+  classRows.forEach(r => {
+    const gc = (r.gradeClass || '').trim();
+    if (gc) {
+      byStream[gc] = r.count;
+      if (gc.startsWith('S.1')) byClass['S.1'] += r.count;
+      else if (gc.startsWith('S.2')) byClass['S.2'] += r.count;
+      else if (gc.startsWith('S.3')) byClass['S.3'] += r.count;
+      else if (gc.startsWith('S.4')) byClass['S.4'] += r.count;
+      else if (gc.startsWith('S.5')) byClass['S.5'] += r.count;
+      else if (gc.startsWith('S.6')) byClass['S.6'] += r.count;
+    }
+  });
+
+  const total = totalRows[0].count;
+  const cleared = clearedRows[0].count;
+  const withPhoto = photoRows[0].count;
+  const lowerSecondaryTotal = lowerRows[0].count;
+  const upperSecondaryTotal = upperRows[0].count;
+
+  return {
+    total,
+    cleared,
+    pending: total - cleared,
+    withPhoto,
+    noPhoto: total - withPhoto,
+    lowerSecondaryTotal,
+    upperSecondaryTotal,
+    clearedPct: total > 0 ? Math.round((cleared / total) * 100) : 0,
+    photoPct: total > 0 ? Math.round((withPhoto / total) * 100) : 0,
+    byClass,
+    byStream
+  };
+}
+
 app.get('/api/stats', async (req, res) => {
   try {
     const now = Date.now();
     if (statsCache && now < statsCacheExpiry) {
       return res.json(statsCache);
     }
-    const [totalRows] = await pool.query('SELECT COUNT(*) as count FROM students');
-    const [clearedRows] = await pool.query('SELECT COUNT(*) as count FROM students WHERE isCleared = 1');
-    const [photoRows] = await pool.query('SELECT COUNT(*) as count FROM students WHERE photo IS NOT NULL AND photo != ""');
-    
-    const [lowerRows] = await pool.query("SELECT COUNT(*) as count FROM students WHERE gradeClass LIKE 'S.1%' OR gradeClass LIKE 'S.2%' OR gradeClass LIKE 'S.3%' OR gradeClass LIKE 'S.4%'");
-    const [upperRows] = await pool.query("SELECT COUNT(*) as count FROM students WHERE gradeClass LIKE 'S.5%' OR gradeClass LIKE 'S.6%'");
-
-    const total = totalRows[0].count;
-    const cleared = clearedRows[0].count;
-    const withPhoto = photoRows[0].count;
-    const lowerSecondaryTotal = lowerRows[0].count;
-    const upperSecondaryTotal = upperRows[0].count;
-    
-    statsCache = {
-      total,
-      cleared,
-      pending: total - cleared,
-      withPhoto,
-      lowerSecondaryTotal,
-      upperSecondaryTotal,
-      clearedPct: total > 0 ? Math.round((cleared / total) * 100) : 0,
-      photoPct: total > 0 ? Math.round((withPhoto / total) * 100) : 0
-    };
-    statsCacheExpiry = now + 30000; // 30s TTL
-    
+    statsCache = await getMasterStats();
+    statsCacheExpiry = now + 10000; // 10s TTL
     res.json(statsCache);
   } catch (err) {
     res.status(500).json({ error: err.message });
@@ -3548,32 +3572,57 @@ app.get('/api/dashboard/overview', async (req, res) => {
     if (statsCache && now < statsCacheExpiry) {
       return res.json(statsCache);
     }
-    const [totalRows] = await pool.query('SELECT COUNT(*) as count FROM students');
-    const [clearedRows] = await pool.query('SELECT COUNT(*) as count FROM students WHERE isCleared = 1');
-    const [photoRows] = await pool.query('SELECT COUNT(*) as count FROM students WHERE photo IS NOT NULL AND photo != ""');
-    
-    const [lowerRows] = await pool.query("SELECT COUNT(*) as count FROM students WHERE gradeClass LIKE 'S.1%' OR gradeClass LIKE 'S.2%' OR gradeClass LIKE 'S.3%' OR gradeClass LIKE 'S.4%'");
-    const [upperRows] = await pool.query("SELECT COUNT(*) as count FROM students WHERE gradeClass LIKE 'S.5%' OR gradeClass LIKE 'S.6%'");
-
-    const total = totalRows[0].count;
-    const cleared = clearedRows[0].count;
-    const withPhoto = photoRows[0].count;
-    const lowerSecondaryTotal = lowerRows[0].count;
-    const upperSecondaryTotal = upperRows[0].count;
-    
-    statsCache = {
-      total,
-      cleared,
-      pending: total - cleared,
-      withPhoto,
-      lowerSecondaryTotal,
-      upperSecondaryTotal,
-      clearedPct: total > 0 ? Math.round((cleared / total) * 100) : 0,
-      photoPct: total > 0 ? Math.round((withPhoto / total) * 100) : 0
-    };
-    statsCacheExpiry = now + 30000; // 30s TTL
-    
+    statsCache = await getMasterStats();
+    statsCacheExpiry = now + 10000;
     res.json(statsCache);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.post('/api/students/fix-registry-consistency', async (req, res) => {
+  try {
+    const [allStudents] = await pool.query('SELECT id, gradeClass FROM students');
+    let updatedCount = 0;
+
+    for (const s of allStudents) {
+      if (!s.gradeClass) continue;
+      let raw = s.gradeClass.trim();
+      let normalized = raw;
+
+      if (raw === 'S.1' || raw === 'S1') normalized = 'S.1 A';
+      else if (raw === 'S.2' || raw === 'S2') normalized = 'S.2 A';
+      else if (raw === 'S.3' || raw === 'S3') normalized = 'S.3 A';
+      else if (raw === 'S.4' || raw === 'S4') normalized = 'S.4 A';
+      else if (raw === 'S.5' || raw === 'S5') normalized = 'S.5 Arts';
+      else if (raw === 'S.6' || raw === 'S6') normalized = 'S.6 Arts';
+      else {
+        const m = raw.match(/^(?:[sS]\.?|senior\s*|form\s*)([1-6])\s*(.*)$/i);
+        if (m) {
+          const num = m[1];
+          let rest = (m[2] || '').trim();
+          if (rest.toLowerCase() === 'arts' || rest.toLowerCase() === 'art') rest = 'Arts';
+          else if (rest.toLowerCase() === 'sciences' || rest.toLowerCase() === 'science') rest = 'Sciences';
+          else if (rest.length === 1) rest = rest.toUpperCase();
+          normalized = rest ? `S.${num} ${rest}` : `S.${num} A`;
+        }
+      }
+
+      if (normalized !== raw) {
+        await pool.query('UPDATE students SET gradeClass = ? WHERE id = ?', [normalized, s.id]);
+        updatedCount++;
+      }
+    }
+
+    statsCache = null; // Clear stats cache
+    const freshStats = await getMasterStats();
+
+    res.json({
+      success: true,
+      message: `Database consistency check complete. ${updatedCount} student records normalized.`,
+      updatedCount,
+      stats: freshStats
+    });
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
