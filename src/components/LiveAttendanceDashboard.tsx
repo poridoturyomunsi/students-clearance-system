@@ -40,6 +40,7 @@ interface PresentStudentItem {
   streamName: string;
   photo?: string;
   time_in?: string;
+  time_out?: string;
   status?: string;
   date?: string;
 }
@@ -158,7 +159,10 @@ export const LiveAttendanceDashboard: React.FC<LiveAttendanceDashboardProps> = (
 
       const studentMap = new Map<string, Student>();
       students.forEach(st => {
-        studentMap.set(st.id, st);
+        studentMap.set(String(st.id), st);
+        if (st.adminNo) studentMap.set(String(st.adminNo), st);
+        if (st.studentNo) studentMap.set(String(st.studentNo), st);
+
         const { className, streamName } = parseClassStream(st.gradeClass);
         if (regMat[className]) {
           regMat[className][streamName] += 1;
@@ -180,10 +184,12 @@ export const LiveAttendanceDashboard: React.FC<LiveAttendanceDashboardProps> = (
       const presentList: PresentStudentItem[] = [];
 
       filteredLogs.forEach(log => {
-        const uniqueKey = `${log.studentId}_${log.date}`;
+        const st = studentMap.get(String(log.studentId)) || studentMap.get(String(log.studentNo));
+        const realStudentId = st ? st.id : log.studentId;
+        const uniqueKey = `${realStudentId}_${log.date}`;
+
         if (!countedKeys.has(uniqueKey)) {
           countedKeys.add(uniqueKey);
-          const st = studentMap.get(log.studentId);
           const gradeClass = st ? st.gradeClass : log.gradeClass;
           const { className, streamName } = parseClassStream(gradeClass);
 
@@ -193,15 +199,16 @@ export const LiveAttendanceDashboard: React.FC<LiveAttendanceDashboardProps> = (
           }
 
           presentList.push({
-            id: log.studentId,
-            adminNo: log.studentNo,
-            name: log.studentName,
+            id: realStudentId,
+            adminNo: log.studentNo || (st ? st.adminNo : ''),
+            name: st ? st.name : log.studentName,
             gradeClass,
             className,
             streamName,
             photo: log.photoUrl || (st ? st.photo : undefined),
             time_in: log.timeIn,
-            status: log.status === 'PRESENT' ? 'Present' : log.status,
+            time_out: log.timeOut,
+            status: log.status === 'CHECKED OUT' ? 'Checked Out' : log.status === 'PRESENT' ? 'Present' : log.status,
             date: log.date
           });
         }

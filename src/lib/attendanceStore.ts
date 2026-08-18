@@ -348,6 +348,13 @@ export function getAttendanceStats(studentsList: Student[], dateStr: string = fo
   const allRecords = getStoredAttendance();
   const todayRecords = allRecords.filter(r => r.date === dateStr);
 
+  const studentMap = new Map<string, Student>();
+  studentsList.forEach(st => {
+    studentMap.set(String(st.id), st);
+    if (st.adminNo) studentMap.set(String(st.adminNo), st);
+    if (st.studentNo) studentMap.set(String(st.studentNo), st);
+  });
+
   const presentRecords = todayRecords.filter(r => r.status === 'PRESENT');
   const checkedOutRecords = todayRecords.filter(r => r.status === 'CHECKED OUT');
 
@@ -358,7 +365,10 @@ export function getAttendanceStats(studentsList: Student[], dateStr: string = fo
   const attendanceRate = totalStudents > 0 ? ((totalClockedIn / totalStudents) * 100).toFixed(1) : '0.0';
   
   // Students who have not scanned in today
-  const scannedStudentIds = new Set(todayRecords.map(r => r.studentId || r.studentNo));
+  const scannedStudentIds = new Set(todayRecords.map(r => {
+    const st = studentMap.get(String(r.studentId)) || studentMap.get(String(r.studentNo));
+    return st ? st.id : (r.studentId || r.studentNo);
+  }));
   const notArrivedCount = Math.max(0, totalStudents - scannedStudentIds.size);
 
   // Class and Stream Breakdown Matrix
@@ -383,7 +393,8 @@ export function getAttendanceStats(studentsList: Student[], dateStr: string = fo
       const fullClassName = `${grade} ${stKey}`.toLowerCase();
       
       const streamRecords = todayRecords.filter(r => {
-        const cls = (r.gradeClass || '').toLowerCase();
+        const st = studentMap.get(String(r.studentId)) || studentMap.get(String(r.studentNo));
+        const cls = ((st ? st.gradeClass : r.gradeClass) || '').toLowerCase();
         return cls === fullClassName || cls.startsWith(fullClassName) || (cls.includes(grade.toLowerCase()) && (cls.includes(stKey.toLowerCase()) || (stKey === 'A' && cls.includes('arts')) || (stKey === 'B' && cls.includes('sciences'))));
       });
 
