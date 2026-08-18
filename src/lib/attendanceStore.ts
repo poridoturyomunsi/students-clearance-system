@@ -34,6 +34,10 @@ export function saveAttendanceRecords(records: AttendanceRecord[]): void {
     localStorage.setItem(STORAGE_KEY, JSON.stringify(records));
     if (typeof window !== 'undefined') {
       window.dispatchEvent(new CustomEvent('attendance-updated', { detail: records }));
+      // Request permanent storage persistence from the browser engine
+      if (navigator.storage && navigator.storage.persist) {
+        navigator.storage.persist().catch(() => {});
+      }
     }
   } catch (e) {
     console.error("Failed to save attendance records:", e);
