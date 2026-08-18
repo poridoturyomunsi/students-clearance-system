@@ -188,7 +188,7 @@ export default function QRAttendanceSystem({ students, onSelectStudent }: QRAtte
         method: 'POST',
         body: JSON.stringify({
           scanValue: result.student.adminNo || result.student.studentNo || result.student.id,
-          direction: 'auto'
+          direction: scanMode === 'CHECK_OUT' ? 'clock-out' : scanMode === 'CHECK_IN' ? 'clock-in' : 'auto'
         })
       }).then(() => {
         if (typeof window !== 'undefined') {

@@ -4346,10 +4346,10 @@ app.post('/api/attendance/scan', async (req, res) => {
 
       const departureReason = req.body.departureReason || 'Normal Departure';
 
-      // Update log with Kampala time
+      // Update log with Kampala time and status = Checked Out
       await pool.query(
         `UPDATE attendance_logs 
-         SET time_out = ?, gate_out_id = ?, device_out = ?, operator_out = ?, gps_out = ?, departure_status = ?, reason_for_leaving = ?
+         SET time_out = ?, gate_out_id = ?, device_out = ?, operator_out = ?, gps_out = ?, status = 'Checked Out', departure_status = ?, reason_for_leaving = ?
          WHERE id = ?`,
         [timeNow, gateId || null, deviceId || null, operatorName || 'Gate Officer', gps || null, departureReason, departureReason, existingLog.id]
       );
