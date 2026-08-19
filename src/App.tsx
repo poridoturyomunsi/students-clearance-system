@@ -4290,573 +4290,294 @@ function AppContent() {
       )}
 
       {adminActiveTab === 'cards' && (
-        <>
-          {/* LEVEL WORKFLOW SELECTOR BAR */}
-          <div className="no-print bg-slate-900 border-b border-slate-800 shrink-0 px-4 md:px-6 py-2.5 flex flex-col sm:flex-row justify-between items-center gap-3">
-        <div className="flex bg-slate-950 p-1 rounded-xl border border-slate-800 w-full sm:w-auto">
-          <button
-            onClick={() => setActiveLevel('master')}
-            className={`flex-1 sm:flex-initial px-4 py-2 rounded-lg text-xs font-black uppercase tracking-wider flex items-center justify-center gap-2 transition-all cursor-pointer ${
-              activeLevel === 'master'
-                ? 'bg-indigo-600 text-white shadow-md'
-                : 'text-slate-400 hover:text-slate-200'
-            }`}
-          >
-            <Users className="w-4 h-4" /> Level 1: Master Database
-          </button>
-          <button
-            onClick={() => setActiveLevel('selective')}
-            className={`flex-1 sm:flex-initial px-3 py-2 rounded-lg text-xs font-black uppercase tracking-wider flex items-center justify-center gap-2 transition-all cursor-pointer ${
-              activeLevel === 'selective'
-                ? 'bg-indigo-600 text-white shadow-md'
-                : 'text-slate-400 hover:text-slate-200'
-            }`}
-          >
-            <Printer className="w-4 h-4" /> Level 2: Selective Printing Suite
-          </button>
-          <button
-            onClick={() => setActiveLevel('history')}
-            className={`flex-1 sm:flex-initial px-3 py-2 rounded-lg text-xs font-black uppercase tracking-wider flex items-center justify-center gap-2 transition-all cursor-pointer ${
-              activeLevel === 'history'
-                ? 'bg-indigo-600 text-white shadow-md'
-                : 'text-slate-400 hover:text-slate-200'
-            }`}
-          >
-            <History className="w-4 h-4" /> Level 3: History &amp; Audits
-          </button>
-          <button
-            onClick={() => {
-              setActiveLevel('class-stream');
-              setViewMode('board');
-            }}
-            className={`flex-1 sm:flex-initial px-3 py-2 rounded-lg text-xs font-black uppercase tracking-wider flex items-center justify-center gap-2 transition-all cursor-pointer ${
-              activeLevel === 'class-stream'
-                ? 'bg-indigo-600 text-white shadow-md'
-                : 'text-slate-400 hover:text-slate-200'
-            }`}
-          >
-            <SlidersHorizontal className="w-4 h-4" /> Level 4: Class Stream Clearance
-          </button>
-        </div>
-        
-        <div className="text-[10px] font-mono font-bold uppercase text-slate-400 tracking-wider bg-slate-955 px-3 py-1.5 rounded-lg border border-slate-800">
-          {activeLevel === 'master' ? (
-            <span className="text-indigo-400">● Database Administration Mode</span>
-          ) : activeLevel === 'selective' ? (
-            <span className="text-amber-400">● Bursar Interactive Print Session</span>
-          ) : activeLevel === 'history' ? (
-            <span className="text-emerald-400">● EMIS Audit and History Trails</span>
-          ) : (
-            <span className="text-violet-400">● Class &amp; Stream Clearance Workspace</span>
-          )}
-        </div>
-      </div>
-
-      {/* METRICS BENTO GRID */}
-      <section className="no-print grid grid-cols-2 lg:grid-cols-7 gap-4 p-4 md:p-6 bg-slate-950 border-b border-slate-900 shrink-0 select-none">
-        <div className="rounded-xl bg-slate-900 p-4 border border-slate-800/80 hover:border-slate-800 transition-all duration-150 shadow-sm">
-          <div className="flex justify-between items-center text-slate-400 text-xs font-bold uppercase tracking-wider font-mono">
-            <span>Roster Total</span>
-            <Users className="w-4 h-4 text-indigo-400" />
-          </div>
-          <div className="text-2xl font-black mt-2 text-slate-100">{stats.total}</div>
-          <p className="text-[10px] text-slate-500 mt-1 font-mono">Term 3 2026 Students Registered</p>
-        </div>
-
-        <div className="rounded-xl bg-slate-900 p-4 border border-slate-800/80 hover:border-slate-800 transition-all duration-150 shadow-sm">
-          <div className="flex justify-between items-center text-slate-400 text-xs font-bold uppercase tracking-wider font-mono">
-            <span>Lower Secondary</span>
-            <Users className="w-4 h-4 text-indigo-400" />
-          </div>
-          <div className="text-2xl font-black mt-2 text-slate-100">{stats.lowerSecondaryTotal}</div>
-          <p className="text-[10px] text-slate-500 mt-1 font-mono">S.1 – S.4 Students (U.C.E)</p>
-        </div>
-
-        <div className="rounded-xl bg-slate-900 p-4 border border-slate-800/80 hover:border-slate-800 transition-all duration-150 shadow-sm">
-          <div className="flex justify-between items-center text-slate-400 text-xs font-bold uppercase tracking-wider font-mono">
-            <span>Upper Secondary</span>
-            <Users className="w-4 h-4 text-violet-400" />
-          </div>
-          <div className="text-2xl font-black mt-2 text-slate-100">{stats.upperSecondaryTotal}</div>
-          <p className="text-[10px] text-slate-500 mt-1 font-mono">S.5 – S.6 Students (U.A.C.E)</p>
-        </div>
-
-        <div className="rounded-xl bg-slate-900 p-4 border border-slate-800/80 hover:border-slate-800 transition-all duration-150 shadow-sm">
-          <div className="flex justify-between items-center text-slate-400 text-xs font-bold uppercase tracking-wider font-mono">
-            <span>Cleared Students</span>
-            <CheckCircle2 className="w-4 h-4 text-emerald-400" />
-          </div>
-          <div className="text-2xl font-black mt-2 text-slate-100 flex items-baseline gap-2">
-            <span>{stats.clearedCount}</span>
-            <span className="text-xs font-bold text-emerald-400">({stats.clearedPct}%)</span>
-          </div>
-          <p className="text-[10px] text-slate-500 mt-1 font-mono">Students Cleared &amp; Validated</p>
-        </div>
-
-        <div className="rounded-xl bg-slate-900 p-4 border border-slate-800/80 hover:border-slate-800 transition-all duration-150 shadow-sm">
-          <div className="flex justify-between items-center text-slate-400 text-xs font-bold uppercase tracking-wider font-mono">
-            <span>Clearance Hold</span>
-            <AlertCircle className="w-4 h-4 text-amber-400" />
-          </div>
-          <div className="text-2xl font-black mt-2 text-slate-100 flex items-baseline gap-2">
-            <span>{stats.balanceCount}</span>
-            <span className="text-xs font-bold text-amber-400">({stats.total > 0 ? 100 - stats.clearedPct : 0}%)</span>
-          </div>
-          <p className="text-[10px] text-slate-500 mt-1 font-mono">Students Awaiting Clearance</p>
-        </div>
-
-        <div 
-          onClick={() => setFilterPhoto(prev => prev === 'WithPhoto' ? 'All' : 'WithPhoto')}
-          className={`rounded-xl p-4 border transition-all duration-150 shadow-sm cursor-pointer ${
-            filterPhoto === 'WithPhoto'
-              ? 'bg-emerald-950/20 border-emerald-500/50 shadow-emerald-950/10 shadow-inner'
-              : 'bg-slate-900 border-slate-800/80 hover:border-slate-800'
-          }`}
-          title="Click to toggle showing only students with photos"
-        >
-          <div className="flex justify-between items-center text-slate-400 text-xs font-bold uppercase tracking-wider font-mono">
-            <span>Passport Photos</span>
-            <Camera className="w-4 h-4 text-emerald-400" />
-          </div>
-          <div className="text-2xl font-black mt-2 text-slate-100 flex items-baseline gap-2">
-            <span>{stats.photoCount}</span>
-            <span className="text-xs font-bold text-emerald-400">({stats.photoPct}%)</span>
-          </div>
-          <p className="text-[10px] text-slate-500 mt-1 font-mono">Click to toggle filter</p>
-        </div>
-
-        <div className="rounded-xl bg-slate-900 p-4 border border-indigo-500/30 bg-indigo-950/20 shadow-indigo-950/10 shadow-inner">
-          <div className="flex justify-between items-center text-slate-400 text-xs font-bold uppercase tracking-wider font-mono">
-            <span>Print Queue Selected</span>
-            <Printer className="w-4 h-4 text-indigo-400 animate-pulse" />
-          </div>
-          <div className="text-2xl font-black mt-2 text-indigo-300">{stats.selectCount}</div>
-          <p className="text-[10px] text-indigo-400 mt-1 font-mono">Total Badges Queued</p>
-        </div>
-      </section>
-
-      {/* SOLE INTEGRATED DASHBOARD WORKSPACE */}
-      <div className="no-print flex-1 flex flex-col min-h-[500px]">
-        
-        {/* LEFT WORKSPACE PANEL: STUDENT TABLE & MANAGEMENT */}
-        <section className="flex-1 flex flex-col overflow-y-auto p-4 md:p-6 border-r border-slate-800 gap-4">
-          
-          {activeLevel === 'master' || activeLevel === 'class-stream' ? (
-            <>
-              {/* BULK EXCEL PASTE CONTAINER (COLLAPSIBLE) */}
-          {showBulkImporter && (
-            <div className="bg-slate-950 border border-slate-800 rounded-xl p-4 flex flex-col gap-3">
-              <div className="flex justify-between items-center border-b border-slate-800 pb-2">
-                <h3 className="text-xs font-black uppercase tracking-wider text-slate-200">Roster Copy-Paste Importer</h3>
-                <span className="text-[10px] text-indigo-400 font-mono">Comma (*,*), Tab, or Pipe (*|*) delimiter</span>
-              </div>
-              <p className="text-[10px] text-slate-400 leading-relaxed">
-                Paste names and grade forms directly from Excel. <span className="text-slate-200 font-semibold font-mono">One student per line</span>. Format optionally: <span className="text-indigo-400 font-mono">Name, Class/Grade, AdminID, Dorm/Day</span>.
-              </p>
-              <textarea
-                value={bulkInput}
-                onChange={(e) => setBulkInput(e.target.value)}
-                placeholder="Examples:&#10;Kofi Mensah, S.1 A, ADM-101, Boarder&#10;Winfred Banda, S.5 Sciences, ADM-102, Day Scholar"
-                className="w-full h-28 bg-slate-900 border border-slate-800 rounded-lg p-3 text-xs font-mono text-slate-300 focus:outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 placeholder:text-slate-600"
+        <div className="no-print flex flex-col lg:flex-row flex-1 min-h-[500px]">
+          <div className="flex-1 p-4 md:p-8 space-y-6 overflow-y-auto border-r border-[#26374B]">
+            {/* TOP SEARCH BAR & ACADEMIC YEAR */}
+          <div className="flex items-center justify-between gap-4 no-print flex-wrap">
+            <div className="flex-1 max-w-[460px] bg-[#121C29] border border-[#26374B] rounded-xl px-3.5 py-2.5 flex items-center gap-2.5 text-[#6C7A90] text-xs">
+              <Search className="w-4 h-4 shrink-0 text-[#9BAAC0]" />
+              <input 
+                type="text"
+                value={searchInputValue}
+                onChange={(e) => setSearchInputValue(e.target.value)}
+                placeholder="Search students, admission no, form class…"
+                className="w-full bg-transparent text-[#EDEFF2] placeholder:text-[#6C7A90] focus:outline-none text-xs"
               />
-              {bulkImportError && (
-                <div className="flex items-center gap-1.5 text-xs text-rose-400 bg-rose-950/20 p-2.5 rounded-lg border border-rose-900/40">
-                  <AlertCircle className="w-4 h-4 shrink-0" />
-                  <span>{bulkImportError}</span>
-                </div>
-              )}
-              <div className="flex gap-2 self-end">
-                <button
-                  onClick={() => setShowBulkImporter(false)}
-                  className="px-3 py-1.5 bg-slate-800 text-slate-400 rounded-md text-xs font-bold uppercase tracking-wider border border-slate-700 hover:bg-slate-700 hover:text-slate-200 transition-colors cursor-pointer"
-                >
-                  Cancel
-                </button>
-                <button
-                  onClick={handleBulkImport}
-                  className="px-4 py-1.5 bg-indigo-600 text-white rounded-md text-xs font-bold uppercase tracking-wider border border-indigo-500 hover:bg-indigo-500 transition-colors shadow-sm cursor-pointer"
-                >
-                  Parse and Save
-                </button>
+            </div>
+            <div className="flex items-center gap-3">
+              <div className="text-xs text-[#9BAAC0] border border-[#26374B] px-3.5 py-2 rounded-full flex items-center gap-2 font-mono">
+                <span>📘 Term 3</span> <b className="text-[#E6C866] font-semibold">2026</b>
+              </div>
+              <div className="w-9 h-9 rounded-full bg-[#2F7A5C] text-[#EDEFF2] flex items-center justify-center font-bold text-xs shadow-sm">
+                SA
               </div>
             </div>
-          )}
+          </div>
 
-          {/* BULK ACTIONS / QUEUING AND QUICK-SELECT WIDGETS */}
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            
-            {/* bursars requested "print a certain number of students" */}
-            <div className="bg-slate-950 border border-slate-800/80 rounded-xl p-4 flex flex-col justify-between gap-3">
+          {/* TOP NAVIGATION TABS */}
+          <div className="flex gap-2 border-b border-[#26374B] pb-3.5 no-print overflow-x-auto">
+            <button 
+              onClick={() => setActiveModule('clearance')} 
+              className={`px-4 py-2 rounded-lg text-xs font-medium transition-all flex items-center shrink-0 cursor-pointer ${
+                activeModule === 'clearance' ? 'bg-[#1B2839] text-[#EDEFF2] border border-[#26374B]' : 'text-[#9BAAC0] hover:text-[#EDEFF2]'
+              }`}
+            >
+              {activeModule === 'clearance' && <span className="text-[#C9A227] mr-2">●</span>}
+              Clearance Workspace
+            </button>
+            <button 
+              onClick={() => setActiveModule('staff')} 
+              className={`px-4 py-2 rounded-lg text-xs font-medium transition-all shrink-0 cursor-pointer ${
+                activeModule === 'staff' ? 'bg-[#1B2839] text-[#EDEFF2] border border-[#26374B]' : 'text-[#9BAAC0] hover:text-[#EDEFF2]'
+              }`}
+            >
+              School &amp; Staff (EMIS)
+            </button>
+            <button 
+              onClick={() => setActiveModule('attendance')} 
+              className={`px-4 py-2 rounded-lg text-xs font-medium transition-all shrink-0 cursor-pointer ${
+                activeModule === 'attendance' ? 'bg-[#1B2839] text-[#EDEFF2] border border-[#26374B]' : 'text-[#9BAAC0] hover:text-[#EDEFF2]'
+              }`}
+            >
+              Gate Attendance
+            </button>
+            <button 
+              onClick={() => setActiveModule('settings')} 
+              className={`px-4 py-2 rounded-lg text-xs font-medium transition-all shrink-0 cursor-pointer ${
+                activeModule === 'settings' ? 'bg-[#1B2839] text-[#EDEFF2] border border-[#26374B]' : 'text-[#9BAAC0] hover:text-[#EDEFF2]'
+              }`}
+            >
+              Profile &amp; Settings
+            </button>
+            <button 
+              onClick={() => setActiveModule('ai')} 
+              className={`px-4 py-2 rounded-lg text-xs font-medium transition-all shrink-0 cursor-pointer ${
+                activeModule === 'ai' ? 'bg-[#1B2839] text-[#EDEFF2] border border-[#26374B]' : 'text-[#9BAAC0] hover:text-[#EDEFF2]'
+              }`}
+            >
+              AI Assistant
+            </button>
+          </div>
+
+          {/* PAGE TITLE & SUBTITLE */}
+          <div className="no-print">
+            <h1 className="font-serif font-semibold text-2xl md:text-3xl text-[#EDEFF2] tracking-tight">Printing &amp; Clearance</h1>
+            <p className="text-xs text-[#6C7A90] mt-1">Review, certify, and queue student ID badges for Term 3 2026.</p>
+          </div>
+
+          {/* SUBLEVEL PILLS */}
+          <div className="flex gap-2 no-print overflow-x-auto pb-1">
+            <button 
+              onClick={() => setActiveLevel('master')} 
+              className={`px-3.5 py-2 rounded-lg text-xs transition-all shrink-0 cursor-pointer ${
+                activeLevel === 'master' ? 'bg-[#2F7A5C] border border-[#2F7A5C] text-white font-semibold shadow-sm' : 'border border-[#26374B] text-[#9BAAC0] hover:bg-[#152030] hover:text-[#EDEFF2]'
+              }`}
+            >
+              Level 1 · Master Database
+            </button>
+            <button 
+              onClick={() => setActiveLevel('selective')} 
+              className={`px-3.5 py-2 rounded-lg text-xs transition-all shrink-0 cursor-pointer ${
+                activeLevel === 'selective' ? 'bg-[#2F7A5C] border border-[#2F7A5C] text-white font-semibold shadow-sm' : 'border border-[#26374B] text-[#9BAAC0] hover:bg-[#152030] hover:text-[#EDEFF2]'
+              }`}
+            >
+              Level 2 · Selective Printing
+            </button>
+            <button 
+              onClick={() => setActiveLevel('history')} 
+              className={`px-3.5 py-2 rounded-lg text-xs transition-all shrink-0 cursor-pointer ${
+                activeLevel === 'history' ? 'bg-[#2F7A5C] border border-[#2F7A5C] text-white font-semibold shadow-sm' : 'border border-[#26374B] text-[#9BAAC0] hover:bg-[#152030] hover:text-[#EDEFF2]'
+              }`}
+            >
+              Level 3 · History &amp; Audits
+            </button>
+            <button 
+              onClick={() => { setActiveLevel('class-stream'); setViewMode('board'); }} 
+              className={`px-3.5 py-2 rounded-lg text-xs transition-all shrink-0 cursor-pointer ${
+                activeLevel === 'class-stream' ? 'bg-[#2F7A5C] border border-[#2F7A5C] text-white font-semibold shadow-sm' : 'border border-[#26374B] text-[#9BAAC0] hover:bg-[#152030] hover:text-[#EDEFF2]'
+              }`}
+            >
+              Level 4 · Class Clearance
+            </button>
+          </div>
+
+          {/* STAT CARDS (4 COLUMNS) */}
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3.5 no-print">
+            <div className="bg-[#152030] border border-[#26374B] rounded-2xl p-5 relative overflow-hidden">
+              <div className="text-[11px] uppercase tracking-wider font-mono text-[#6C7A90] mb-2 font-medium">Roster Total</div>
+              <div className="font-serif text-3xl font-semibold text-[#EDEFF2]">{stats.total.toLocaleString()}</div>
+              <div className="text-xs text-[#6C7A90] mt-1.5 font-mono">Registered this term</div>
+            </div>
+
+            <div className="bg-[#152030] border border-[#26374B] rounded-2xl p-5 relative overflow-hidden">
+              <div className="text-[11px] uppercase tracking-wider font-mono text-[#6C7A90] mb-2 font-medium">Lower Secondary</div>
+              <div className="font-serif text-3xl font-semibold text-[#EDEFF2]">{stats.lowerSecondaryTotal.toLocaleString()}</div>
+              <div className="text-xs text-[#6C7A90] mt-1.5 font-mono">S.1 – S.4</div>
+            </div>
+
+            <div className="bg-[#152030] border border-[rgba(78,169,128,0.4)] bg-gradient-to-br from-[rgba(47,122,92,0.14)] to-[#152030] rounded-2xl p-5 relative overflow-hidden">
+              <div className="absolute top-4 right-4 w-7 h-7 rounded-full border border-dashed border-[rgba(201,162,39,0.5)] flex items-center justify-center text-[10px] text-[#E6C866] font-mono">
+                ✓
+              </div>
+              <div className="text-[11px] uppercase tracking-wider font-mono text-[#6C7A90] mb-2 font-medium">Cleared</div>
+              <div className="font-serif text-3xl font-semibold text-[#4EA980]">{stats.clearedCount.toLocaleString()}</div>
+              <div className="text-xs text-[#6C7A90] mt-1.5 font-mono">{stats.clearedPct}% validated</div>
+            </div>
+
+            <div className="bg-[#152030] border border-[rgba(201,87,63,0.35)] rounded-2xl p-5 relative overflow-hidden">
+              <div className="text-[11px] uppercase tracking-wider font-mono text-[#6C7A90] mb-2 font-medium">On Hold</div>
+              <div className="font-serif text-3xl font-semibold text-[#C9573F]">{stats.balanceCount.toLocaleString()}</div>
+              <div className="text-xs text-[#6C7A90] mt-1.5 font-mono">Awaiting clearance</div>
+            </div>
+          </div>
+
+          {/* TWO-PANEL CONTROL ROW */}
+          <div className="grid grid-cols-1 lg:grid-cols-[1.3fr_1fr] gap-4 no-print">
+            {/* Panel 1: Queue for Printing */}
+            <div className="bg-[#152030] border border-[#26374B] rounded-2xl p-5.5 flex flex-col justify-between space-y-4">
               <div>
-                <h4 className="text-xs font-black uppercase tracking-wider text-indigo-400 flex items-center gap-1.5">
-                  <Printer className="w-3.5 h-3.5" /> Bursar's Print Queuer
-                </h4>
-                <p className="text-[10px] text-slate-400 leading-relaxed mt-1">
-                  Queue a sequence of students instantly, then choose an option to download or print high fidelity badges.
-                </p>
+                <h3 className="font-serif font-semibold text-base text-[#EDEFF2] mb-1">Queue for printing</h3>
+                <p className="text-xs text-[#6C7A90] leading-relaxed">Set how many badges to queue, then send them to the bursar's print run.</p>
               </div>
 
               {queueSuccessMessage && (
-                <div className="text-[10px] leading-snug bg-emerald-950/70 border border-emerald-800/80 text-emerald-300 p-2 rounded-lg flex items-center gap-1.5 font-semibold animate-pulse">
-                  <Check className="w-3.5 h-3.5 text-emerald-400 shrink-0" />
+                <div className="text-xs bg-[#2F7A5C]/20 border border-[#2F7A5C]/40 text-[#4EA980] p-2.5 rounded-lg flex items-center gap-2 font-medium animate-pulse">
+                  <Check className="w-4 h-4 text-[#4EA980] shrink-0" />
                   <span>{queueSuccessMessage}</span>
                 </div>
               )}
 
-              <div className="flex items-center gap-2">
-                <div className="flex-1 flex bg-slate-900 border border-slate-800 rounded-lg items-center px-2.5 py-1.5">
-                  <label className="text-[10px] text-slate-500 font-bold uppercase mr-2 font-mono">Count:</label>
-                  <input
+              <div className="space-y-3">
+                <div className="flex items-center gap-2.5">
+                  <input 
                     type="number"
                     min={1}
-                    max={filteredStudents.length}
+                    max={filteredStudents.length || 50}
                     value={queueCountInput}
-                    onKeyDown={(e) => {
-                      if (e.key === 'Enter') {
-                        e.preventDefault();
-                        handleSelectFirstN(queueCountInput);
-                      }
-                    }}
                     onChange={(e) => setQueueCountInput(Math.max(1, parseInt(e.target.value) || 1))}
-                    className="w-full bg-transparent text-slate-100 placeholder:text-slate-700 text-xs font-black border-none focus:outline-none focus:ring-0 pr-1 select-all"
+                    className="w-24 bg-[#121C29] border border-[#26374B] text-[#EDEFF2] rounded-lg px-3 py-2.5 text-xs font-mono focus:outline-none"
                   />
+                  <button 
+                    onClick={() => handleSelectFirstN(queueCountInput)}
+                    className="px-4 py-2.5 rounded-lg text-xs font-semibold text-[#0D1520] bg-gradient-to-b from-[#E6C866] to-[#C9A227] hover:brightness-110 transition-all cursor-pointer shadow-sm"
+                  >
+                    Queue selected
+                  </button>
                 </div>
-                <button
-                  onClick={() => handleSelectFirstN(queueCountInput)}
-                  className="px-4 py-2 bg-indigo-600 hover:bg-indigo-500 text-white border border-indigo-500 font-bold text-xs uppercase tracking-wider rounded-lg transition-all duration-150 shrink-0 shadow-sm cursor-pointer"
-                  title="Select N students in table to queue them for printing"
-                >
-                  Queue Selected
-                </button>
-              </div>
 
-              {/* Select All by Stream Selector */}
-              <div className="border-t border-slate-900/60 pt-2.5 mt-1 space-y-2">
-                <div className="flex justify-between items-center text-[9px] text-slate-500 uppercase font-mono font-bold tracking-wider">
-                  <span>Select / Queue All by Stream:</span>
-                </div>
-                <div className="flex items-center gap-2">
-                  <div className="flex-1 flex bg-slate-900 border border-slate-800 rounded-lg items-center px-2 py-1.5">
-                    <SlidersHorizontal className="w-3.5 h-3.5 text-slate-500 shrink-0 mr-1.5" />
-                    <select
-                      value={selectedStreamForQueue}
-                      onChange={(e) => setSelectedStreamForQueue(e.target.value)}
-                      className="bg-transparent text-slate-300 text-[10px] w-full font-bold border-none focus:outline-none focus:ring-0 uppercase tracking-widest cursor-pointer"
-                    >
-                      {dynamicStreamOptions.map((stream) => (
-                        <option className="bg-slate-950 text-slate-200" key={stream} value={stream}>
-                          STREAM {stream.toUpperCase()}
-                        </option>
-                      ))}
-                    </select>
-                  </div>
-                  <button
+                <div className="flex items-center gap-2.5">
+                  <select 
+                    value={selectedStreamForQueue}
+                    onChange={(e) => setSelectedStreamForQueue(e.target.value)}
+                    className="flex-1 bg-[#121C29] border border-[#26374B] text-[#EDEFF2] rounded-lg px-3 py-2.5 text-xs font-mono focus:outline-none uppercase"
+                  >
+                    {dynamicStreamOptions.map(st => (
+                      <option key={st} value={st} className="bg-[#121C29] text-[#EDEFF2]">STREAM {st.toUpperCase()}</option>
+                    ))}
+                  </select>
+                  <button 
                     onClick={() => {
                       const streamStudents = Array.isArray(students) ? students.filter(s => {
                         const parts = (s.gradeClass || '').trim().split(/\s+/);
                         const stream = parts.slice(1).join(' ') || 'A';
                         return stream.trim().toLowerCase() === selectedStreamForQueue.trim().toLowerCase();
                       }) : [];
-                      const streamIds = Array.isArray(streamStudents) ? streamStudents.map(s => s.id) : [];
+                      const streamIds = streamStudents.map(s => s.id);
                       if (streamIds.length > 0) {
-                        setSelectedIds(prev => {
-                          const otherIds = prev.filter(id => !streamIds.includes(id));
-                          return [...otherIds, ...streamIds];
-                        });
+                        setSelectedIds(prev => [...prev.filter(id => !streamIds.includes(id)), ...streamIds]);
                         setQueueSuccessMessage(`Queued all ${streamStudents.length} students in Stream ${selectedStreamForQueue.toUpperCase()}!`);
-                        setTimeout(() => setQueueSuccessMessage(null), 4000);
-                      } else {
-                        setQueueSuccessMessage(`No students found for Stream ${selectedStreamForQueue.toUpperCase()}`);
                         setTimeout(() => setQueueSuccessMessage(null), 4000);
                       }
                     }}
-                    className="px-3 py-2 bg-indigo-600 hover:bg-indigo-500 text-white border border-indigo-500 font-bold text-xs uppercase tracking-wider rounded-lg transition-all duration-150 shrink-0 shadow-sm cursor-pointer"
-                    title="Queue all students of this stream"
+                    className="px-4 py-2.5 rounded-lg text-xs font-semibold text-[#9BAAC0] bg-transparent border border-[#26374B] hover:text-[#EDEFF2] hover:bg-[#1B2839] transition-all cursor-pointer"
                   >
-                    Select Stream
+                    Queue by stream
                   </button>
                 </div>
               </div>
-
-              {selectedIds.length > 0 ? (
-                <div className="border-t border-slate-900 pt-2.5 mt-1 space-y-2">
-                  <div className="flex justify-between items-center text-[9px] text-slate-500 uppercase font-mono font-bold tracking-wider">
-                    <span>Selection Actions:</span>
-                    <span className="text-indigo-400 font-extrabold">{selectedIds.length} Student{selectedIds.length > 1 ? 's' : ''} Selected</span>
-                  </div>
-                  <div className="grid grid-cols-2 gap-2">
-                    <button
-                      onClick={handleDeleteSelected}
-                      className="flex items-center justify-center gap-1.5 p-2.5 bg-rose-955/40 hover:bg-rose-900/35 text-rose-350 hover:text-rose-200 font-extrabold text-[9.5px] uppercase tracking-wider rounded-lg border border-rose-900/40 transition-all duration-150 shadow-sm cursor-pointer"
-                      title="Delete Selected Students"
-                    >
-                      <Trash2 className="w-3.5 h-3.5 text-rose-455" />
-                      <span>Delete Selected</span>
-                    </button>
-                    <button
-                      onClick={handleTriggerWebPrint}
-                      className="flex items-center justify-center gap-1.5 p-2.5 bg-slate-800 hover:bg-slate-700 text-slate-200 font-extrabold text-[9.5px] uppercase tracking-wider rounded-lg border border-slate-700 transition-all duration-150 shadow-sm cursor-pointer"
-                      title="Print Selected Badges"
-                    >
-                      <Printer className="w-3.5 h-3.5 text-indigo-400" />
-                      <span>Print Selected</span>
-                    </button>
-                  </div>
-                  <div className="grid grid-cols-3 gap-2">
-                    <button
-                      type="button"
-                      onClick={() => {
-                        const targets = activeLevel === 'master' 
-                          ? students.filter((s) => selectedIds.includes(s.id))
-                          : students.filter((s) => selectiveSelectedIds.includes(s.id));
-                        handleTriggerPdfExport(targets);
-                      }}
-                      className="flex flex-col items-center justify-center gap-1 py-2 bg-indigo-650 hover:bg-indigo-550 text-white font-extrabold text-[9px] uppercase tracking-wider rounded-lg border border-indigo-500 transition-all duration-150 shadow-sm cursor-pointer"
-                      title="Download PDF Student Cards"
-                    >
-                      <Download className="w-3.5 h-3.5" />
-                      <span>Download PDF</span>
-                    </button>
-                    <button
-                      type="button"
-                      onClick={handleExportCsvDirect}
-                      className="flex flex-col items-center justify-center gap-1 py-2 bg-emerald-700 hover:bg-emerald-600 text-white font-extrabold text-[9px] uppercase tracking-wider rounded-lg border border-emerald-650 transition-all duration-150 shadow-sm cursor-pointer"
-                      title="Export Selected to CSV"
-                    >
-                      <FileSpreadsheet className="w-3.5 h-3.5" />
-                      <span>Export CSV</span>
-                    </button>
-                    <button
-                      type="button"
-                      onClick={handleExportExcelDirect}
-                      className="flex flex-col items-center justify-center gap-1 py-2 bg-teal-700 hover:bg-teal-600 text-white font-extrabold text-[9px] uppercase tracking-wider rounded-lg border border-teal-650 transition-all duration-150 shadow-sm cursor-pointer"
-                      title="Export Selected to Excel"
-                    >
-                      <FileSpreadsheet className="w-3.5 h-3.5" />
-                      <span>Export Excel</span>
-                    </button>
-                  </div>
-                  {/* Export Success/Error Banner in Sidebar */}
-                  {exportSuccessMessage && (
-                    <div className="text-[10px] leading-snug bg-emerald-950/70 border border-emerald-800/80 text-emerald-300 p-2.5 rounded-lg flex flex-col gap-1.5 font-semibold">
-                      <div className="flex items-center gap-1.5 animate-pulse">
-                        <Check className="w-3.5 h-3.5 text-emerald-400 shrink-0" />
-                        <span>{exportSuccessMessage}</span>
-                      </div>
-                      {exportedStudentsCount !== null && (
-                        <div className="flex gap-1.5 mt-1">
-                          <button
-                            type="button"
-                            onClick={handleDownloadCsvOnly}
-                            className="flex-1 flex items-center justify-center gap-1 py-1 bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-[9px] uppercase tracking-wider rounded-md transition-all cursor-pointer"
-                          >
-                            <Download className="w-3 h-3" /> Download CSV
-                          </button>
-                          <button
-                            type="button"
-                            onClick={handleDownloadExcelOnly}
-                            className="flex-1 flex items-center justify-center gap-1 py-1 bg-emerald-650 hover:bg-emerald-555 text-white font-bold text-[9px] uppercase tracking-wider rounded-md transition-all cursor-pointer"
-                          >
-                            <FileSpreadsheet className="w-3 h-3" /> Download Excel
-                          </button>
-                        </div>
-                      )}
-                    </div>
-                  )}
-                  {exportErrorMessage && (
-                    <div className="text-[10px] bg-rose-955/70 border border-rose-900/40 text-rose-350 p-2.5 rounded-lg flex items-center gap-1.5 font-semibold">
-                      <AlertCircle className="w-3.5 h-3.5 text-rose-455 shrink-0" />
-                      <span>{exportErrorMessage}</span>
-                    </div>
-                  )}
-                  {isExporting && (
-                    <div className="text-[10px] bg-indigo-950/40 border border-indigo-900/30 text-indigo-300 p-2.5 rounded-lg flex items-center gap-2 font-mono font-bold animate-pulse">
-                      <RefreshCw className="w-3.5 h-3.5 text-indigo-400 animate-spin shrink-0" />
-                      <span>EXPORTING SELECTED TO FILES...</span>
-                    </div>
-                  )}
-                </div>
-              ) : (
-                <div className="text-[9.5px] text-slate-500 italic flex items-center gap-1">
-                  <Info className="w-3 h-3 text-slate-600 shrink-0" />
-                  <span>Enter student count, click 'Queue Selected', or select students to enable actions!</span>
-                </div>
-              )}
+              <div className="text-[11px] text-[#6C7A90] font-mono">Tip: select students below, or queue an entire stream at once.</div>
             </div>
 
-            {/* BATCH STATUS MODIFIER CODES */}
-            <div className="bg-slate-950 border border-slate-800/80 rounded-xl p-4 flex flex-col justify-between gap-3">
+            {/* Panel 2: Bulk Status */}
+            <div className="bg-[#152030] border border-[#26374B] rounded-2xl p-5.5 flex flex-col justify-between space-y-4">
               <div>
-                <h4 className="text-xs font-black uppercase tracking-wider text-slate-200 flex items-center gap-1.5">
-                  <ArrowRightLeft className="w-3.5 h-3.5" /> Bulk Status Action
-                </h4>
-                <p className="text-[10px] text-slate-400 leading-relaxed mt-1">
-                  Clear checked students, place them on hold, or reset their print status to reprint.
-                </p>
+                <h3 className="font-serif font-semibold text-base text-[#EDEFF2] mb-1">Bulk status</h3>
+                <p className="text-xs text-[#6C7A90] leading-relaxed">Apply to every checked student.</p>
               </div>
 
               <div className="grid grid-cols-3 gap-2">
-                <button
+                <button 
                   onClick={() => handleBulkUpdate(true)}
                   disabled={selectedIds.length === 0}
-                  className="w-full bg-emerald-950 hover:bg-emerald-900 border border-emerald-800/50 py-2 text-[9px] font-black tracking-wider text-emerald-300 uppercase rounded-lg transition-all disabled:opacity-30 cursor-pointer text-center"
+                  className="py-3 rounded-lg text-xs font-semibold border border-[#26374B] bg-[#121C29] text-[#4EA980] hover:bg-[#1B2839] transition-all disabled:opacity-40 cursor-pointer"
                 >
-                  ✔ Clear
+                  ✓ Clear
                 </button>
-                <button
+                <button 
                   onClick={() => handleBulkUpdate(false)}
                   disabled={selectedIds.length === 0}
-                  className="w-full bg-rose-950 hover:bg-rose-900 border border-rose-800/50 py-2 text-[9px] font-black tracking-wider text-rose-300 uppercase rounded-lg transition-all disabled:opacity-30 cursor-pointer text-center"
+                  className="py-3 rounded-lg text-xs font-semibold border border-[#26374B] bg-[#121C29] text-[#C9573F] hover:bg-[#1B2839] transition-all disabled:opacity-40 cursor-pointer"
                 >
-                  ✖ Hold
+                  ✕ Hold
                 </button>
-                <button
+                <button 
                   onClick={handleReprintSelected}
                   disabled={selectedIds.length === 0}
-                  className="w-full bg-indigo-955 hover:bg-indigo-900 border border-indigo-800/50 py-2 text-[9px] font-black tracking-wider text-indigo-300 uppercase rounded-lg transition-all disabled:opacity-30 cursor-pointer text-center"
-                  title="Reset status of selected students to Not Printed"
+                  className="py-3 rounded-lg text-xs font-semibold border border-[#26374B] bg-[#121C29] text-[#9BAAC0] hover:bg-[#1B2839] transition-all disabled:opacity-40 cursor-pointer"
                 >
-                  ⟳ Reprint
+                  ↻ Reprint
                 </button>
               </div>
             </div>
-
           </div>
 
-          {/* ACTIVE REGISTRY CONTROL: ADVANCED FILTERS */}
-          <div className="bg-slate-950 border border-slate-800 rounded-xl p-4 flex flex-col gap-3">
-            <div className="flex flex-col md:flex-row gap-3">
-              {/* Search Bar */}
-              <div className="relative flex-1">
-                <div className="flex bg-slate-900 border border-slate-850 rounded-lg items-center px-3 py-1.5">
-                  <Search className="w-4 h-4 text-slate-500 shrink-0 mr-2" />
-                  <input
-                    type="text"
-                    value={searchInputValue}
-                    onChange={(e) => setSearchInputValue(e.target.value)}
-                    placeholder="Search students by Name, ADM ID, or Form Class..."
-                    className="w-full bg-transparent text-slate-100 placeholder:text-slate-600 text-xs border-none focus:outline-none focus:ring-0"
-                  />
-                </div>
-                {searchInputValue && (
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setSearchInputValue('');
-                      setSearchQuery('');
-                      setCurrentPage(1);
-                    }}
-                    className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-500 hover:text-slate-300 focus:outline-none"
-                    aria-label="Clear search"
-                  >
-                    <X className="w-3.5 h-3.5" />
-                  </button>
-                )}
-              </div>
-
-              {/* Class Filter */}
-              <div className="flex bg-slate-900 border border-slate-850 rounded-lg items-center px-2 py-1.5">
-                <SlidersHorizontal className="w-3.5 h-3.5 text-slate-500 shrink-0 mr-1.5" />
-                <select
-                  value={filterClass}
-                  onChange={(e) => setFilterClass(e.target.value)}
-                  className="bg-transparent text-slate-300 text-[10px] font-bold border-none focus:outline-none focus:ring-0 uppercase tracking-widest cursor-pointer"
-                >
-                  <option value="All">FORM / CLASS: ALL</option>
-                  {uniqueClasses.filter(c => c !== 'All').map((c) => (
-                    <option key={c} value={c}>{c.toUpperCase()}</option>
-                  ))}
-                </select>
-              </div>
+          {/* FILTER BAR */}
+          <div className="bg-[#152030] border border-[#26374B] rounded-2xl p-4.5 no-print space-y-3">
+            <div className="flex gap-2.5">
+              <input 
+                type="text"
+                value={searchInputValue}
+                onChange={(e) => setSearchInputValue(e.target.value)}
+                placeholder="Search by name, admission ID, or class…"
+                className="flex-1 bg-[#121C29] border border-[#26374B] rounded-lg px-3.5 py-2.5 text-xs text-[#EDEFF2] placeholder:text-[#6C7A90] focus:outline-none"
+              />
             </div>
-
-            {/* Micro Filter Chips row */}
-            <div className="flex flex-wrap gap-2 items-center text-xs">
-              <span className="text-[10px] text-slate-500 font-bold uppercase tracking-wider font-mono">Filters:</span>
-              
-              <select
-                value={filterClearance}
-                onChange={(e) => setFilterClearance(e.target.value)}
-                className="bg-slate-900 border border-slate-850 py-1 px-2 text-[10px] text-slate-400 font-medium rounded-md focus:outline-none uppercase cursor-pointer"
-              >
-                <option value="All">CLEARANCE: ALL</option>
-                <option value="Cleared">CLEARED ONLY</option>
-                <option value="Hold">ON HOLD</option>
+            <div className="flex gap-2 flex-wrap text-xs">
+              <select value={filterClearance} onChange={(e) => setFilterClearance(e.target.value)} className="bg-[#121C29] border border-[#26374B] text-[#9BAAC0] text-[11.5px] px-3 py-1.5 rounded-full font-mono focus:outline-none cursor-pointer">
+                <option value="All">Clearance: All</option>
+                <option value="Cleared">Cleared Only</option>
+                <option value="Hold">On Hold</option>
               </select>
 
-              <select
-                value={filterStream}
-                onChange={(e) => setFilterStream(e.target.value)}
-                className="bg-slate-900 border border-slate-850 py-1 px-2 text-[10px] text-slate-400 font-medium rounded-md focus:outline-none uppercase cursor-pointer"
-              >
-                <option value="All">STREAM: ALL</option>
-                {uniqueStreams.filter(s => s !== 'All').map((s) => (
-                  <option key={s} value={s}>{s.toUpperCase()}</option>
-                ))}
+              <select value={filterStream} onChange={(e) => setFilterStream(e.target.value)} className="bg-[#121C29] border border-[#26374B] text-[#9BAAC0] text-[11.5px] px-3 py-1.5 rounded-full font-mono focus:outline-none cursor-pointer">
+                <option value="All">Stream: All</option>
+                {uniqueStreams.filter(s => s !== 'All').map(s => <option key={s} value={s}>Stream: {s}</option>)}
               </select>
 
-              <select
-                value={filterGender}
-                onChange={(e) => setFilterGender(e.target.value)}
-                className="bg-slate-900 border border-slate-850 py-1 px-2 text-[10px] text-slate-400 font-medium rounded-md focus:outline-none uppercase cursor-pointer"
-              >
-                <option value="All">GENDER: ALL</option>
-                <option value="Male">MALE</option>
-                <option value="Female">FEMALE</option>
+              <select value={filterGender} onChange={(e) => setFilterGender(e.target.value)} className="bg-[#121C29] border border-[#26374B] text-[#9BAAC0] text-[11.5px] px-3 py-1.5 rounded-full font-mono focus:outline-none cursor-pointer">
+                <option value="Gender: All">Gender: All</option>
+                <option value="Male">Male</option>
+                <option value="Female">Female</option>
               </select>
 
-              <select
-                value={filterBoarding}
-                onChange={(e) => setFilterBoarding(e.target.value)}
-                className="bg-slate-900 border border-slate-850 py-1 px-2 text-[10px] text-slate-400 font-medium rounded-md focus:outline-none uppercase cursor-pointer"
-              >
-                <option value="All">Boarding Status: All Students</option>
-                <option value="Hosteller">Hostellers</option>
-                <option value="Day Scholar">Day Scholars</option>
+              <select value={filterPhoto} onChange={(e) => setFilterPhoto(e.target.value)} className="bg-[#121C29] border border-[#26374B] text-[#9BAAC0] text-[11.5px] px-3 py-1.5 rounded-full font-mono focus:outline-none cursor-pointer">
+                <option value="All">Photo: All</option>
+                <option value="WithPhoto">With Photo</option>
+                <option value="NoPhoto">No Photo</option>
               </select>
-
-              <select
-                value={filterAcademicYear}
-                onChange={(e) => setFilterAcademicYear(e.target.value)}
-                className="bg-slate-900 border border-slate-850 py-1 px-2 text-[10px] text-slate-400 font-medium rounded-md focus:outline-none uppercase cursor-pointer"
-              >
-                <option value="All">YEAR: ALL</option>
-                {uniqueYears.filter(y => y !== 'All').map((y) => (
-                  <option key={y} value={y}>{y}</option>
-                ))}
-              </select>
-
-              <select
-                value={filterPhoto}
-                onChange={(e) => setFilterPhoto(e.target.value)}
-                className="bg-slate-900 border border-slate-850 py-1 px-2 text-[10px] text-slate-400 font-medium rounded-md focus:outline-none uppercase cursor-pointer"
-              >
-                <option value="All">PHOTO: ALL</option>
-                <option value="WithPhoto">WITH PHOTO ONLY</option>
-                <option value="NoPhoto">WITHOUT PHOTO</option>
-              </select>
-
-              <label className="flex items-center gap-1.5 px-2.5 py-1.5 bg-slate-900 border border-slate-850 rounded-md text-[10px] text-slate-400 font-medium cursor-pointer select-none hover:bg-slate-800/80 transition-all">
-                <input
-                  type="checkbox"
-                  checked={printNewOnly}
-                  onChange={(e) => setPrintNewOnly(e.target.checked)}
-                  className="accent-indigo-500 rounded border-slate-700 bg-slate-800 text-indigo-500 cursor-pointer w-3.5 h-3.5"
-                />
-                <span className="font-bold uppercase tracking-wider font-mono">Print New Students Only</span>
-              </label>
 
               <button
                 onClick={handleResetFilters}
-                className="text-[10px] text-indigo-400 font-bold hover:text-indigo-300 ml-auto px-2 py-1 rounded hover:bg-slate-900 uppercase font-mono tracking-wider cursor-pointer"
+                className="text-xs text-[#E6C866] font-mono hover:underline ml-auto px-2 py-1 cursor-pointer"
               >
                 Clear Filters
               </button>
             </div>
           </div>
 
-          {/* TABLE CONTAINER */}
-          <div className="bg-slate-950 border border-slate-800 rounded-xl overflow-hidden shadow-md flex-1 min-h-[300px] flex flex-col justify-between">
+          {activeLevel === 'master' || activeLevel === 'class-stream' ? (
+            /* TABLE CONTAINER */
+            <div className="bg-slate-950 border border-slate-800 rounded-xl overflow-hidden shadow-md flex-1 min-h-[300px] flex flex-col justify-between">
             {/* CONTAINER HEADER SWITCHER */}
             <div className="bg-slate-900/40 p-3 border-b border-slate-850 flex items-center justify-between flex-wrap gap-2.5">
               <div className="flex items-center gap-2">
@@ -5682,8 +5403,7 @@ function AppContent() {
               {/* Selection actions now handled at top Selection Action Banner */}
             </div>
           </div>
-        </>
-      ) : activeLevel === 'selective' ? (
+        ) : activeLevel === 'selective' ? (
         <div className="flex flex-col gap-4">
           <div className="bg-slate-900 border border-slate-800 rounded-xl p-5 shadow-sm">
             <div className="flex items-center gap-2">
@@ -6118,7 +5838,7 @@ function AppContent() {
           </div>
         </div>
       )}
-    </section>
+    </div>
 
     {/* RIGHT PREVIEW PANEL: BADGE CARD STUDIO & EXPORTERS */}
       <section className="w-full lg:w-[480px] bg-slate-950 p-4 md:p-6 flex flex-col justify-start gap-4 shrink-0 overflow-y-auto border-t lg:border-t-0 border-slate-900 select-none">
@@ -6624,10 +6344,7 @@ function AppContent() {
         </section>
 
       </div>
-        </>
-      )}
-        </>
-      )}
+    )}
 
         {adminActiveTab === 'attendance' && (
           <div className="w-full">
@@ -6681,6 +6398,8 @@ function AppContent() {
             </Suspense>
           </div>
         )}
+      </>
+      )}
       </main>
     </div>
 

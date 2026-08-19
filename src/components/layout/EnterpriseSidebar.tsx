@@ -73,26 +73,25 @@ export default function EnterpriseSidebar({
       )}
 
       <aside 
-        className={`fixed left-0 top-16 bottom-0 z-40 bg-slate-950/95 backdrop-blur-md border-r border-slate-800/80 transition-all duration-300 flex flex-col ${
-          /* Desktop behavior */
+        className={`fixed left-0 top-16 bottom-0 z-40 bg-[#121C29] border-r border-[#26374B] transition-all duration-300 flex flex-col ${
           collapsed ? 'md:w-20' : 'md:w-64'
         } ${
-          /* Mobile behavior */
           mobileOpen ? 'translate-x-0 w-64 shadow-2xl' : '-translate-x-full md:translate-x-0'
         }`}
       >
-        {/* Navigation Items */}
-        <nav className="flex-1 py-4 px-3 space-y-1.5 overflow-y-auto">
-          <div className="px-2 pb-2 text-[10px] font-black uppercase font-mono tracking-wider text-slate-500 flex items-center justify-between">
-            <span>{collapsed ? 'ERP' : 'MAIN ERP NAVIGATION'}</span>
-            <button 
-              onClick={onCloseMobile}
-              className="md:hidden p-1 text-slate-400 hover:text-white"
-            >
-              ✕
-            </button>
+        {/* Brand Header */}
+        <div className={`p-4 border-b border-[#26374B] flex items-center gap-3 ${collapsed ? 'md:justify-center' : ''}`}>
+          <div className="w-10 h-10 rounded-full bg-gradient-to-br from-[#C9A227] via-[#E6C866] to-[#C9A227] flex items-center justify-center font-serif font-bold text-[#0D1520] text-base shrink-0 shadow-[0_0_0_3px_rgba(201,162,39,0.2)]">
+            SP
           </div>
+          <div className={`flex flex-col min-w-0 ${collapsed ? 'md:hidden' : ''}`}>
+            <span className="font-serif font-semibold text-[#EDEFF2] text-sm leading-tight truncate">St. Paul Secondary</span>
+            <span className="text-[10px] text-[#6C7A90] uppercase tracking-wider font-mono">Nasuti · Iganga</span>
+          </div>
+        </div>
 
+        {/* Navigation Items */}
+        <nav className="flex-1 py-4 px-3 space-y-1 overflow-y-auto">
           {navItems.map((item) => {
             const Icon = item.icon;
             const isActive = currentModule === item.key;
@@ -102,23 +101,22 @@ export default function EnterpriseSidebar({
                 key={item.key}
                 onClick={() => handleNavClick(item.key)}
                 title={collapsed ? item.label : undefined}
-                className={`w-full flex items-center gap-3 px-3 py-3 md:py-2.5 rounded-xl font-bold text-xs transition-all duration-150 cursor-pointer min-h-[44px] ${
+                className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-xs font-medium transition-all duration-150 cursor-pointer min-h-[40px] ${
                   isActive
-                    ? 'bg-gradient-to-r from-indigo-600 to-indigo-700 text-white shadow-lg shadow-indigo-600/25 border border-indigo-400/30'
-                    : 'text-slate-400 hover:text-slate-100 hover:bg-slate-900/80 border border-transparent'
+                    ? 'bg-gradient-to-r from-[rgba(201,162,39,0.16)] to-[rgba(201,162,39,0.03)] text-[#EDEFF2] border-l-2 border-[#C9A227] font-semibold'
+                    : 'text-[#9BAAC0] hover:text-[#EDEFF2] hover:bg-[#152030] border-l-2 border-transparent'
                 } ${collapsed ? 'md:justify-center md:px-0' : ''}`}
               >
-                <Icon className={`w-5 h-5 shrink-0 ${isActive ? 'text-white' : 'text-slate-400'}`} />
+                <span className={`w-1.5 h-1.5 rounded-full shrink-0 ${isActive ? 'bg-[#C9A227]' : 'bg-[#6C7A90]'}`} />
+                <Icon className={`w-4 h-4 shrink-0 ${isActive ? 'text-[#E6C866]' : 'text-[#9BAAC0]'}`} />
                 
                 <div className={`flex-1 flex items-center justify-between min-w-0 ${collapsed ? 'md:hidden' : ''}`}>
                   <span className="truncate">{item.label}</span>
                   {item.badge && (
-                    <span className={`px-2 py-0.5 rounded-full text-[10px] font-mono font-bold ${
+                    <span className={`px-2 py-0.5 rounded-full text-[10px] font-mono font-medium ${
                       isActive 
-                        ? 'bg-white/20 text-white' 
-                        : item.badge === 'LIVE' || item.badge === 'AI'
-                        ? 'bg-indigo-500/20 text-indigo-300 border border-indigo-500/30'
-                        : 'bg-slate-800 text-slate-300 border border-slate-700'
+                        ? 'bg-[#1B2839] text-[#E6C866] border border-[#C9A227]/30' 
+                        : 'bg-[#1B2839] text-[#9BAAC0]'
                     }`}>
                       {item.badge}
                     </span>

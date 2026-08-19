@@ -7,8 +7,35 @@
 }
 
 /* Responsive and touch-friendly utilities */
+/* Custom Redesign Theme Tokens */
 :root {
+  --ink: #0D1520;
+  --ink-2: #121C29;
+  --card: #152030;
+  --card-hi: #1B2839;
+  --line: #26374B;
+  --gold: #C9A227;
+  --gold-soft: #E6C866;
+  --emerald: #2F7A5C;
+  --emerald-soft: #4EA980;
+  --paper: #EDEFF2;
+  --paper-dim: #9BAAC0;
+  --paper-faint: #6C7A90;
+  --red: #C9573F;
+  --radius: 14px;
   --touch-target-size: 44px;
+}
+
+.font-serif {
+  font-family: 'Fraunces', Georgia, serif;
+}
+
+.font-mono {
+  font-family: 'IBM Plex Mono', monospace;
+}
+
+.font-sans {
+  font-family: 'IBM Plex Sans', -apple-system, sans-serif;
 }
 
 .touch-target {
