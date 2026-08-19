@@ -5078,6 +5078,39 @@ app.get('/api/attendance/student/:studentId', async (req, res) => {
 });
 
 // Parent contacts GET/POST
+app.get('/api/parent/student-data/:studentId', async (req, res) => {
+  try {
+    const studentId = req.params.studentId;
+
+    const [[student]] = await pool.query('SELECT * FROM students WHERE id = ? AND deleted_at IS NULL', [studentId]);
+    if (!student) {
+      return res.status(404).json({ error: 'Child record not found or inaccessible.' });
+    }
+
+    const [[parentContacts]] = await pool.query('SELECT * FROM parent_contacts WHERE student_id = ?', [studentId]);
+    const [attendance] = await pool.query('SELECT * FROM attendance_logs WHERE student_id = ? ORDER BY date DESC LIMIT 100', [studentId]);
+    const [fees] = await pool.query('SELECT * FROM fees WHERE student_id = ?', [studentId]);
+    const [olevelMarks] = await pool.query('SELECT * FROM olevel_marks WHERE student_id = ?', [studentId]);
+    const [uaceMarks] = await pool.query('SELECT * FROM uace_marks WHERE student_id = ?', [studentId]);
+    const [notifications] = await pool.query('SELECT * FROM attendance_notifications WHERE student_id = ? ORDER BY sent_at DESC LIMIT 50', [studentId]);
+    const [announcements] = await pool.query('SELECT * FROM announcements ORDER BY created_at DESC LIMIT 10');
+
+    res.json({
+      student,
+      parentContacts: parentContacts || null,
+      attendance: attendance || [],
+      fees: fees || [],
+      olevelMarks: olevelMarks || [],
+      uaceMarks: uaceMarks || [],
+      notifications: notifications || [],
+      announcements: announcements || []
+    });
+  } catch (err) {
+    console.error('Error fetching parent student data:', err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
 app.get('/api/parent-contacts/:studentId', async (req, res) => {
   try {
     const [rows] = await pool.query('SELECT * FROM parent_contacts WHERE student_id = ?', [req.params.studentId]);
