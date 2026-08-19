@@ -3724,14 +3724,23 @@ app.get('/api/admin/system-audit', async (req, res) => {
   }
 });
 
-// GET database-wide statistics
+let statsCacheTime = 0;
+
+// GET database-wide statistics (OPTIMIZED: Single-pass SQL aggregation & 60s cache)
 async function getMasterStats() {
-  const [totalRows] = await pool.query('SELECT COUNT(*) as count FROM students WHERE deleted_at IS NULL');
-  const [clearedRows] = await pool.query('SELECT COUNT(*) as count FROM students WHERE deleted_at IS NULL AND isCleared = 1');
-  const [photoRows] = await pool.query('SELECT COUNT(*) as count FROM students WHERE deleted_at IS NULL AND ((photo IS NOT NULL AND photo != "") OR (photoOriginal IS NOT NULL AND photoOriginal != "") OR (photoEnhanced IS NOT NULL AND photoEnhanced != ""))');
-  
-  const [lowerRows] = await pool.query("SELECT COUNT(*) as count FROM students WHERE deleted_at IS NULL AND (gradeClass LIKE 'S.1%' OR gradeClass LIKE 'S.2%' OR gradeClass LIKE 'S.3%' OR gradeClass LIKE 'S.4%')");
-  const [upperRows] = await pool.query("SELECT COUNT(*) as count FROM students WHERE deleted_at IS NULL AND (gradeClass LIKE 'S.5%' OR gradeClass LIKE 'S.6%')");
+  if (statsCache && (Date.now() - statsCacheTime < 60000)) {
+    return statsCache;
+  }
+
+  const [aggRows] = await pool.query(`
+    SELECT 
+      COUNT(*) as total,
+      SUM(IF(isCleared = 1, 1, 0)) as cleared,
+      SUM(IF((photo IS NOT NULL AND photo != "") OR (photoOriginal IS NOT NULL AND photoOriginal != "") OR (photoEnhanced IS NOT NULL AND photoEnhanced != ""), 1, 0)) as withPhoto,
+      SUM(IF(gradeClass LIKE 'S.1%' OR gradeClass LIKE 'S.2%' OR gradeClass LIKE 'S.3%' OR gradeClass LIKE 'S.4%', 1, 0)) as lowerSecondaryTotal,
+      SUM(IF(gradeClass LIKE 'S.5%' OR gradeClass LIKE 'S.6%', 1, 0)) as upperSecondaryTotal
+    FROM students WHERE deleted_at IS NULL
+  `);
 
   const [classRows] = await pool.query("SELECT gradeClass, COUNT(*) as count FROM students WHERE deleted_at IS NULL GROUP BY gradeClass");
 
@@ -3751,13 +3760,14 @@ async function getMasterStats() {
     }
   });
 
-  const total = totalRows[0].count;
-  const cleared = clearedRows[0].count;
-  const withPhoto = photoRows[0].count;
-  const lowerSecondaryTotal = lowerRows[0].count;
-  const upperSecondaryTotal = upperRows[0].count;
+  const row = aggRows[0] || {};
+  const total = Number(row.total || 0);
+  const cleared = Number(row.cleared || 0);
+  const withPhoto = Number(row.withPhoto || 0);
+  const lowerSecondaryTotal = Number(row.lowerSecondaryTotal || 0);
+  const upperSecondaryTotal = Number(row.upperSecondaryTotal || 0);
 
-  return {
+  const result = {
     total,
     cleared,
     pending: total - cleared,
@@ -3770,6 +3780,10 @@ async function getMasterStats() {
     byClass,
     byStream
   };
+
+  statsCache = result;
+  statsCacheTime = Date.now();
+  return result;
 }
 
 app.get('/api/stats', async (req, res) => {
