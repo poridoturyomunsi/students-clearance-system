@@ -3507,9 +3507,9 @@ function AppContent() {
           setAdminActiveTab && setAdminActiveTab('cards');
           setHasSetInitialModule && setHasSetInitialModule(true);
 
-          // Always navigate to the Term 2 Student Clearance landing page via client-side path replacement
+          // Maintain root web path / so page refreshes resolve static asset bundles correctly
           if (typeof window !== 'undefined' && window.history && window.history.replaceState) {
-            window.history.replaceState({}, '', '/student-clearance');
+            window.history.replaceState({}, '', '/');
           }
         }}
         schoolLogo={schoolLogo}
