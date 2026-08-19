@@ -501,6 +501,14 @@ function AppContent() {
   // Unified app configuration and database startup initialization
   useEffect(() => {
     let mounted = true;
+
+    const safetyTimer = setTimeout(() => {
+      if (mounted) {
+        console.warn("[App Init] Safety timeout reached; forcing splash screen transition...");
+        setIsInitializing(false);
+      }
+    }, 3500);
+
     const initializeApp = async () => {
       try {
         // 1. Resolve API base URL from Electron configuration if running inside Electron
@@ -540,7 +548,6 @@ function AppContent() {
         const [brandingRes, statusRes, statsRes] = await Promise.all(promises);
 
         if (mounted) {
-          // Process branding logo
           // Process branding logo and authorized signature
           if (brandingRes) {
             if (brandingRes.logo) {
@@ -587,6 +594,7 @@ function AppContent() {
           setDbConnectionError(true);
         }
       } finally {
+        clearTimeout(safetyTimer);
         if (mounted) {
           setIsInitializing(false);
         }
@@ -594,7 +602,10 @@ function AppContent() {
     };
 
     initializeApp();
-    return () => { mounted = false; };
+    return () => {
+      mounted = false;
+      clearTimeout(safetyTimer);
+    };
   }, []);
 
   useEffect(() => {
