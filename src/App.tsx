@@ -664,12 +664,22 @@ function AppContent() {
     setIsTableLoading(true);
     setTableError(null);
     try {
-      // Fast server-side paginated loading for high performance (< 100ms)
+      const activeClass = filterClass !== 'All' ? filterClass : (viewMode === 'board' && activeBoardClass !== 'ALL' ? activeBoardClass : undefined);
+      const activeStream = filterStream !== 'All' ? filterStream : undefined;
+      const isAllBoard = viewMode === 'board' && (activeBoardClass === 'ALL' || activeBoardClass === 'All');
+
       const params: any = {
         page: currentPage || 1,
-        limit: pageSize || 50,
+        limit: (activeClass || isAllBoard) ? -1 : (pageSize || 50),
         search: searchQuery ? searchQuery.trim() : undefined,
-        gradeClass: filterClass !== 'All' ? filterClass : undefined,
+        gradeClass: isAllBoard ? undefined : activeClass,
+        stream: activeStream,
+        gender: filterGender !== 'All' ? filterGender : undefined,
+        isCleared: filterClearance !== 'All' ? filterClearance : undefined,
+        boardingStatus: filterBoarding !== 'All' ? filterBoarding : undefined,
+        photo: filterPhoto !== 'All' ? filterPhoto : undefined,
+        academicYear: filterAcademicYear !== 'All' ? filterAcademicYear : undefined,
+        printStatus: printNewOnly ? 'Not Printed' : undefined,
         sortBy
       };
 
@@ -4989,10 +4999,11 @@ function AppContent() {
                     </span>
                   </div>
                   <div className="flex gap-2 items-center">
-                    {['S.1', 'S.2', 'S.3', 'S.4', 'S.5', 'S.6'].map((className) => {
+                    {['ALL', 'S.1', 'S.2', 'S.3', 'S.4', 'S.5', 'S.6'].map((className) => {
                       const isActive = activeBoardClass === className;
                       
                       let badgeColor = '';
+                      if (className === 'ALL') badgeColor = isActive ? 'bg-indigo-600 text-white border-indigo-400 font-black ring-2 ring-indigo-500/40 shadow-lg shadow-indigo-950/50 scale-105' : 'bg-slate-950/60 border-slate-800 text-slate-400 hover:bg-slate-900 hover:border-indigo-500/40 hover:text-indigo-400';
                       if (className === 'S.1') badgeColor = isActive ? 'bg-emerald-500 text-slate-950 border-emerald-400 font-black ring-2 ring-emerald-500/40 shadow-lg shadow-emerald-950/50 scale-105' : 'bg-slate-950/60 border-slate-800 text-slate-400 hover:bg-slate-900 hover:border-emerald-500/40 hover:text-emerald-400';
                       if (className === 'S.2') badgeColor = isActive ? 'bg-sky-500 text-slate-950 border-sky-400 font-black ring-2 ring-sky-500/40 shadow-lg shadow-sky-950/50 scale-105' : 'bg-slate-950/60 border-slate-800 text-slate-400 hover:bg-slate-900 hover:border-sky-500/40 hover:text-sky-400';
                       if (className === 'S.3') badgeColor = isActive ? 'bg-blue-500 text-slate-950 border-blue-400 font-black ring-2 ring-blue-500/40 shadow-lg shadow-blue-950/50 scale-105' : 'bg-slate-950/60 border-slate-800 text-slate-400 hover:bg-slate-900 hover:border-blue-500/40 hover:text-blue-400';
@@ -5006,10 +5017,12 @@ function AppContent() {
                           type="button"
                           onClick={() => {
                             setActiveBoardClass(className);
+                            setFilterClass(className === 'ALL' ? 'All' : className);
+                            setCurrentPage(1);
                           }}
                           className={`px-4 py-1.5 text-xs font-mono font-bold tracking-widest uppercase border rounded-xl transition-all duration-150 cursor-pointer ${badgeColor}`}
                         >
-                          {className}
+                          {className === 'ALL' ? 'ALL CLASSES' : className}
                         </button>
                       );
                     })}
