@@ -14,8 +14,7 @@ import {
   ChevronLeft,
   ChevronRight,
   ShieldAlert,
-  BarChart3,
-  Bot
+  Camera
 } from 'lucide-react';
 
 interface EnterpriseSidebarProps {
@@ -50,6 +49,7 @@ export default function EnterpriseSidebar({
     { key: 'staff', label: 'Staff & Teachers', icon: GraduationCap, badge: null },
     { key: 'fees', label: 'Finance & Fees', icon: DollarSign, badge: null },
     { key: 'exams', label: 'Exams & Reports', icon: FileText, badge: null },
+    { key: 'photos', label: 'Photo Storage Audit', icon: Camera, badge: 'RECOVERY' },
     { key: 'ai', label: 'ST. PAUL AI Assistant', icon: Bot, badge: 'AI' },
     { key: 'ai-health', label: 'AI Health & Maintenance', icon: ShieldCheck, badge: 'HEALTH' },
     { key: 'settings', label: 'Admin Settings', icon: Settings, badge: null }

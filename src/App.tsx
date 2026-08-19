@@ -109,6 +109,7 @@ import ParentPortal from './components/ParentPortal.tsx';
 import SettingsModule from './components/modules/SettingsModule.tsx';
 import AiAssistantModule from './components/modules/AiAssistantModule.tsx';
 import AiHealthDashboard from './components/dashboard/AiHealthDashboard.tsx';
+import PhotoRecoveryDashboard from './components/dashboard/PhotoRecoveryDashboard.tsx';
 import {
   setApiBaseUrl,
   getApiBaseUrl,
@@ -4093,6 +4094,8 @@ function AppContent() {
             />
           ) : activeModule === 'ai-health' ? (
             <AiHealthDashboard />
+          ) : activeModule === 'photos' ? (
+            <PhotoRecoveryDashboard />
           ) : (
             <>
           {/* HIDDEN ZIP FILE INPUT FOR PHOTO MATCHING */}
