@@ -286,7 +286,7 @@ function AppContent() {
   const [activeBoardClass, setActiveBoardClass] = useState<string>('S.1');
   const [activeBoardStream, setActiveBoardStream] = useState<'A' | 'B' | 'C'>('A');
   const [currentPage, setCurrentPage] = useState<number>(1);
-  const [pageSize, setPageSize] = useState<number>(20);
+  const [pageSize, setPageSize] = useState<number>(50);
 
   // Background Tasks Queue States
   interface BackgroundTask {
@@ -1657,14 +1657,15 @@ function AppContent() {
 
     const hasStudents = Array.isArray(students) && students.length > 0;
 
-    let total = dbStats.total || (hasStudents ? students.length : 0);
-    let lowerSecondaryTotal = dbStats.lowerSecondaryTotal || 0;
-    let upperSecondaryTotal = dbStats.upperSecondaryTotal || 0;
-    let clearedCount = dbStats.cleared || 0;
-    let balanceCount = dbStats.pending || 0;
-    let photoCount = dbStats.withPhoto || 0;
+    let total = dbStats.total || totalStudentsCount || (hasStudents ? students.length : 0);
+    let lowerSecondaryTotal = dbStats.lowerSecondaryTotal ?? 0;
+    let upperSecondaryTotal = dbStats.upperSecondaryTotal ?? 0;
+    let clearedCount = dbStats.cleared ?? 0;
+    let balanceCount = dbStats.pending ?? (total > clearedCount ? total - clearedCount : 0);
+    let photoCount = dbStats.withPhoto ?? 0;
 
-    if (hasStudents && (students.length >= total || !dbStats.total)) {
+    // Fallback calculation only when dbStats and totalStudentsCount are completely unavailable
+    if (!dbStats.total && !totalStudentsCount && hasStudents) {
       total = students.length;
       lowerSecondaryTotal = 0;
       upperSecondaryTotal = 0;
@@ -1681,10 +1682,6 @@ function AppContent() {
         if (s.isCleared) clearedCount++;
         if (s.hasPhoto || !!s.photo || !!s.photoOriginal || !!s.photoEnhanced) photoCount++;
       });
-
-      if (dbStats && typeof dbStats.withPhoto === 'number' && dbStats.withPhoto > photoCount) {
-        photoCount = dbStats.withPhoto;
-      }
 
       balanceCount = total - clearedCount;
     }
@@ -1706,7 +1703,7 @@ function AppContent() {
       photoPct,
       selectCount
     };
-  }, [dbStats, students, selectedIds, selectiveSelectedIds, activeLevel]);
+  }, [dbStats, totalStudentsCount, students, selectedIds, selectiveSelectedIds, activeLevel]);
 
   const isAdmin = useMemo(() => {
     return !isFirebaseConfigured() || !!adminUser;
