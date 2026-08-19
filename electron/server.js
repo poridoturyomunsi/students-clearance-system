@@ -3026,7 +3026,7 @@ app.get('/api/students', async (req, res) => {
       const dataQuery = `
         SELECT id, adminNo, name, aliases, gender, gradeClass, boardingStatus, isCleared, 
                gateClearanceDate, mealsClearanceDate, remarks, printStatus, updatedAt,
-               IF(photo IS NOT NULL AND photo != '', 1, 0) as hasPhoto
+               IF((photo IS NOT NULL AND photo != '') OR (photoOriginal IS NOT NULL AND photoOriginal != '') OR (photoEnhanced IS NOT NULL AND photoEnhanced != ''), 1, 0) as hasPhoto
         FROM students
         ${whereSql}
         ORDER BY ${sortBy} ASC
@@ -3060,7 +3060,7 @@ app.get('/api/students', async (req, res) => {
     const dataQuery = `
       SELECT id, adminNo, name, aliases, gender, gradeClass, boardingStatus, isCleared, 
              gateClearanceDate, mealsClearanceDate, remarks, printStatus, updatedAt,
-             IF(photo IS NOT NULL AND photo != '', 1, 0) as hasPhoto
+             IF((photo IS NOT NULL AND photo != '') OR (photoOriginal IS NOT NULL AND photoOriginal != '') OR (photoEnhanced IS NOT NULL AND photoEnhanced != ''), 1, 0) as hasPhoto
       FROM students
       ${whereSql}
       ORDER BY ${sortBy} ASC
@@ -3726,14 +3726,14 @@ app.get('/api/admin/system-audit', async (req, res) => {
 
 // GET database-wide statistics
 async function getMasterStats() {
-  const [totalRows] = await pool.query('SELECT COUNT(*) as count FROM students');
-  const [clearedRows] = await pool.query('SELECT COUNT(*) as count FROM students WHERE isCleared = 1');
-  const [photoRows] = await pool.query('SELECT COUNT(*) as count FROM students WHERE photo IS NOT NULL AND photo != ""');
+  const [totalRows] = await pool.query('SELECT COUNT(*) as count FROM students WHERE deleted_at IS NULL');
+  const [clearedRows] = await pool.query('SELECT COUNT(*) as count FROM students WHERE deleted_at IS NULL AND isCleared = 1');
+  const [photoRows] = await pool.query('SELECT COUNT(*) as count FROM students WHERE deleted_at IS NULL AND ((photo IS NOT NULL AND photo != "") OR (photoOriginal IS NOT NULL AND photoOriginal != "") OR (photoEnhanced IS NOT NULL AND photoEnhanced != ""))');
   
-  const [lowerRows] = await pool.query("SELECT COUNT(*) as count FROM students WHERE gradeClass LIKE 'S.1%' OR gradeClass LIKE 'S.2%' OR gradeClass LIKE 'S.3%' OR gradeClass LIKE 'S.4%'");
-  const [upperRows] = await pool.query("SELECT COUNT(*) as count FROM students WHERE gradeClass LIKE 'S.5%' OR gradeClass LIKE 'S.6%'");
+  const [lowerRows] = await pool.query("SELECT COUNT(*) as count FROM students WHERE deleted_at IS NULL AND (gradeClass LIKE 'S.1%' OR gradeClass LIKE 'S.2%' OR gradeClass LIKE 'S.3%' OR gradeClass LIKE 'S.4%')");
+  const [upperRows] = await pool.query("SELECT COUNT(*) as count FROM students WHERE deleted_at IS NULL AND (gradeClass LIKE 'S.5%' OR gradeClass LIKE 'S.6%')");
 
-  const [classRows] = await pool.query("SELECT gradeClass, COUNT(*) as count FROM students GROUP BY gradeClass");
+  const [classRows] = await pool.query("SELECT gradeClass, COUNT(*) as count FROM students WHERE deleted_at IS NULL GROUP BY gradeClass");
 
   const byClass = { 'S.1': 0, 'S.2': 0, 'S.3': 0, 'S.4': 0, 'S.5': 0, 'S.6': 0 };
   const byStream = {};

@@ -1676,8 +1676,12 @@ function AppContent() {
           upperSecondaryTotal++;
         }
         if (s.isCleared) clearedCount++;
-        if (s.hasPhoto || !!s.photo) photoCount++;
+        if (s.hasPhoto || !!s.photo || !!s.photoOriginal || !!s.photoEnhanced) photoCount++;
       });
+
+      if (dbStats && typeof dbStats.withPhoto === 'number' && dbStats.withPhoto > photoCount) {
+        photoCount = dbStats.withPhoto;
+      }
 
       balanceCount = total - clearedCount;
     }
