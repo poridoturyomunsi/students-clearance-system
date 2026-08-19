@@ -14,7 +14,9 @@ import {
   ChevronLeft,
   ChevronRight,
   ShieldAlert,
-  Camera
+  Camera,
+  Bot,
+  ShieldCheck
 } from 'lucide-react';
 
 interface EnterpriseSidebarProps {
