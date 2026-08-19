@@ -144,7 +144,15 @@ export function processQRScan(
     const stdId = (s.id || '').toLowerCase();
     const vToken = ((s as any).verification_token || '').toLowerCase();
     const target = cleaned.toLowerCase();
-    return stdNo === target || stdId === target || (vToken && vToken === target) || stdNo.includes(target) || target.includes(stdNo);
+    
+    if (stdNo === target || stdId === target || (vToken && vToken === target)) return true;
+    
+    // Normalized zero comparison (e.g. 0266403320 vs 266403320)
+    const normStdNo = stdNo.replace(/^0+/, '');
+    const normTarget = target.replace(/^0+/, '');
+    if (normStdNo && normTarget && normStdNo === normTarget) return true;
+
+    return (stdNo && stdNo.includes(target)) || (target && target.includes(stdNo));
   });
 
   if (!student) {

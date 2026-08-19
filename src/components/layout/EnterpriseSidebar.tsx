@@ -51,6 +51,7 @@ export default function EnterpriseSidebar({
     { key: 'fees', label: 'Finance & Fees', icon: DollarSign, badge: null },
     { key: 'exams', label: 'Exams & Reports', icon: FileText, badge: null },
     { key: 'ai', label: 'ST. PAUL AI Assistant', icon: Bot, badge: 'AI' },
+    { key: 'ai-health', label: 'AI Health & Maintenance', icon: ShieldCheck, badge: 'HEALTH' },
     { key: 'settings', label: 'Admin Settings', icon: Settings, badge: null }
   ];
 

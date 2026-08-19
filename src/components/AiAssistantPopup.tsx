@@ -14,11 +14,27 @@ import {
   Eye,
   EyeOff,
   Check,
-  CheckCircle2
+  CheckCircle2,
+  Printer,
+  FileSpreadsheet,
+  FileText,
+  Smartphone,
+  ArrowRight,
+  ShieldAlert
 } from 'lucide-react';
 import * as XLSX from 'xlsx';
 import { askAiAssistant, fetchAiKeyStatus, saveGeminiApiKey, testAiConnection } from '../utils/api.ts';
 import SchoolLogo from './SchoolLogo.tsx';
+import { 
+  navigateToPage, 
+  generateAttendanceReport, 
+  printReport, 
+  exportExcel, 
+  exportCSV, 
+  sendWhatsAppMessage, 
+  createStudent, 
+  deleteStudent 
+} from '../utils/aiActionEngine.ts';
 
 interface Message {
   sender: 'user' | 'assistant';
@@ -27,6 +43,19 @@ interface Message {
   columns?: string[];
   rows?: any[];
   timestamp: Date;
+  actionCompleted?: string;
+  previewData?: any;
+  pendingConfirmation?: {
+    riskLevel: 'medium' | 'high';
+    actionType: string;
+    payload: any;
+    prompt: string;
+  };
+  workflowProgress?: {
+    currentStep: number;
+    totalSteps: number;
+    label: string;
+  };
 }
 
 interface AiAssistantPopupProps {
@@ -126,7 +155,57 @@ export default function AiAssistantPopup({ schoolLogo }: AiAssistantPopupProps) 
     setMessages(prev => [...prev, userMsg]);
     setIsSending(true);
 
+    const lowerQuery = queryText.toLowerCase().trim();
+
     try {
+      // 1. Navigation Action Intent
+      if (lowerQuery.startsWith('take me to') || lowerQuery.startsWith('open') || lowerQuery.startsWith('go to') || lowerQuery.includes('navigate to')) {
+        let pageId = lowerQuery.replace(/take me to|open|go to|navigate to/gi, '').trim();
+        const navRes = navigateToPage(pageId);
+        setMessages(prev => [...prev, {
+          sender: 'assistant',
+          text: navRes.message,
+          actionCompleted: navRes.actionCompleted,
+          timestamp: new Date()
+        }]);
+        setIsSending(false);
+        return;
+      }
+
+      // 2. Report Generation Intent
+      if (lowerQuery.includes('report') || lowerQuery.includes('absent') || lowerQuery.includes('attendance summary') || lowerQuery.includes('show me students')) {
+        let targetClass = 'All';
+        const classMatch = lowerQuery.match(/s\.?[1-6]/i) || lowerQuery.match(/grade\s*[1-8]/i);
+        if (classMatch) targetClass = classMatch[0].toUpperCase();
+
+        const reportRes = await generateAttendanceReport({ gradeClass: targetClass });
+        if (reportRes.success && reportRes.previewData) {
+          setMessages(prev => [...prev, {
+            sender: 'assistant',
+            text: `I've prepared the ${reportRes.previewData.title}. It contains ${reportRes.previewData.totalRecords} record(s). Here is your report preview:`,
+            previewData: reportRes.previewData,
+            rows: reportRes.previewData.rows,
+            timestamp: new Date()
+          }]);
+          setIsSending(false);
+          return;
+        }
+      }
+
+      // 3. Print Intent
+      if (lowerQuery.startsWith('print') || lowerQuery.includes('hard copy')) {
+        const printRes = printReport("St. Paul School Attendance Report");
+        setMessages(prev => [...prev, {
+          sender: 'assistant',
+          text: printRes.message,
+          actionCompleted: printRes.actionCompleted,
+          timestamp: new Date()
+        }]);
+        setIsSending(false);
+        return;
+      }
+
+      // 4. Fallback to Gemini AI query engine
       const res = await askAiAssistant(queryText);
       const assistantMsg: Message = {
         sender: 'assistant',
@@ -418,6 +497,74 @@ export default function AiAssistantPopup({ schoolLogo }: AiAssistantPopupProps) 
                           <div className="whitespace-pre-line prose prose-invert max-w-none text-[11px] leading-relaxed">
                             {msg.text}
                           </div>
+
+                          {/* Interactive Report Preview Card */}
+                          {!isUser && msg.previewData && (
+                            <div className="mt-3 p-3 bg-slate-950/80 border border-indigo-500/30 rounded-xl space-y-2.5">
+                              <div className="flex items-center justify-between">
+                                <span className="text-[10px] font-black uppercase text-indigo-400 tracking-wider flex items-center gap-1.5">
+                                  <FileText className="w-3.5 h-3.5 text-indigo-400" />
+                                  {msg.previewData.title}
+                                </span>
+                                <span className="text-[9px] font-mono font-bold bg-indigo-950 text-indigo-300 px-2 py-0.5 rounded border border-indigo-800/50">
+                                  {msg.previewData.totalRecords} Records
+                                </span>
+                              </div>
+
+                              <div className="grid grid-cols-3 gap-1.5 text-center text-[9px] font-bold">
+                                <div className="bg-emerald-950/50 border border-emerald-800/40 p-1.5 rounded">
+                                  <span className="text-emerald-400 block text-xs font-black">{msg.previewData.presentCount}</span>
+                                  <span className="text-emerald-300/80 text-[8px] uppercase">Present</span>
+                                </div>
+                                <div className="bg-amber-950/50 border border-amber-800/40 p-1.5 rounded">
+                                  <span className="text-amber-400 block text-xs font-black">{msg.previewData.checkedOutCount}</span>
+                                  <span className="text-amber-300/80 text-[8px] uppercase">Out</span>
+                                </div>
+                                <div className="bg-purple-950/50 border border-purple-800/40 p-1.5 rounded">
+                                  <span className="text-purple-400 block text-xs font-black">{msg.previewData.absentCount}</span>
+                                  <span className="text-purple-300/80 text-[8px] uppercase">Absent</span>
+                                </div>
+                              </div>
+
+                              {/* Interactive Report Actions */}
+                              <div className="grid grid-cols-2 sm:grid-cols-4 gap-1 pt-2 border-t border-slate-850 text-[9px] font-bold">
+                                <button
+                                  type="button"
+                                  onClick={() => printReport(msg.previewData.title)}
+                                  className="px-2 py-1 bg-slate-900 hover:bg-slate-800 text-slate-200 rounded border border-slate-800 flex items-center justify-center gap-1 cursor-pointer"
+                                >
+                                  <Printer className="w-3 h-3 text-blue-400" /> Print
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={() => exportExcel(msg.previewData.rows, `${msg.previewData.title}.xlsx`)}
+                                  className="px-2 py-1 bg-slate-900 hover:bg-slate-800 text-slate-200 rounded border border-slate-800 flex items-center justify-center gap-1 cursor-pointer"
+                                >
+                                  <FileSpreadsheet className="w-3 h-3 text-emerald-400" /> Excel
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={() => exportCSV(msg.previewData.rows, `${msg.previewData.title}.csv`)}
+                                  className="px-2 py-1 bg-slate-900 hover:bg-slate-800 text-slate-200 rounded border border-slate-800 flex items-center justify-center gap-1 cursor-pointer"
+                                >
+                                  <Download className="w-3 h-3 text-purple-400" /> CSV
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    const phone = prompt("Enter parent / admin phone number (+256...):", "+256700351704");
+                                    if (phone) {
+                                      sendWhatsAppMessage(phone, `St. Paul Attendance Report: ${msg.previewData.title} - Total: ${msg.previewData.totalRecords}`);
+                                      alert(`WhatsApp alert sent to ${phone}`);
+                                    }
+                                  }}
+                                  className="px-2 py-1 bg-slate-900 hover:bg-slate-800 text-emerald-400 rounded border border-emerald-900/40 flex items-center justify-center gap-1 cursor-pointer"
+                                >
+                                  <Smartphone className="w-3 h-3 text-emerald-400" /> WhatsApp
+                                </button>
+                              </div>
+                            </div>
+                          )}
 
                           {/* Data Roster Display */}
                           {!isUser && msg.rows && msg.rows.length > 0 && (

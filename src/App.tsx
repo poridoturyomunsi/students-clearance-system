@@ -108,6 +108,7 @@ import AttendanceModule from './components/modules/AttendanceModule.tsx';
 import ParentPortal from './components/ParentPortal.tsx';
 import SettingsModule from './components/modules/SettingsModule.tsx';
 import AiAssistantModule from './components/modules/AiAssistantModule.tsx';
+import AiHealthDashboard from './components/dashboard/AiHealthDashboard.tsx';
 import {
   setApiBaseUrl,
   getApiBaseUrl,
@@ -606,8 +607,20 @@ function AppContent() {
         setAuthSession(null);
         setDbConnectionError(false);
       };
+      const handleNavigateModule = (e: any) => {
+        if (e?.detail?.module) {
+          console.log(`[AI Agent Navigation] Switching active module to: ${e.detail.module}`);
+          setActiveModule(e.detail.module);
+        }
+      };
+
       window.addEventListener('spss_unauthorized', handleUnauthorized);
-      return () => window.removeEventListener('spss_unauthorized', handleUnauthorized);
+      window.addEventListener('spss_navigate_module', handleNavigateModule);
+
+      return () => {
+        window.removeEventListener('spss_unauthorized', handleUnauthorized);
+        window.removeEventListener('spss_navigate_module', handleNavigateModule);
+      };
     }
   }, []);
 
@@ -4078,6 +4091,8 @@ function AppContent() {
               onGenerateCards={() => { setActiveModule('clearance'); setAdminActiveTab('cards'); }}
               dbStats={dbStats}
             />
+          ) : activeModule === 'ai-health' ? (
+            <AiHealthDashboard />
           ) : (
             <>
           {/* HIDDEN ZIP FILE INPUT FOR PHOTO MATCHING */}

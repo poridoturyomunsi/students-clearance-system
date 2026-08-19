@@ -35,6 +35,14 @@ import {
 import { Student } from '../../types.ts';
 import { analyzeImageQuality, processStudentPhoto } from '../../utils/imageProcessor.ts';
 import Loading from '../Loading.tsx';
+import { 
+  navigateToPage, 
+  generateAttendanceReport, 
+  printReport, 
+  exportExcel, 
+  exportCSV, 
+  sendWhatsAppMessage 
+} from '../../utils/aiActionEngine.ts';
 
 interface Message {
   sender: 'user' | 'assistant';
@@ -177,7 +185,55 @@ export default function AiAssistantModule() {
     setMessages(prev => [...prev, userMsg]);
     setIsSending(true);
 
+    const lowerQuery = queryText.toLowerCase().trim();
+
     try {
+      // 1. Navigation Action Intent
+      if (lowerQuery.startsWith('take me to') || lowerQuery.startsWith('open') || lowerQuery.startsWith('go to') || lowerQuery.includes('navigate to')) {
+        let pageId = lowerQuery.replace(/take me to|open|go to|navigate to/gi, '').trim();
+        const navRes = navigateToPage(pageId);
+        setMessages(prev => [...prev, {
+          sender: 'assistant',
+          text: navRes.message,
+          timestamp: new Date()
+        }]);
+        setIsSending(false);
+        return;
+      }
+
+      // 2. Report Generation Intent
+      if (lowerQuery.includes('report') || lowerQuery.includes('absent') || lowerQuery.includes('attendance summary') || lowerQuery.includes('show me students')) {
+        let targetClass = 'All';
+        const classMatch = lowerQuery.match(/s\.?[1-6]/i) || lowerQuery.match(/grade\s*[1-8]/i);
+        if (classMatch) targetClass = classMatch[0].toUpperCase();
+
+        const reportRes = await generateAttendanceReport({ gradeClass: targetClass });
+        if (reportRes.success && reportRes.previewData) {
+          setMessages(prev => [...prev, {
+            sender: 'assistant',
+            text: `I've prepared the ${reportRes.previewData.title}. It contains ${reportRes.previewData.totalRecords} record(s).`,
+            rows: reportRes.previewData.rows,
+            columns: reportRes.previewData.rows.length > 0 ? Object.keys(reportRes.previewData.rows[0]) : [],
+            timestamp: new Date()
+          }]);
+          setIsSending(false);
+          return;
+        }
+      }
+
+      // 3. Print Intent
+      if (lowerQuery.startsWith('print') || lowerQuery.includes('hard copy')) {
+        const printRes = printReport("St. Paul School Attendance Report");
+        setMessages(prev => [...prev, {
+          sender: 'assistant',
+          text: printRes.message,
+          timestamp: new Date()
+        }]);
+        setIsSending(false);
+        return;
+      }
+
+      // 4. Fallback to Gemini AI query engine
       const res = await askAiAssistant(queryText);
       const assistantMsg: Message = {
         sender: 'assistant',

@@ -23,7 +23,7 @@ import {
   Info
 } from 'lucide-react';
 import { Student } from '../types.ts';
-import { apiCall } from '../utils/api.ts';
+import { apiCall, fetchStudentsFromDb } from '../utils/api.ts';
 import { 
   processQRScan, 
   getAttendanceStats, 
@@ -40,6 +40,7 @@ import * as XLSX from 'xlsx';
 import { LiveAttendanceDashboard } from './LiveAttendanceDashboard.tsx';
 import { announceScan } from '../utils/speechService.ts';
 import { TTSSettingsPanel } from './TTSSettingsPanel.tsx';
+import { queueOfflineScan, syncPendingOfflineScans } from '../utils/offlineQueue.ts';
 
 function parseClassAndStream(combined?: string): { className: string; streamName: string } {
   if (!combined) return { className: 'UNKNOWN', streamName: 'A' };
@@ -164,15 +165,68 @@ export default function QRAttendanceSystem({ students, onSelectStudent }: QRAtte
   };
 
   useEffect(() => {
+    const handleNetworkSync = () => {
+      syncPendingOfflineScans(async (scan) => {
+        try {
+          await apiCall('/api/attendance/scan', {
+            method: 'POST',
+            body: JSON.stringify({
+              scanValue: scan.scanValue,
+              direction: scan.direction || 'auto'
+            })
+          });
+          return true;
+        } catch (e) {
+          return false;
+        }
+      });
+    };
+
+    if (typeof window !== 'undefined') {
+      window.addEventListener('spss_network_reconnected', handleNetworkSync);
+      handleNetworkSync();
+    }
+
     return () => {
       stopCamera();
+      if (typeof window !== 'undefined') {
+        window.removeEventListener('spss_network_reconnected', handleNetworkSync);
+      }
     };
   }, []);
 
   // Handle Scan Logic
-  const handleQRScanTrigger = (rawQuery: string) => {
+  const handleQRScanTrigger = async (rawQuery: string) => {
     if (!rawQuery) return;
-    const result = processQRScan(rawQuery, students, scanMode);
+    
+    let activeRoster = students;
+    let result = processQRScan(rawQuery, activeRoster, scanMode);
+
+    // If local in-memory student lookup failed, query backend database directly
+    if (!result.verified) {
+      try {
+        const cleaned = rawQuery.trim();
+        const searchRes = await fetchStudentsFromDb({ search: cleaned, limit: 10 });
+        if (searchRes && searchRes.data && searchRes.data.length > 0) {
+          const foundStd = searchRes.data.find(s => {
+            const stdNo = (s.studentNo || s.adminNo || '').toLowerCase();
+            const stdId = (s.id || '').toLowerCase();
+            const target = cleaned.toLowerCase();
+            const normStdNo = stdNo.replace(/^0+/, '');
+            const normTarget = target.replace(/^0+/, '');
+            return stdNo === target || stdId === target || (normStdNo && normTarget && normStdNo === normTarget);
+          }) || searchRes.data[0];
+
+          if (foundStd) {
+            activeRoster = [foundStd, ...activeRoster];
+            result = processQRScan(rawQuery, activeRoster, scanMode);
+          }
+        }
+      } catch (err) {
+        console.warn('[QRAttendance] Fallback database student lookup failed:', err);
+      }
+    }
+
     setLastScanResult(result);
     setScanHistory(prev => [result, ...prev.slice(0, 19)]);
     setManualInput('');
@@ -182,21 +236,29 @@ export default function QRAttendanceSystem({ students, onSelectStudent }: QRAtte
       window.dispatchEvent(new CustomEvent('attendance-updated', { detail: result }));
     }
 
-    // Persist scan to backend database API
+    // Persist scan to backend database API (with offline queueing support)
     if (result.verified && result.student) {
-      apiCall('/api/attendance/scan', {
-        method: 'POST',
-        body: JSON.stringify({
-          scanValue: result.student.adminNo || result.student.studentNo || result.student.id,
-          direction: scanMode === 'CHECK_OUT' ? 'clock-out' : scanMode === 'CHECK_IN' ? 'clock-in' : 'auto'
-        })
-      }).catch(err => {
-        console.warn('[QRAttendance] Backend API scan sync notice:', err.message);
-      }).finally(() => {
-        if (typeof window !== 'undefined') {
-          window.dispatchEvent(new CustomEvent('attendance-updated', { detail: result }));
-        }
-      });
+      const scanVal = result.student.adminNo || result.student.studentNo || result.student.id;
+      const targetDirection = scanMode === 'CHECK_OUT' ? 'clock-out' : scanMode === 'CHECK_IN' ? 'clock-in' : 'auto';
+
+      if (typeof navigator !== 'undefined' && !navigator.onLine) {
+        queueOfflineScan(scanVal, targetDirection);
+      } else {
+        apiCall('/api/attendance/scan', {
+          method: 'POST',
+          body: JSON.stringify({
+            scanValue: scanVal,
+            direction: targetDirection
+          })
+        }).catch(err => {
+          console.warn('[QRAttendance] Backend API scan sync failed, queueing offline:', err.message);
+          queueOfflineScan(scanVal, targetDirection);
+        }).finally(() => {
+          if (typeof window !== 'undefined') {
+            window.dispatchEvent(new CustomEvent('attendance-updated', { detail: result }));
+          }
+        });
+      }
     }
 
     // Audio speech feedback

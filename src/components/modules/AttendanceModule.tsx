@@ -145,11 +145,17 @@ export default function AttendanceModule() {
       const [cls, str] = await Promise.all([fetchClassesFromDb(), fetchStreamsFromDb()]);
       setClasses(cls.map((c: any) => c.name));
       setStreams(str.map((s: any) => s.name));
-      
-      const stRes = await fetchStudentsFromDb({ limit: 10000 });
-      setAllStudentsList(stRes.data || []);
     } catch (e) {
       console.error('Failed to load classes/streams', e);
+    }
+
+    try {
+      const stRes = await fetchStudentsFromDb({ limit: 10000 });
+      if (stRes && stRes.data && stRes.data.length > 0) {
+        setAllStudentsList(stRes.data);
+      }
+    } catch (e) {
+      console.error('Failed to load students list from DB:', e);
     }
   };
 

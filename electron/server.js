@@ -3501,13 +3501,224 @@ app.put('/api/students/:id', async (req, res) => {
   }
 });
 
-// DELETE single student
+// SAFE SOFT DELETE single student with Transaction & Pre-verification
 app.delete('/api/students/:id', async (req, res) => {
+  const studentId = req.params.id;
+  if (!studentId || studentId.trim() === '') {
+    return res.status(400).json({ error: 'Valid Student ID is required for deletion.' });
+  }
+
+  const connection = await pool.getConnection();
   try {
-    await pool.query('DELETE FROM students WHERE id = ?', [req.params.id]);
-    writeAuditLog('Delete Student', `Deleted student ID ${req.params.id}`).catch(e => console.warn('Audit log warning:', e.message));
+    await connection.beginTransaction();
+
+    // 1. Pre-verify record exists
+    const [existing] = await connection.query('SELECT * FROM students WHERE id = ? AND (deleted_at IS NULL)', [studentId]);
+    if (!existing || existing.length === 0) {
+      await connection.rollback();
+      return res.status(404).json({ error: `Active student record with ID "${studentId}" was not found.` });
+    }
+
+    const studentRecord = existing[0];
+
+    // 2. Perform Soft Delete inside transaction
+    await connection.query(
+      'UPDATE students SET deleted_at = NOW(), deleted_by = ?, deletion_reason = ? WHERE id = ?',
+      [req.body?.user || 'Admin', req.body?.reason || 'User requested deletion', studentId]
+    );
+
+    // 3. Record Audit Log inside transaction
+    const logDetails = `Soft-deleted student "${studentRecord.name}" (Admin No: ${studentRecord.adminNo}, Class: ${studentRecord.gradeClass}, ID: ${studentId})`;
+    await connection.query('INSERT INTO audit_logs (action, details) VALUES (?, ?)', ['Soft Delete Student', logDetails]);
+
+    await connection.commit();
     statsCache = null;
-    res.json({ success: true });
+
+    res.json({
+      success: true,
+      message: `Student "${studentRecord.name}" was soft-deleted safely and moved to Trash.`,
+      deletedRecord: studentRecord
+    });
+  } catch (err) {
+    await connection.rollback();
+    res.status(500).json({ error: `Safe soft delete failed: ${err.message}` });
+  } finally {
+    connection.release();
+  }
+});
+
+// PRE-INSERT DUPLICATE CHECKER API
+app.post('/api/students/check-duplicate', async (req, res) => {
+  try {
+    const { adminNo, name, gradeClass, dob } = req.body;
+
+    // 1. Exact Admission Number Match (Definitely duplicate)
+    if (adminNo) {
+      const [adminMatches] = await pool.query(
+        'SELECT id, name, adminNo, gradeClass, boardingStatus FROM students WHERE adminNo = ? AND (deleted_at IS NULL)',
+        [adminNo.trim()]
+      );
+      if (adminMatches && adminMatches.length > 0) {
+        return res.json({
+          duplicateFound: true,
+          classification: 'Definitely duplicate',
+          reason: `A student with Admission Number "${adminNo}" already exists in ${adminMatches[0].gradeClass}.`,
+          existingStudent: adminMatches[0]
+        });
+      }
+    }
+
+    // 2. Exact Name + Class Match (Likely duplicate)
+    if (name && gradeClass) {
+      const [nameMatches] = await pool.query(
+        'SELECT id, name, adminNo, gradeClass, boardingStatus FROM students WHERE LOWER(name) = LOWER(?) AND gradeClass = ? AND (deleted_at IS NULL)',
+        [name.trim(), gradeClass.trim()]
+      );
+      if (nameMatches && nameMatches.length > 0) {
+        return res.json({
+          duplicateFound: true,
+          classification: 'Likely duplicate',
+          reason: `A student named "${name}" already exists in ${gradeClass} (Admin No: ${nameMatches[0].adminNo}).`,
+          existingStudent: nameMatches[0]
+        });
+      }
+    }
+
+    // 3. Name Similarity Match (Possibly duplicate)
+    if (name) {
+      const [similarMatches] = await pool.query(
+        'SELECT id, name, adminNo, gradeClass, boardingStatus FROM students WHERE LOWER(name) = LOWER(?) AND (deleted_at IS NULL)',
+        [name.trim()]
+      );
+      if (similarMatches && similarMatches.length > 0) {
+        return res.json({
+          duplicateFound: true,
+          classification: 'Possibly duplicate',
+          reason: `A student with the name "${name}" exists in ${similarMatches[0].gradeClass} (Admin No: ${similarMatches[0].adminNo}).`,
+          existingStudent: similarMatches[0]
+        });
+      }
+    }
+
+    res.json({ duplicateFound: false, classification: 'Not duplicate' });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// GET TRASH / RECENTLY DELETED RECORDS
+app.get('/api/admin/trash', async (req, res) => {
+  try {
+    const [rows] = await pool.query(
+      'SELECT id, adminNo, name, gender, gradeClass, boardingStatus, deleted_at, deleted_by, deletion_reason FROM students WHERE deleted_at IS NOT NULL ORDER BY deleted_at DESC LIMIT 200'
+    );
+    res.json({ success: true, trash: rows || [] });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// RESTORE STUDENT FROM TRASH
+app.post('/api/admin/trash/restore/:id', async (req, res) => {
+  const studentId = req.params.id;
+  const connection = await pool.getConnection();
+  try {
+    await connection.beginTransaction();
+
+    const [existing] = await connection.query('SELECT * FROM students WHERE id = ? AND deleted_at IS NOT NULL', [studentId]);
+    if (!existing || existing.length === 0) {
+      await connection.rollback();
+      return res.status(404).json({ error: 'Record not found in trash.' });
+    }
+
+    await connection.query('UPDATE students SET deleted_at = NULL, deleted_by = NULL, deletion_reason = NULL WHERE id = ?', [studentId]);
+    await connection.query('INSERT INTO audit_logs (action, details) VALUES (?, ?)', ['Restore Student', `Restored student "${existing[0].name}" (Admin No: ${existing[0].adminNo}, ID: ${studentId}) from trash`]);
+
+    await connection.commit();
+    statsCache = null;
+
+    res.json({
+      success: true,
+      message: `Successfully restored student "${existing[0].name}" to active roster.`
+    });
+  } catch (err) {
+    await connection.rollback();
+    res.status(500).json({ error: `Restore failed: ${err.message}` });
+  } finally {
+    connection.release();
+  }
+});
+
+// GET SYSTEM AUDIT DIAGNOSTICS FINDINGS
+app.get('/api/admin/system-audit', async (req, res) => {
+  try {
+    const findings = [];
+
+    // 1. Orphan Attendance Records check
+    const [orphanAttendance] = await pool.query(
+      'SELECT COUNT(*) as count FROM attendance_logs al LEFT JOIN students s ON al.student_id = s.id WHERE s.id IS NULL OR s.deleted_at IS NOT NULL'
+    );
+    if (orphanAttendance[0].count > 0) {
+      findings.push({
+        id: 'finding-orphan-attendance',
+        severity: 'CRITICAL',
+        title: `${orphanAttendance[0].count} attendance logs reference missing/deleted students`,
+        category: 'Database Consistency',
+        affectedCount: orphanAttendance[0].count,
+        details: 'Attendance log records exist without a corresponding active student record.'
+      });
+    }
+
+    // 2. Duplicate Admission Numbers check
+    const [dupAdminNo] = await pool.query(
+      'SELECT adminNo, COUNT(*) as count FROM students WHERE deleted_at IS NULL GROUP BY adminNo HAVING count > 1'
+    );
+    if (dupAdminNo.length > 0) {
+      findings.push({
+        id: 'finding-dup-adminno',
+        severity: 'HIGH',
+        title: `${dupAdminNo.length} duplicate Admission Number(s) detected`,
+        category: 'Data Integrity',
+        affectedCount: dupAdminNo.length,
+        details: `Admission numbers with duplicates: ${dupAdminNo.map(d => d.adminNo).join(', ')}`
+      });
+    }
+
+    // 3. Students without parent contact info
+    const [noParentContact] = await pool.query(
+      'SELECT COUNT(*) as count FROM students WHERE (parentContact IS NULL OR parentContact = "") AND deleted_at IS NULL'
+    );
+    if (noParentContact[0].count > 0) {
+      findings.push({
+        id: 'finding-no-parent-contact',
+        severity: 'MEDIUM',
+        title: `${noParentContact[0].count} student(s) missing parent phone numbers`,
+        category: 'Parent Notification',
+        affectedCount: noParentContact[0].count,
+        details: 'Parents cannot receive automated WhatsApp/SMS gate arrival notifications.'
+      });
+    }
+
+    // 4. Failed WhatsApp Notification Logs check
+    const [failedNotifications] = await pool.query(
+      "SELECT COUNT(*) as count FROM attendance_notifications WHERE status = 'Failed'"
+    );
+    if (failedNotifications[0].count > 0) {
+      findings.push({
+        id: 'finding-failed-notifications',
+        severity: 'MEDIUM',
+        title: `${failedNotifications[0].count} WhatsApp/SMS notification delivery failures`,
+        category: 'Communication Gateway',
+        affectedCount: failedNotifications[0].count,
+        details: 'Check WhatsApp Meta API connection credentials and recipient phone formatting.'
+      });
+    }
+
+    res.json({
+      success: true,
+      status: findings.some(f => f.severity === 'CRITICAL') ? 'CRITICAL' : findings.length > 0 ? 'WARNING' : 'HEALTHY',
+      findings
+    });
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
@@ -4174,10 +4385,15 @@ app.post('/api/attendance/scan', async (req, res) => {
 
     console.log(`[ATTENDANCE-SCAN-DEBUG] Processing scan for rawValue: "${scanValue}", cleanedValue: "${cleanedValue}"`);
 
-    // 1. Find the student by adminNo, id, or verification_token
+    // 1. Find the student by adminNo, id, or verification_token (with leading zero fallback)
+    const normValue = cleanedValue.replace(/^0+/, '');
     const [stRows] = await pool.query(
-      'SELECT id, adminNo, name, gender, gradeClass, boardingStatus, photo, isCleared, remarks FROM students WHERE adminNo = ? OR id = ? OR verification_token = ? LIMIT 1',
-      [cleanedValue, cleanedValue, cleanedValue]
+      `SELECT id, adminNo, name, gender, gradeClass, boardingStatus, photo, isCleared, remarks 
+       FROM students 
+       WHERE adminNo = ? OR id = ? OR verification_token = ? 
+          OR LTRIM(REPLACE(adminNo, '0', '')) = ?
+       LIMIT 1`,
+      [cleanedValue, cleanedValue, cleanedValue, normValue]
     );
 
     if (stRows.length === 0) {
