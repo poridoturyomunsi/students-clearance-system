@@ -880,6 +880,59 @@ async function runStaffMigrations(conn) {
     }
   }
 
+  // Also check if legacy 'teachers' table exists alongside 'staff' and merge any missing teachers into 'staff'
+  try {
+    const [tTables] = await conn.query("SHOW TABLES LIKE 'teachers'");
+    if (tTables.length > 0) {
+      const [legacyTeachers] = await conn.query('SELECT * FROM teachers');
+      for (const tch of legacyTeachers) {
+        const [exists] = await conn.query('SELECT id FROM staff WHERE id = ? OR username = ?', [tch.id, tch.username]);
+        if (exists.length === 0) {
+          console.log(`[MIGRATION] Migrating legacy teacher "${tch.name}" (${tch.username}) into staff table...`);
+          const parts = (tch.name || '').trim().split(/\s+/);
+          const fName = parts[0] || 'Teacher';
+          const lName = parts.slice(1).join(' ') || 'Staff';
+          await conn.query(
+            `INSERT INTO staff (
+              id, username, password_hash, name, first_name, last_name, gender, subjects, classes, position, signature, photo, status, category, createdAt
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'Teaching', ?)`,
+            [
+              tch.id,
+              tch.username,
+              tch.password_hash || '',
+              tch.name,
+              fName,
+              lName,
+              tch.gender || null,
+              typeof tch.subjects === 'string' ? tch.subjects : JSON.stringify(tch.subjects || []),
+              typeof tch.classes === 'string' ? tch.classes : JSON.stringify(tch.classes || []),
+              tch.position || 'Teacher',
+              tch.signature || null,
+              tch.photo || null,
+              tch.status || 'Active',
+              tch.createdAt || new Date()
+            ]
+          );
+        }
+      }
+    }
+  } catch (e) {
+    console.warn('[MIGRATION] Merging legacy teachers into staff table failed:', e.message);
+  }
+
+  // Ensure all active students have a student_accounts record
+  try {
+    const crypto = require('crypto');
+    const defaultHash = crypto.createHash('sha256').update('123').digest('hex');
+    await conn.query(`
+      INSERT IGNORE INTO student_accounts (student_id, password_hash, status, needs_password_change)
+      SELECT id, ?, 'Active', 1 FROM students WHERE deleted_at IS NULL
+    `, [defaultHash]);
+    console.log('[MIGRATION] Ensured all active students have student_accounts records.');
+  } catch (e) {
+    console.warn('[MIGRATION] Creating missing student accounts failed:', e.message);
+  }
+
   // Restore foreign keys on teacher_assignments and class_teachers pointing to staff
   try {
     await conn.query('ALTER TABLE teacher_assignments ADD CONSTRAINT fk_teacher_assignments_staff FOREIGN KEY (teacher_id) REFERENCES staff(id) ON DELETE CASCADE');
@@ -6294,9 +6347,76 @@ app.post('/api/auth/login', async (req, res) => {
           `SELECT * FROM staff 
            WHERE LOWER(name) LIKE LOWER(?) 
               OR LOWER(username) LIKE LOWER(?) 
-              OR LOWER(id) LIKE LOWER(?)`,
-          [partial, partial, partial]
+              OR LOWER(id) LIKE LOWER(?)
+              OR LOWER(first_name) LIKE LOWER(?)
+              OR LOWER(last_name) LIKE LOWER(?)`,
+          [partial, partial, partial, partial, partial]
         );
+      }
+
+      // Secondary fallback: search legacy 'teachers' table if not found in 'staff' table
+      if (rows.length === 0) {
+        try {
+          const partial = `%${cleanUser}%`;
+          const [tchRows] = await pool.query(
+            `SELECT * FROM teachers 
+             WHERE LOWER(username) = LOWER(?) 
+                OR LOWER(id) = LOWER(?) 
+                OR LOWER(name) = LOWER(?)
+                OR LOWER(name) LIKE LOWER(?)
+                OR LOWER(username) LIKE LOWER(?)`,
+            [cleanUser, cleanUser, cleanUser, partial, partial]
+          );
+
+          if (tchRows.length > 0) {
+            const tch = tchRows[0];
+            if (tch.status && tch.status !== 'Active' && tch.status !== 'On Leave') {
+              return res.status(403).json({ error: 'Your account is deactivated or suspended. Please contact the administrator.' });
+            }
+
+            const crypto = require('crypto');
+            const hash = crypto.createHash('sha256').update(cleanPass).digest('hex');
+            const defaultTeacherHash = crypto.createHash('sha256').update('teacher123').digest('hex');
+            const default123Hash = crypto.createHash('sha256').update('123').digest('hex');
+
+            const isPasswordMatch = (
+              hash === tch.password_hash ||
+              tch.password_hash === cleanPass ||
+              (tch.password_hash === default123Hash && (cleanPass === '123' || cleanPass === 'teacher123')) ||
+              (tch.password_hash === defaultTeacherHash && (cleanPass === '123' || cleanPass === 'teacher123')) ||
+              (!tch.password_hash && (cleanPass === '123' || cleanPass === 'teacher123'))
+            );
+
+            if (!isPasswordMatch) {
+              return res.status(401).json({ error: 'Invalid password. If this is your first time logging in, try default password "teacher123" or "123".' });
+            }
+
+            const subjects = typeof tch.subjects === 'string' ? JSON.parse(tch.subjects || '[]') : (tch.subjects || []);
+            const classes = typeof tch.classes === 'string' ? JSON.parse(tch.classes || '[]') : (tch.classes || []);
+            const profile = {
+              id: tch.id,
+              name: tch.name || 'Teacher',
+              username: tch.username || cleanUser,
+              status: tch.status || 'Active',
+              category: 'Teaching',
+              position: tch.position || 'Teacher',
+              subjects,
+              classes,
+              assignments: subjects.flatMap(s => classes.map(c => ({ subject: s, grade_class: c }))),
+              classTeacherFor: []
+            };
+            const payload = { id: tch.id, role: 'teacher', username: tch.username };
+            const token = jwt.sign(payload, JWT_SECRET, { expiresIn: '24h' });
+            return res.json({
+              success: true,
+              role: 'teacher',
+              user: profile,
+              token: token
+            });
+          }
+        } catch (err) {
+          console.warn('[LOGIN] Fallback search in legacy teachers table failed:', err.message);
+        }
       }
 
       if (rows.length === 0) {
@@ -6342,7 +6462,7 @@ app.post('/api/auth/login', async (req, res) => {
       const cleanPass = (password || '').trim();
 
       if (cleanUser.toLowerCase() === 'student' && (cleanPass === 'student123' || cleanPass === '123')) {
-        const [stRows] = await pool.query('SELECT id, name, adminNo, gradeClass FROM students LIMIT 1');
+        const [stRows] = await pool.query('SELECT id, name, adminNo, gradeClass FROM students WHERE deleted_at IS NULL LIMIT 1');
         if (stRows.length > 0) {
           const st = stRows[0];
           const payload = { id: st.id, role: 'student', username: st.adminNo };
@@ -6360,16 +6480,22 @@ app.post('/api/auth/login', async (req, res) => {
             token: token
           });
         }
-        return res.status(404).json({ error: 'No students found in the database.' });
+        return res.status(404).json({ error: 'No active students found in the database.' });
       }
 
-      // Multi-column lookup for student by adminNo, id, or name
+      // Multi-column lookup for student by adminNo (with and without leading 0), id, name, or verification_token
+      const strippedUser = cleanUser.replace(/^0+/, '');
       let [stRows] = await pool.query(
-        `SELECT id FROM students 
-         WHERE LOWER(adminNo) = LOWER(?) 
-            OR LOWER(id) = LOWER(?) 
-            OR LOWER(name) = LOWER(?)`,
-        [cleanUser, cleanUser, cleanUser]
+        `SELECT id, adminNo, name FROM students 
+         WHERE (deleted_at IS NULL)
+           AND (
+             LOWER(adminNo) = LOWER(?) 
+             OR LOWER(id) = LOWER(?) 
+             OR LOWER(name) = LOWER(?)
+             OR LOWER(verification_token) = LOWER(?)
+             OR TRIM(LEADING '0' FROM LOWER(adminNo)) = LOWER(?)
+           )`,
+        [cleanUser, cleanUser, cleanUser, cleanUser, strippedUser]
       );
 
       if (stRows.length === 0) {
@@ -6445,8 +6571,9 @@ app.post('/api/auth/login', async (req, res) => {
       let student = null;
       let matchedParent = 'Parent';
       let authenticated = false;
-      const inputUser = username.trim().toLowerCase();
-      const inputPass = password.trim();
+      const inputUser = (username || '').trim().toLowerCase();
+      const inputPass = (password || '').trim();
+      const strippedUser = inputUser.replace(/^0+/, '');
 
       const phoneMatch = (p1, p2) => {
         const n1 = p1 ? p1.replace(/\D/g, '') : '';
@@ -6458,77 +6585,85 @@ app.post('/api/auth/login', async (req, res) => {
         return n1 === n2;
       };
 
-      // Check if username matches a student number (adminNo)
-      const [stRows] = await pool.query('SELECT * FROM students WHERE LOWER(adminNo) = ?', [inputUser]);
+      // 1. Try matching student directly by adminNo (with/without leading zero), id, name, or parentContact/parentName on students table
+      const [stRows] = await pool.query(
+        `SELECT * FROM students 
+         WHERE (deleted_at IS NULL)
+           AND (
+             LOWER(adminNo) = ? 
+             OR TRIM(LEADING '0' FROM LOWER(adminNo)) = ?
+             OR LOWER(id) = ? 
+             OR LOWER(name) = ?
+             OR LOWER(name) LIKE ?
+             OR (parentContact IS NOT NULL AND LOWER(parentContact) LIKE ?)
+             OR (parentName IS NOT NULL AND LOWER(parentName) LIKE ?)
+           )`,
+        [inputUser, strippedUser, inputUser, inputUser, `%${inputUser}%`, `%${inputUser}%`, `%${inputUser}%`]
+      );
+
       if (stRows.length > 0) {
         student = stRows[0];
+        matchedParent = student.parentName || 'Parent';
+
+        // Check if parent contact exists in parent_contacts table for extra phone verification
         const [pRows] = await pool.query('SELECT * FROM parent_contacts WHERE student_id = ?', [student.id]);
         if (pRows.length > 0) {
           const pc = pRows[0];
-          
           if (
             (pc.father_phone && phoneMatch(pc.father_phone, inputPass)) ||
             (pc.father_whatsapp && phoneMatch(pc.father_whatsapp, inputPass))
           ) {
             authenticated = true;
-            matchedParent = pc.father_name || 'Father';
+            matchedParent = pc.father_name || matchedParent || 'Father';
           } else if (
             (pc.mother_phone && phoneMatch(pc.mother_phone, inputPass)) ||
             (pc.mother_whatsapp && phoneMatch(pc.mother_whatsapp, inputPass))
           ) {
             authenticated = true;
-            matchedParent = pc.mother_name || 'Mother';
+            matchedParent = pc.mother_name || matchedParent || 'Mother';
           } else if (
             (pc.guardian_phone && phoneMatch(pc.guardian_phone, inputPass)) ||
             (pc.guardian_whatsapp && phoneMatch(pc.guardian_whatsapp, inputPass))
           ) {
             authenticated = true;
-            matchedParent = pc.guardian_name || 'Guardian';
-          } else if (inputPass === '123' || inputPass === 'parent123' || inputPass === pc.father_phone || inputPass === pc.mother_phone || inputPass === pc.guardian_phone) {
-            authenticated = true;
-            matchedParent = pc.father_name || pc.mother_name || pc.guardian_name || 'Parent';
-          }
-        } else {
-          if (inputPass === '123' || inputPass === 'parent123') {
-            authenticated = true;
+            matchedParent = pc.guardian_name || matchedParent || 'Guardian';
           }
         }
+
+        // Also check against parentContact on students table
+        if (!authenticated && student.parentContact && phoneMatch(student.parentContact, inputPass)) {
+          authenticated = true;
+        }
+
+        // Accept default passwords 123, parent123, or student123
+        if (!authenticated && (inputPass === '123' || inputPass === 'parent123' || inputPass === 'student123')) {
+          authenticated = true;
+        }
       } else {
-        // If not matching student number, try searching parent contacts by parent's first name
+        // 2. If student not found directly, try searching parent_contacts by parent name or phone number
         const [allPc] = await pool.query('SELECT * FROM parent_contacts');
         const matchedPc = allPc.find(pc => {
-          const fFirst = pc.father_name ? pc.father_name.trim().split(/\s+/)[0].toLowerCase() : '';
-          const mFirst = pc.mother_name ? pc.mother_name.trim().split(/\s+/)[0].toLowerCase() : '';
-          const gFirst = pc.guardian_name ? pc.guardian_name.trim().split(/\s+/)[0].toLowerCase() : '';
+          const fName = (pc.father_name || '').toLowerCase();
+          const mName = (pc.mother_name || '').toLowerCase();
+          const gName = (pc.guardian_name || '').toLowerCase();
+          const fPhone = pc.father_phone || '';
+          const mPhone = pc.mother_phone || '';
+          const gPhone = pc.guardian_phone || '';
           
-          return fFirst === inputUser || mFirst === inputUser || gFirst === inputUser;
+          return fName.includes(inputUser) || mName.includes(inputUser) || gName.includes(inputUser) ||
+                 phoneMatch(fPhone, inputUser) || phoneMatch(mPhone, inputUser) || phoneMatch(gPhone, inputUser);
         });
 
         if (matchedPc) {
-          const [stRows2] = await pool.query('SELECT * FROM students WHERE id = ?', [matchedPc.student_id]);
+          const [stRows2] = await pool.query('SELECT * FROM students WHERE id = ? AND deleted_at IS NULL', [matchedPc.student_id]);
           if (stRows2.length > 0) {
             student = stRows2[0];
-            const fFirst = matchedPc.father_name ? matchedPc.father_name.trim().split(/\s+/)[0].toLowerCase() : '';
-            const mFirst = matchedPc.mother_name ? matchedPc.mother_name.trim().split(/\s+/)[0].toLowerCase() : '';
-            const gFirst = matchedPc.guardian_name ? matchedPc.guardian_name.trim().split(/\s+/)[0].toLowerCase() : '';
-            
-            let phone = '';
-            let whatsapp = '';
-            if (fFirst === inputUser) {
-              matchedParent = matchedPc.father_name;
-              phone = matchedPc.father_phone || '';
-              whatsapp = matchedPc.father_whatsapp || '';
-            } else if (mFirst === inputUser) {
-              matchedParent = matchedPc.mother_name;
-              phone = matchedPc.mother_phone || '';
-              whatsapp = matchedPc.mother_whatsapp || '';
-            } else {
-              matchedParent = matchedPc.guardian_name;
-              phone = matchedPc.guardian_phone || '';
-              whatsapp = matchedPc.guardian_whatsapp || '';
-            }
+            matchedParent = matchedPc.father_name || matchedPc.mother_name || matchedPc.guardian_name || 'Parent';
 
-            if (inputPass === '123' || inputPass === 'parent123' || phoneMatch(phone, inputPass) || phoneMatch(whatsapp, inputPass) || inputPass === phone || inputPass === whatsapp) {
+            let phone = matchedPc.father_phone || matchedPc.mother_phone || matchedPc.guardian_phone || '';
+            let whatsapp = matchedPc.father_whatsapp || matchedPc.mother_whatsapp || matchedPc.guardian_whatsapp || '';
+
+            if (inputPass === '123' || inputPass === 'parent123' || inputPass === 'student123' || phoneMatch(phone, inputPass) || phoneMatch(whatsapp, inputPass)) {
               authenticated = true;
             }
           }
@@ -6536,7 +6671,7 @@ app.post('/api/auth/login', async (req, res) => {
       }
 
       if (!authenticated || !student) {
-        return res.status(401).json({ error: 'Invalid parent credentials. Please use your registered first name or Student Number as username, and 123 or registered phone number as password.' });
+        return res.status(401).json({ error: 'Invalid parent credentials. Please verify your Student Number or registered Parent Phone number and Password (default 123).' });
       }
 
       const payload = { id: student.id, role: 'parent', username: student.adminNo };
