@@ -511,17 +511,33 @@ export default function StaffPortal({
   }, [selectedSubjects, activeSubject, selectedClassVal, selectedStreamVal, term, year, selectedPaper]);
 
   const handleCellChange = (studentId: string, field: string, val: string) => {
-    let numVal: number | null = val === '' ? null : Number(val);
-    if (numVal !== null && isNaN(numVal)) return;
+    if (val === '') {
+      setMarksMap(prev => ({
+        ...prev,
+        [studentId]: {
+          ...prev[studentId],
+          [field]: null
+        }
+      }));
+      return;
+    }
 
-    // Validation
+    let numVal: number | null = Number(val);
+    if (isNaN(numVal)) return;
+
+    // Validation according to assessment limits (0-3 for Integration, 0-100 for Exam/UACE)
     const limits = isUACE ? assessmentLimits.uace : assessmentLimits.olevel;
-    if (numVal !== null) {
-      if (isUACE) {
-        if (numVal < 0 || numVal > limits.score_max) return;
-      } else {
-        if (field.startsWith('integration') && (numVal < 0 || numVal > limits.integration_max)) return;
-        if (field === 'exam_score' && (numVal < 0 || numVal > limits.exam_max)) return;
+    if (isUACE) {
+      const maxVal = limits?.score_max ?? 100;
+      if (numVal < 0 || numVal > maxVal) return;
+    } else {
+      if (field.startsWith('integration')) {
+        const maxVal = limits?.integration_max ?? 3;
+        if (numVal < 0 || numVal > maxVal) return;
+      }
+      if (field === 'exam_score') {
+        const maxVal = limits?.exam_max ?? 100;
+        if (numVal < 0 || numVal > maxVal) return;
       }
     }
 
@@ -532,6 +548,31 @@ export default function StaffPortal({
         [field]: numVal
       }
     }));
+  };
+
+  const handleMarksKeyDown = (
+    e: React.KeyboardEvent<HTMLInputElement>,
+    rowIndex: number,
+    colField: string,
+    totalRows: number
+  ) => {
+    if (e.key === 'Enter' || e.key === 'ArrowDown') {
+      e.preventDefault();
+      const nextRow = rowIndex + 1 < totalRows ? rowIndex + 1 : 0;
+      const nextEl = document.getElementById(`mark-input-${nextRow}-${colField}`);
+      if (nextEl) {
+        nextEl.focus();
+        (nextEl as HTMLInputElement).select?.();
+      }
+    } else if (e.key === 'ArrowUp') {
+      e.preventDefault();
+      const prevRow = rowIndex - 1 >= 0 ? rowIndex - 1 : totalRows - 1;
+      const prevEl = document.getElementById(`mark-input-${prevRow}-${colField}`);
+      if (prevEl) {
+        prevEl.focus();
+        (prevEl as HTMLInputElement).select?.();
+      }
+    }
   };
 
   const handleSaveMarks = async (submitFlag = false) => {
@@ -1193,94 +1234,138 @@ export default function StaffPortal({
                   </div>
                 </div>
 
-                <div className="overflow-x-auto max-h-[500px]">
+                {/* Mark Entry Guidance Legend */}
+                <div className="bg-indigo-950/40 border border-indigo-500/30 p-3.5 rounded-xl flex flex-wrap items-center justify-between gap-3 text-xs shadow-lg">
+                  <div className="flex items-center gap-2.5 text-indigo-200 font-bold">
+                    <span className="w-3 h-3 rounded-full bg-indigo-400 animate-pulse shadow-sm shadow-indigo-400"></span>
+                    <span className="text-xs uppercase tracking-wider font-extrabold text-indigo-300">Enter marks in the highlighted boxes:</span>
+                  </div>
+                  <div className="flex items-center gap-3 text-xs font-mono text-slate-200">
+                    <span className="bg-slate-900 border border-indigo-500/50 px-3 py-1 rounded-lg shadow-sm">
+                      <strong className="text-indigo-400 font-sans uppercase text-[10px] tracking-wider mr-1.5">Integration:</strong> 0 – 3
+                    </span>
+                    <span className="bg-slate-900 border border-indigo-500/50 px-3 py-1 rounded-lg shadow-sm">
+                      <strong className="text-indigo-400 font-sans uppercase text-[10px] tracking-wider mr-1.5">Exam:</strong> 0 – 100
+                    </span>
+                  </div>
+                </div>
+
+                <div className="overflow-x-auto max-h-[550px] border border-slate-850 rounded-xl">
                   <table className="w-full text-left text-xs leading-normal">
                     <thead>
-                      <tr className="text-slate-500 font-bold uppercase text-[9px] font-mono border-b border-slate-850">
-                        <th className="py-2.5 px-3">Student Name</th>
-                        <th className="py-2.5 px-3">Admin No</th>
+                      <tr className="bg-slate-900/80 text-slate-400 font-bold uppercase text-[10px] font-mono border-b border-slate-850 sticky top-0 z-10 backdrop-blur-md">
+                        <th className="py-3 px-4">Student Name</th>
+                        <th className="py-3 px-4">Admin No</th>
                         {isUACE ? (
                           <>
-                            <th className="py-2.5 px-3">BOT Score</th>
-                            <th className="py-2.5 px-3">MOT Score</th>
-                            <th className="py-2.5 px-3">EOT Score</th>
+                            <th className="py-3 px-4 text-center">BOT Score (0-100)</th>
+                            <th className="py-3 px-4 text-center">MOT Score (0-100)</th>
+                            <th className="py-3 px-4 text-center">EOT Score (0-100)</th>
                           </>
                         ) : (
                           <>
-                            <th className="py-2.5 px-3">Integration 1 (Max 3)</th>
-                            <th className="py-2.5 px-3">Integration 2 (Max 3)</th>
-                            <th className="py-2.5 px-3">Integration 3 (Max 3)</th>
-                            <th className="py-2.5 px-3">Exam Score (Max 100)</th>
+                            <th className="py-3 px-4 text-center">Integration 1 (0–3)</th>
+                            <th className="py-3 px-4 text-center">Integration 2 (0–3)</th>
+                            <th className="py-3 px-4 text-center">Integration 3 (0–3)</th>
+                            <th className="py-3 px-4 text-center">Exam Score (0–100)</th>
                           </>
                         )}
                       </tr>
                     </thead>
-                    <tbody className="divide-y divide-slate-850/50">
-                      {filteredStudents.map((st) => {
+                    <tbody className="divide-y divide-slate-850/50 bg-slate-950">
+                      {filteredStudents.map((st, idx) => {
                         const rec = marksMap[st.id] || {};
                         return (
-                          <tr key={st.id} className="hover:bg-slate-900/40 transition">
-                            <td className="py-3 px-3 text-slate-200 font-bold uppercase">{st.name}</td>
-                            <td className="py-3 px-3 text-slate-450 font-mono">{st.adminNo}</td>
+                          <tr key={st.id} className="hover:bg-indigo-950/20 transition-colors">
+                            <td className="py-3 px-4 text-slate-200 font-bold uppercase tracking-tight">{st.name}</td>
+                            <td className="py-3 px-4 text-slate-400 font-mono text-[11px]">{st.adminNo}</td>
                             {isUACE ? (
                               <>
-                                <td className="py-1 px-3">
+                                <td className="py-2 px-4 text-center">
                                   <input
+                                    id={`mark-input-${idx}-bot`}
                                     type="text"
+                                    inputMode="decimal"
+                                    placeholder="0-100"
                                     value={rec.bot ?? ''}
                                     onChange={e => handleCellChange(st.id, 'bot', e.target.value)}
-                                    className="w-16 bg-slate-900 border border-slate-800 rounded px-2.5 py-1 text-xs text-slate-200 font-mono text-center focus:outline-none focus:border-indigo-500"
+                                    onKeyDown={e => handleMarksKeyDown(e, idx, 'bot', filteredStudents.length)}
+                                    className="w-20 md:w-24 h-11 bg-[#0c1329] border-2 border-indigo-500/60 hover:border-indigo-400 hover:bg-[#131d3d] focus:bg-[#162248] focus:border-indigo-400 focus:ring-4 focus:ring-indigo-500/30 focus:shadow-xl focus:shadow-indigo-500/25 focus:outline-none rounded-xl px-2 text-base font-bold font-mono text-slate-100 text-center transition-all cursor-text placeholder:text-slate-600 placeholder:font-normal placeholder:text-xs tracking-wider shadow-inner select-all"
                                   />
                                 </td>
-                                <td className="py-1 px-3">
+                                <td className="py-2 px-4 text-center">
                                   <input
+                                    id={`mark-input-${idx}-mot`}
                                     type="text"
+                                    inputMode="decimal"
+                                    placeholder="0-100"
                                     value={rec.mot ?? ''}
                                     onChange={e => handleCellChange(st.id, 'mot', e.target.value)}
-                                    className="w-16 bg-slate-900 border border-slate-800 rounded px-2.5 py-1 text-xs text-slate-200 font-mono text-center focus:outline-none focus:border-indigo-500"
+                                    onKeyDown={e => handleMarksKeyDown(e, idx, 'mot', filteredStudents.length)}
+                                    className="w-20 md:w-24 h-11 bg-[#0c1329] border-2 border-indigo-500/60 hover:border-indigo-400 hover:bg-[#131d3d] focus:bg-[#162248] focus:border-indigo-400 focus:ring-4 focus:ring-indigo-500/30 focus:shadow-xl focus:shadow-indigo-500/25 focus:outline-none rounded-xl px-2 text-base font-bold font-mono text-slate-100 text-center transition-all cursor-text placeholder:text-slate-600 placeholder:font-normal placeholder:text-xs tracking-wider shadow-inner select-all"
                                   />
                                 </td>
-                                <td className="py-1 px-3">
+                                <td className="py-2 px-4 text-center">
                                   <input
+                                    id={`mark-input-${idx}-eot`}
                                     type="text"
+                                    inputMode="decimal"
+                                    placeholder="0-100"
                                     value={rec.eot ?? ''}
                                     onChange={e => handleCellChange(st.id, 'eot', e.target.value)}
-                                    className="w-16 bg-slate-900 border border-slate-800 rounded px-2.5 py-1 text-xs text-slate-200 font-mono text-center focus:outline-none focus:border-indigo-500"
+                                    onKeyDown={e => handleMarksKeyDown(e, idx, 'eot', filteredStudents.length)}
+                                    className="w-20 md:w-24 h-11 bg-[#0c1329] border-2 border-indigo-500/60 hover:border-indigo-400 hover:bg-[#131d3d] focus:bg-[#162248] focus:border-indigo-400 focus:ring-4 focus:ring-indigo-500/30 focus:shadow-xl focus:shadow-indigo-500/25 focus:outline-none rounded-xl px-2 text-base font-bold font-mono text-slate-100 text-center transition-all cursor-text placeholder:text-slate-600 placeholder:font-normal placeholder:text-xs tracking-wider shadow-inner select-all"
                                   />
                                 </td>
                               </>
                             ) : (
                               <>
-                                <td className="py-1 px-3">
+                                <td className="py-2 px-4 text-center">
                                   <input
+                                    id={`mark-input-${idx}-integration1`}
                                     type="text"
+                                    inputMode="decimal"
+                                    placeholder="0-3"
                                     value={rec.integration1 ?? ''}
                                     onChange={e => handleCellChange(st.id, 'integration1', e.target.value)}
-                                    className="w-16 bg-slate-900 border border-slate-800 rounded px-2.5 py-1 text-xs text-slate-200 font-mono text-center focus:outline-none focus:border-indigo-500"
+                                    onKeyDown={e => handleMarksKeyDown(e, idx, 'integration1', filteredStudents.length)}
+                                    className="w-20 md:w-24 h-11 bg-[#0c1329] border-2 border-indigo-500/60 hover:border-indigo-400 hover:bg-[#131d3d] focus:bg-[#162248] focus:border-indigo-400 focus:ring-4 focus:ring-indigo-500/30 focus:shadow-xl focus:shadow-indigo-500/25 focus:outline-none rounded-xl px-2 text-base font-bold font-mono text-slate-100 text-center transition-all cursor-text placeholder:text-slate-600 placeholder:font-normal placeholder:text-xs tracking-wider shadow-inner select-all"
                                   />
                                 </td>
-                                <td className="py-1 px-3">
+                                <td className="py-2 px-4 text-center">
                                   <input
+                                    id={`mark-input-${idx}-integration2`}
                                     type="text"
+                                    inputMode="decimal"
+                                    placeholder="0-3"
                                     value={rec.integration2 ?? ''}
                                     onChange={e => handleCellChange(st.id, 'integration2', e.target.value)}
-                                    className="w-16 bg-slate-900 border border-slate-800 rounded px-2.5 py-1 text-xs text-slate-200 font-mono text-center focus:outline-none focus:border-indigo-500"
+                                    onKeyDown={e => handleMarksKeyDown(e, idx, 'integration2', filteredStudents.length)}
+                                    className="w-20 md:w-24 h-11 bg-[#0c1329] border-2 border-indigo-500/60 hover:border-indigo-400 hover:bg-[#131d3d] focus:bg-[#162248] focus:border-indigo-400 focus:ring-4 focus:ring-indigo-500/30 focus:shadow-xl focus:shadow-indigo-500/25 focus:outline-none rounded-xl px-2 text-base font-bold font-mono text-slate-100 text-center transition-all cursor-text placeholder:text-slate-600 placeholder:font-normal placeholder:text-xs tracking-wider shadow-inner select-all"
                                   />
                                 </td>
-                                <td className="py-1 px-3">
+                                <td className="py-2 px-4 text-center">
                                   <input
+                                    id={`mark-input-${idx}-integration3`}
                                     type="text"
+                                    inputMode="decimal"
+                                    placeholder="0-3"
                                     value={rec.integration3 ?? ''}
                                     onChange={e => handleCellChange(st.id, 'integration3', e.target.value)}
-                                    className="w-16 bg-slate-900 border border-slate-800 rounded px-2.5 py-1 text-xs text-slate-200 font-mono text-center focus:outline-none focus:border-indigo-500"
+                                    onKeyDown={e => handleMarksKeyDown(e, idx, 'integration3', filteredStudents.length)}
+                                    className="w-20 md:w-24 h-11 bg-[#0c1329] border-2 border-indigo-500/60 hover:border-indigo-400 hover:bg-[#131d3d] focus:bg-[#162248] focus:border-indigo-400 focus:ring-4 focus:ring-indigo-500/30 focus:shadow-xl focus:shadow-indigo-500/25 focus:outline-none rounded-xl px-2 text-base font-bold font-mono text-slate-100 text-center transition-all cursor-text placeholder:text-slate-600 placeholder:font-normal placeholder:text-xs tracking-wider shadow-inner select-all"
                                   />
                                 </td>
-                                <td className="py-1 px-3">
+                                <td className="py-2 px-4 text-center">
                                   <input
+                                    id={`mark-input-${idx}-exam_score`}
                                     type="text"
+                                    inputMode="decimal"
+                                    placeholder="0-100"
                                     value={rec.exam_score ?? ''}
                                     onChange={e => handleCellChange(st.id, 'exam_score', e.target.value)}
-                                    className="w-16 bg-slate-900 border border-slate-800 rounded px-2.5 py-1 text-xs text-slate-200 font-mono text-center focus:outline-none focus:border-indigo-500"
+                                    onKeyDown={e => handleMarksKeyDown(e, idx, 'exam_score', filteredStudents.length)}
+                                    className="w-20 md:w-24 h-11 bg-[#0c1329] border-2 border-indigo-500/60 hover:border-indigo-400 hover:bg-[#131d3d] focus:bg-[#162248] focus:border-indigo-400 focus:ring-4 focus:ring-indigo-500/30 focus:shadow-xl focus:shadow-indigo-500/25 focus:outline-none rounded-xl px-2 text-base font-bold font-mono text-slate-100 text-center transition-all cursor-text placeholder:text-slate-600 placeholder:font-normal placeholder:text-xs tracking-wider shadow-inner select-all"
                                   />
                                 </td>
                               </>
