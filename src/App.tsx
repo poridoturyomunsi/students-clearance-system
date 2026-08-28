@@ -621,7 +621,14 @@ function AppContent() {
   useEffect(() => {
     if (typeof window !== 'undefined') {
       const handleUnauthorized = () => {
-        console.warn('[App] Session unauthorized or expired. Resetting auth session...');
+        console.warn('[App] Session unauthorized or expired. Evaluating auth session...');
+        if (typeof window !== 'undefined') {
+          const currentToken = localStorage.getItem('spss_token');
+          if (currentToken && (currentToken.startsWith('offline-') || currentToken === 'local-session')) {
+            console.log('[App] Preserving active resilient offline/local session.');
+            return;
+          }
+        }
         setAuthSession(null);
         setDbConnectionError(false);
       };
@@ -3521,7 +3528,12 @@ function AppContent() {
 
           // Persist session and ensure UI state resets to the Term 2 Student Clearance landing page
           setAuthSession(session);
-          try { localStorage.setItem('spss_session', JSON.stringify(session)); } catch (e) { /* ignore */ }
+          try { 
+            localStorage.setItem('spss_session', JSON.stringify(session)); 
+            if (session && session.token) {
+              localStorage.setItem('spss_token', session.token);
+            }
+          } catch (e) { /* ignore */ }
 
           // Force the clearance workspace and master database section as the landing view
           setActiveModule && setActiveModule('clearance');
