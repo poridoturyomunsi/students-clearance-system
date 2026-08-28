@@ -114,16 +114,24 @@ export default function StaffPortal({
   const [pwSuccess, setPwSuccess] = useState(false);
 
   // --- Legacy Teacher Module States ---
-  const [allSubjects, setAllSubjects] = useState<string[]>([]);
-  const [selectedSubjects, setSelectedSubjects] = useState<string[]>([]);
-  const [activeSubject, setActiveSubject] = useState<string>('');
+  const DEFAULT_CLASSES = ['S.1', 'S.2', 'S.3', 'S.4', 'S.5', 'S.6'];
+  const DEFAULT_STREAMS = ['A', 'B', 'C', 'D', 'E', 'North', 'South', 'Sciences', 'Arts'];
+  const DEFAULT_SUBJECTS = ['Mathematics', 'Physics', 'Chemistry', 'Biology', 'English Language', 'History and Political Education', 'Geography', 'Entrepreneurship', 'ICT', 'General Paper'];
+
+  const [allSubjects, setAllSubjects] = useState<string[]>(DEFAULT_SUBJECTS);
+  const [selectedSubjects, setSelectedSubjects] = useState<string[]>(
+    assignedSubjects && assignedSubjects.length > 0 ? assignedSubjects : DEFAULT_SUBJECTS
+  );
+  const [activeSubject, setActiveSubject] = useState<string>(
+    assignedSubjects && assignedSubjects.length > 0 ? assignedSubjects[0] : 'Mathematics'
+  );
   const [subjectSearch, setSubjectSearch] = useState<string>('');
   const [isSubjectDropdownOpen, setIsSubjectDropdownOpen] = useState<boolean>(false);
-  const [classList, setClassList] = useState<string[]>([]);
-  const [streamList, setStreamList] = useState<string[]>([]);
-  const [selectedClassVal, setSelectedClassVal] = useState<string>('');
-  const [selectedStreamVal, setSelectedStreamVal] = useState<string>('');
-  const [term, setTerm] = useState('2');
+  const [classList, setClassList] = useState<string[]>(DEFAULT_CLASSES);
+  const [streamList, setStreamList] = useState<string[]>(DEFAULT_STREAMS);
+  const [selectedClassVal, setSelectedClassVal] = useState<string>('S.1');
+  const [selectedStreamVal, setSelectedStreamVal] = useState<string>('A');
+  const [term, setTerm] = useState('3');
   const [year, setYear] = useState(2026);
   const [selectedPaper, setSelectedPaper] = useState<number>(1);
   const [students, setStudents] = useState<any[]>([]);
@@ -403,15 +411,27 @@ export default function StaffPortal({
     const loadMetadata = async () => {
       try {
         const [settings, dbClasses, dbStreams] = await Promise.all([
-          fetchSettings(),
-          fetchClassesFromDb(),
-          fetchStreamsFromDb()
+          fetchSettings().catch(() => ({})),
+          fetchClassesFromDb().catch(() => []),
+          fetchStreamsFromDb().catch(() => [])
         ]);
-        const olevel = settings.olevel_subjects ? JSON.parse(settings.olevel_subjects) : [];
-        const uace = settings.uace_subjects ? JSON.parse(settings.uace_subjects) : [];
-        setAllSubjects(Array.from(new Set([...olevel, ...uace])) as string[]);
-        setClassList(dbClasses.map((c: any) => c.name));
-        setStreamList(orderStreams(dbStreams.map((s: any) => s.name)));
+        const olevel = settings?.olevel_subjects ? JSON.parse(settings.olevel_subjects) : [];
+        const uace = settings?.uace_subjects ? JSON.parse(settings.uace_subjects) : [];
+        const fetchedSubjects = Array.from(new Set([...olevel, ...uace])) as string[];
+        if (fetchedSubjects.length > 0) {
+          setAllSubjects(Array.from(new Set([...fetchedSubjects, ...DEFAULT_SUBJECTS])));
+        }
+
+        const classNames = Array.isArray(dbClasses) ? dbClasses.map((c: any) => typeof c === 'string' ? c : c.name).filter(Boolean) : [];
+        if (classNames.length > 0) {
+          setClassList(Array.from(new Set([...classNames, ...DEFAULT_CLASSES])));
+        }
+
+        const streamNames = Array.isArray(dbStreams) ? dbStreams.map((s: any) => typeof s === 'string' ? s : s.name).filter(Boolean) : [];
+        if (streamNames.length > 0) {
+          setStreamList(orderStreams(Array.from(new Set([...streamNames, ...DEFAULT_STREAMS]))));
+        }
+
         if (settings && settings.assessment_limits) {
           setAssessmentLimits(typeof settings.assessment_limits === 'string' ? JSON.parse(settings.assessment_limits) : settings.assessment_limits);
         }
@@ -423,16 +443,18 @@ export default function StaffPortal({
   }, []);
 
   const loadData = async () => {
-    if (!selectedSubjects || selectedSubjects.length === 0 || !selectedClassVal || !selectedStreamVal) return;
+    if (!selectedClassVal || !selectedStreamVal) return;
     const combinedClass = `${selectedClassVal} ${selectedStreamVal}`;
+    const currSubject = activeSubject || (selectedSubjects && selectedSubjects.length > 0 ? selectedSubjects[0] : allSubjects[0]);
+
     setLoading(true);
     setError(null);
     setSuccessMessage(null);
     try {
       const studentList = await fetchTeacherStudents(combinedClass);
-      const marksList = activeSubject ? await fetchTeacherMarks({
+      const marksList = currSubject ? await fetchTeacherMarks({
         gradeClass: combinedClass,
-        subject: activeSubject,
+        subject: currSubject,
         term,
         year,
         paper: selectedPaper
@@ -445,13 +467,13 @@ export default function StaffPortal({
         if (!map[s.id]) {
           if (isUACE) {
             let defaultType: 'Principal' | 'Subsidiary' | 'General Paper' = 'Principal';
-            if (activeSubject === 'General Paper') defaultType = 'General Paper';
-            else if (activeSubject && (activeSubject.toLowerCase().includes('subsidiary') || activeSubject.toLowerCase().includes('ict'))) {
+            if (currSubject === 'General Paper') defaultType = 'General Paper';
+            else if (currSubject && (currSubject.toLowerCase().includes('subsidiary') || currSubject.toLowerCase().includes('ict'))) {
               defaultType = 'Subsidiary';
             }
             map[s.id] = {
               student_id: s.id,
-              subject: activeSubject,
+              subject: currSubject,
               subject_type: defaultType,
               paper: selectedPaper,
               bot: null, bot_grade: null,
@@ -463,7 +485,7 @@ export default function StaffPortal({
           } else {
             map[s.id] = {
               student_id: s.id,
-              subject: activeSubject,
+              subject: currSubject,
               integration1: null,
               integration2: null,
               integration3: null,
@@ -483,7 +505,7 @@ export default function StaffPortal({
   };
 
   useEffect(() => {
-    if (selectedSubjects && selectedSubjects.length > 0 && selectedClassVal && selectedStreamVal) {
+    if (selectedClassVal && selectedStreamVal) {
       loadData();
     }
   }, [selectedSubjects, activeSubject, selectedClassVal, selectedStreamVal, term, year, selectedPaper]);
