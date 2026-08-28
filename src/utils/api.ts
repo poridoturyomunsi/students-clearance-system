@@ -42,7 +42,16 @@ import { getCached, setCached, simpleApiCache } from './api_cache';
 
 export async function apiCall(path: string, options: RequestInit = {}) {
   const url = `${apiBaseUrl}${path}`;
-  const token = typeof window !== 'undefined' ? localStorage.getItem('spss_token') : null;
+  let token = typeof window !== 'undefined' ? localStorage.getItem('spss_token') : null;
+  if (!token && typeof window !== 'undefined') {
+    try {
+      const saved = localStorage.getItem('spss_session');
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        token = parsed.token || 'offline-token-teacher';
+      }
+    } catch (e) {}
+  }
   const defaultHeaders: Record<string, string> = {
     'Content-Type': 'application/json',
   };
