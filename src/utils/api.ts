@@ -420,8 +420,7 @@ export async function saveTeacherMarks(payload: any): Promise<any> {
 }
 
 export async function submitTeacherMarks(payload: any): Promise<any> {
-  // Approval workflow removed. Keep compatibility by returning success.
-  return { success: true };
+  return await saveTeacherMarks(payload);
 }
 
 export async function fetchPendingMarks(): Promise<any[]> {

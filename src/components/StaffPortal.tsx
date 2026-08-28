@@ -605,11 +605,24 @@ export default function StaffPortal({
         teacher_id: staffId
       }));
 
+      const fullClass = selectedStreamVal ? `${selectedClassVal} ${selectedStreamVal}` : selectedClassVal;
+      const payload = {
+        gradeClass: fullClass,
+        subject: activeSubject,
+        term: term.startsWith('Term') ? term : `Term ${term}`,
+        year: Number(year),
+        teacherId: staffId,
+        marksList: records,
+        paper: selectedPaper,
+        status: submitFlag ? 'Approved' : 'Draft',
+        expectedCount: students.length
+      };
+
       let res;
       if (submitFlag) {
-        res = await submitTeacherMarks({ marks: records });
+        res = await submitTeacherMarks(payload);
       } else {
-        res = await saveTeacherMarks({ marks: records });
+        res = await saveTeacherMarks(payload);
       }
 
       if (res.success) {

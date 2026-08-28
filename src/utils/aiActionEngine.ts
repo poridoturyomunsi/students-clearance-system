@@ -3,7 +3,7 @@
  * Transforms AI from a basic chatbot into an AI Operator capable of executing authorized application actions.
  */
 
-import { apiCall, fetchStudentsFromDb, fetchAttendanceDashboard, fetchAttendanceLogs } from './api.ts';
+import { apiCall, fetchStudentsFromDb, fetchAttendanceDashboard, fetchAttendanceLogs, saveTeacherMarks } from './api.ts';
 import * as XLSX from 'xlsx';
 import { jsPDF } from 'jspdf';
 
@@ -391,6 +391,56 @@ export async function deleteStudent(id: string): Promise<ActionResult> {
     return {
       success: false,
       message: `Failed to delete student: ${err.message}`
+    };
+  }
+}
+
+/**
+ * AI Tool 11: Enter / Save Student Marks Action
+ */
+export async function enterStudentMarks(params: {
+  gradeClass: string;
+  subject: string;
+  term?: string;
+  year?: number;
+  marksList: Array<{
+    student_id: string;
+    student_name?: string;
+    admin_no?: string;
+    integration_score_1?: number;
+    integration_score_2?: number;
+    integration_score_3?: number;
+    exam_score?: number;
+    paper_number?: number;
+  }>;
+}): Promise<ActionResult> {
+  try {
+    const { gradeClass, subject, term = 'Term 3', year = 2026, marksList } = params;
+    if (!gradeClass || !subject || !marksList || !Array.isArray(marksList)) {
+      return { success: false, message: 'Class name, subject, and marks list array are required.' };
+    }
+
+    const res = await saveTeacherMarks({
+      gradeClass,
+      subject,
+      term: term.startsWith('Term') ? term : `Term ${term}`,
+      year: Number(year),
+      teacherId: 'AI_AGENT_AUTOPILOT',
+      marksList,
+      status: 'Approved',
+      expectedCount: marksList.length
+    });
+
+    return {
+      success: true,
+      message: `AI Agent successfully saved and published marks for ${marksList.length} student(s) in ${gradeClass} (${subject}).`,
+      data: res,
+      actionCompleted: `AI Entered Marks for ${gradeClass} (${subject})`
+    };
+  } catch (err: any) {
+    return {
+      success: false,
+      message: `AI marks entry failed: ${err.message}`
     };
   }
 }
