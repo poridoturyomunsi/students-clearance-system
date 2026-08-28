@@ -580,11 +580,10 @@ function AppContent() {
             });
 
             const isDegradedMode = !!statusRes.degraded;
-            if (isDegradedMode) {
-              console.warn('[App Init] Database is unavailable; continuing in degraded local mode.');
+            if (isDegradedMode || statusRes.connected || authSession) {
               setDbConnectionError(false);
             } else {
-              setDbConnectionError(!statusRes.connected);
+              setDbConnectionError(!statusRes.connected && !(typeof window !== 'undefined' && !(window as any).electron));
             }
           }
 
@@ -597,7 +596,11 @@ function AppContent() {
       } catch (err: any) {
         console.error("[App Init] Critical initialization failure:", err);
         if (mounted) {
-          setDbConnectionError(true);
+          if (authSession || (typeof window !== 'undefined' && !(window as any).electron)) {
+            setDbConnectionError(false);
+          } else {
+            setDbConnectionError(true);
+          }
         }
       } finally {
         clearTimeout(safetyTimer);
@@ -989,13 +992,18 @@ function AppContent() {
     } catch (e) {}
   };
 
-  const handleRetryConnection = () => {
-    // Simple reload to re-initialize the renderer and re-run startup checks.
+  const handleRetryConnection = async () => {
+    setDbConnectionError(false);
     try {
-      window.location.reload();
+      const statusRes = await fetchDatabaseStatus().catch(() => null);
+      if (statusRes && statusRes.connected) {
+        setDbConfig(statusRes.config);
+        setDbConnectionError(false);
+      } else {
+        window.location.reload();
+      }
     } catch (e) {
-      console.warn('Reload failed, fallback to open DB settings:', e);
-      setShowDbSettingsModal(true);
+      setDbConnectionError(false);
     }
   };
 
