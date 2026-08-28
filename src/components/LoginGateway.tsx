@@ -82,7 +82,8 @@ export default function LoginGateway({ onLogin, schoolLogo, dbConnectionError }:
       setTimeout(() => {
         onLogin({
           role: fallbackRole,
-          user: userObj
+          user: userObj,
+          token: localStorage.getItem('spss_token') || 'offline-token'
         });
       }, 150);
     };
@@ -99,7 +100,8 @@ export default function LoginGateway({ onLogin, schoolLogo, dbConnectionError }:
         setTimeout(() => {
           onLogin({
             role: response.role,
-            user: response.user
+            user: response.user,
+            token: response.token || localStorage.getItem('spss_token')
           });
         }, 150);
       } else {

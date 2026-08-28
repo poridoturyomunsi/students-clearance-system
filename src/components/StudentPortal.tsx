@@ -40,7 +40,7 @@ export default function StudentPortal({ studentId, studentName, adminNo, student
     setLoading(true);
     setError(null);
     try {
-      const id = studentNo || adminNo;
+      const id = adminNo || studentNo || studentId;
       const response = await fetchIntegratedStudentData(id as string);
       setData(response);
     } catch (err: any) {

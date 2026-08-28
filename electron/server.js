@@ -1547,6 +1547,18 @@ async function ensureDbInitialized() {
       await pool.query("ALTER TABLE students ADD INDEX idx_lookup_multi (adminNo, verification_token)");
     } catch (e) {}
 
+    try {
+      await pool.query("ALTER TABLE students ADD COLUMN has_photo TINYINT(1) DEFAULT 0");
+    } catch (e) {}
+
+    try {
+      await pool.query("ALTER TABLE students ADD INDEX idx_has_photo (has_photo)");
+    } catch (e) {}
+
+    try {
+      await pool.query("UPDATE students SET has_photo = IF((photo IS NOT NULL AND photo != '') OR (photoOriginal IS NOT NULL AND photoOriginal != '') OR (photoEnhanced IS NOT NULL AND photoEnhanced != ''), 1, 0) WHERE has_photo IS NULL OR has_photo = 0");
+    } catch (e) {}
+
     // Seed default settings and some locations/devices if they don't exist
     try {
       const defaultSettings = [
@@ -2176,6 +2188,19 @@ app.use(async (req, res, next) => {
     }
     try {
       req.user = jwt.verify(token, JWT_SECRET);
+
+      // Enforce Role-Based Access Control (RBAC) security protection
+      if (req.path.startsWith('/api/admin/')) {
+        if (!req.user || req.user.role !== 'admin') {
+          return res.status(403).json({ error: 'Access denied. Administrative privileges required.' });
+        }
+      }
+
+      if (req.path.startsWith('/api/teacher/')) {
+        if (!req.user || (req.user.role !== 'admin' && req.user.role !== 'teacher')) {
+          return res.status(403).json({ error: 'Access denied. Teacher or Administrative privileges required.' });
+        }
+      }
     } catch (e) {
       return res.status(403).json({ error: 'Invalid or expired access token. Please log in again.' });
     }
@@ -2968,7 +2993,7 @@ function buildGradeClassWhereClause(filterClass, filterStream) {
 app.get('/api/students', async (req, res) => {
   try {
     const page = parseInt(req.query.page, 10) || 1;
-    const limit = parseInt(req.query.limit, 10) || 50; // OPTIMIZED: Changed default to 50
+    const limit = req.query.limit !== undefined ? parseInt(req.query.limit, 10) : -1;
     const search = req.query.search || '';
     const filterName = req.query.name || '';
     const filterAdminNo = req.query.adminNo || '';
@@ -3079,7 +3104,7 @@ app.get('/api/students', async (req, res) => {
       const dataQuery = `
         SELECT id, adminNo, name, aliases, gender, gradeClass, boardingStatus, isCleared, 
                gateClearanceDate, mealsClearanceDate, remarks, printStatus, updatedAt,
-               IF((photo IS NOT NULL AND photo != '') OR (photoOriginal IS NOT NULL AND photoOriginal != '') OR (photoEnhanced IS NOT NULL AND photoEnhanced != ''), 1, 0) as hasPhoto
+               has_photo as hasPhoto
         FROM students
         ${whereSql}
         ORDER BY ${sortBy} ASC
@@ -3113,7 +3138,7 @@ app.get('/api/students', async (req, res) => {
     const dataQuery = `
       SELECT id, adminNo, name, aliases, gender, gradeClass, boardingStatus, isCleared, 
              gateClearanceDate, mealsClearanceDate, remarks, printStatus, updatedAt,
-             IF((photo IS NOT NULL AND photo != '') OR (photoOriginal IS NOT NULL AND photoOriginal != '') OR (photoEnhanced IS NOT NULL AND photoEnhanced != ''), 1, 0) as hasPhoto
+             has_photo as hasPhoto
       FROM students
       ${whereSql}
       ORDER BY ${sortBy} ASC
@@ -3188,11 +3213,17 @@ app.get('/api/students/:id', async (req, res) => {
 // GET student photo binary
 app.get('/api/students/:id/photo', async (req, res) => {
   try {
-    const [rows] = await pool.query('SELECT photo FROM students WHERE id = ?', [req.params.id]);
-    if (rows.length === 0 || !rows[0].photo) {
+    const [rows] = await pool.query(
+      'SELECT photo, photoOriginal, photoEnhanced FROM students WHERE id = ? OR adminNo = ?',
+      [req.params.id, req.params.id]
+    );
+    if (rows.length === 0) {
       return res.status(404).send('Photo not found');
     }
-    const photoStr = rows[0].photo;
+    const photoStr = rows[0].photo || rows[0].photoOriginal || rows[0].photoEnhanced;
+    if (!photoStr) {
+      return res.status(404).send('Photo not found');
+    }
     if (photoStr.startsWith('http://') || photoStr.startsWith('https://')) {
       return res.redirect(photoStr);
     }
@@ -3789,7 +3820,7 @@ async function getMasterStats() {
     SELECT 
       COUNT(*) as total,
       SUM(IF(isCleared = 1, 1, 0)) as cleared,
-      SUM(IF((photo IS NOT NULL AND photo != "") OR (photoOriginal IS NOT NULL AND photoOriginal != "") OR (photoEnhanced IS NOT NULL AND photoEnhanced != ""), 1, 0)) as withPhoto,
+      SUM(IF(has_photo = 1 OR (photo IS NOT NULL AND photo != '') OR (photoOriginal IS NOT NULL AND photoOriginal != '') OR (photoEnhanced IS NOT NULL AND photoEnhanced != ''), 1, 0)) as withPhoto,
       SUM(IF(gradeClass LIKE 'S.1%' OR gradeClass LIKE 'S.2%' OR gradeClass LIKE 'S.3%' OR gradeClass LIKE 'S.4%', 1, 0)) as lowerSecondaryTotal,
       SUM(IF(gradeClass LIKE 'S.5%' OR gradeClass LIKE 'S.6%', 1, 0)) as upperSecondaryTotal
     FROM students WHERE deleted_at IS NULL
@@ -5509,13 +5540,23 @@ app.post('/api/fees/payment', async (req, res) => {
 app.get('/api/integration/student/:adminNo', async (req, res) => {
   try {
     const target = req.params.adminNo;
+    const strippedTarget = target.replace(/^0+/, '');
     const [studentRows] = await pool.query(
-      `SELECT id, adminNo, name, aliases, gender, gradeClass, boardingStatus, isCleared, 
-              gateClearanceDate, mealsClearanceDate, remarks, printStatus, uace_combination, 
-              parentName, parentContact, updatedAt, 
-              IF(photo IS NOT NULL AND photo != '', 1, 0) as hasPhoto 
-       FROM students WHERE adminNo = ? OR id = ? OR LOWER(adminNo) = LOWER(?)`,
-      [target, target, target]
+      `SELECT s.id, s.adminNo, s.name, s.aliases, s.gender, s.gradeClass, s.boardingStatus, s.isCleared, 
+              s.gateClearanceDate, s.mealsClearanceDate, s.remarks, s.printStatus, s.uace_combination, 
+              s.parentName, s.parentContact, s.updatedAt, 
+              IF(s.photo IS NOT NULL AND s.photo != '', 1, 0) as hasPhoto 
+       FROM students s 
+       WHERE (s.deleted_at IS NULL) 
+         AND (
+           s.adminNo = ? OR s.id = ? OR LOWER(s.adminNo) = LOWER(?)
+           OR TRIM(LEADING '0' FROM LOWER(s.adminNo)) = LOWER(?)
+         )
+       ORDER BY 
+         ((SELECT COUNT(*) FROM olevel_marks WHERE student_id = s.id) + 
+          (SELECT COUNT(*) FROM uace_marks WHERE student_id = s.id)) DESC, 
+         s.updatedAt DESC`,
+      [target, target, target, strippedTarget]
     );
     if (studentRows.length === 0) {
       return res.status(404).json({ error: 'Student not found' });
@@ -5553,10 +5594,16 @@ app.get('/api/integration/student/:adminNo', async (req, res) => {
       const term = marksRows[0].term;
       const year = marksRows[0].year;
       
-      const [compiled] = await pool.query(
-        'SELECT class_position, total_class, stream_position, total_stream FROM compiled_rankings WHERE student_id = ? AND term = ? AND year = ?',
-        [studentId, term, year]
-      );
+      let compiled = [];
+      try {
+        const [cRows] = await pool.query(
+          'SELECT class_position, total_class, stream_position, total_stream FROM compiled_rankings WHERE student_id = ? AND term = ? AND year = ?',
+          [studentId, term, year]
+        );
+        compiled = cRows;
+      } catch (rankErr) {
+        // compiled_rankings table does not exist or fails; fallback to dynamic calculation
+      }
       
       if (compiled.length > 0) {
         classPosition = compiled[0].class_position;
@@ -6486,15 +6533,19 @@ app.post('/api/auth/login', async (req, res) => {
       // Multi-column lookup for student by adminNo (with and without leading 0), id, name, or verification_token
       const strippedUser = cleanUser.replace(/^0+/, '');
       let [stRows] = await pool.query(
-        `SELECT id, adminNo, name FROM students 
-         WHERE (deleted_at IS NULL)
+        `SELECT s.id, s.adminNo, s.name FROM students s 
+         WHERE (s.deleted_at IS NULL)
            AND (
-             LOWER(adminNo) = LOWER(?) 
-             OR LOWER(id) = LOWER(?) 
-             OR LOWER(name) = LOWER(?)
-             OR LOWER(verification_token) = LOWER(?)
-             OR TRIM(LEADING '0' FROM LOWER(adminNo)) = LOWER(?)
-           )`,
+             LOWER(s.adminNo) = LOWER(?) 
+             OR LOWER(s.id) = LOWER(?) 
+             OR LOWER(s.name) = LOWER(?)
+             OR LOWER(s.verification_token) = LOWER(?)
+             OR TRIM(LEADING '0' FROM LOWER(s.adminNo)) = LOWER(?)
+           )
+         ORDER BY 
+           ((SELECT COUNT(*) FROM olevel_marks WHERE student_id = s.id) + 
+            (SELECT COUNT(*) FROM uace_marks WHERE student_id = s.id)) DESC, 
+           s.updatedAt DESC`,
         [cleanUser, cleanUser, cleanUser, cleanUser, strippedUser]
       );
 
@@ -6742,14 +6793,19 @@ app.get('/api/teacher/marks', async (req, res) => {
       return res.status(400).json({ error: 'Missing required query parameters' });
     }
     const isUACE = gradeClass.startsWith('S.5') || gradeClass.startsWith('S.6');
+    const classWhere = buildGradeClassWhereClause(gradeClass);
+    const classSql = classWhere ? classWhere.sql.replace(/gradeClass/g, 's.gradeClass') : 's.gradeClass = ?';
+    const classParams = classWhere ? classWhere.params : [gradeClass];
+    const cleanTerm = String(term).replace(/^Term\s+/i, '').trim();
+
     if (isUACE) {
       const paperNum = parseInt(paper || 1, 10);
       const [rows] = await pool.query(
         `SELECT um.*, s.name, s.adminNo 
          FROM uace_marks um 
          JOIN students s ON um.student_id = s.id 
-         WHERE s.gradeClass = ? AND um.subject = ? AND um.paper = ? AND um.term = ? AND um.year = ?`,
-        [gradeClass, subject, paperNum, term, parseInt(year, 10)]
+         WHERE ${classSql} AND um.subject = ? AND um.paper = ? AND (um.term = ? OR um.term = ?) AND um.year = ?`,
+        [...classParams, subject, paperNum, term, `Term ${cleanTerm}`, parseInt(year, 10)]
       );
       res.json(rows);
     } else {
@@ -6757,8 +6813,8 @@ app.get('/api/teacher/marks', async (req, res) => {
         `SELECT om.*, s.name, s.adminNo 
          FROM olevel_marks om 
          JOIN students s ON om.student_id = s.id 
-         WHERE s.gradeClass = ? AND om.subject = ? AND om.term = ? AND om.year = ?`,
-        [gradeClass, subject, term, parseInt(year, 10)]
+         WHERE ${classSql} AND om.subject = ? AND (om.term = ? OR om.term = ?) AND om.year = ?`,
+        [...classParams, subject, term, `Term ${cleanTerm}`, parseInt(year, 10)]
       );
       res.json(rows);
     }
@@ -6794,10 +6850,17 @@ app.post('/api/teacher/marks', async (req, res) => {
       await connection.beginTransaction();
 
       // Retrieve class students
-      const [studentsInClass] = await connection.query(
-        'SELECT id, name, gradeClass FROM students WHERE gradeClass = ?',
-        [gradeClass]
-      );
+      const classWhere = buildGradeClassWhereClause(gradeClass);
+      let sqlStudents = 'SELECT id, name, gradeClass FROM students WHERE (deleted_at IS NULL)';
+      let paramsStudents = [];
+      if (classWhere) {
+        sqlStudents += ` AND ${classWhere.sql}`;
+        paramsStudents = classWhere.params;
+      } else {
+        sqlStudents += ' AND gradeClass = ?';
+        paramsStudents = [gradeClass];
+      }
+      const [studentsInClass] = await connection.query(sqlStudents, paramsStudents);
       const classStudentIds = new Set(studentsInClass.map(s => s.id));
       const studentMap = new Map(studentsInClass.map(s => [s.id, s.name]));
 
@@ -7541,9 +7604,10 @@ app.post('/api/pdf/generate-reports', async (req, res) => {
       return res.status(400).json({ error: 'Missing parameters for report generation' });
     }
 
+    const cleanTerm = String(term).replace(/^Term\s+/i, '').trim();
     // Check for marks records and throw error if none exist or if any are unapproved
-    const [olevelAll] = await pool.query('SELECT status FROM olevel_marks WHERE student_id IN (?) AND term = ? AND year = ?', [studentIds, term, parseInt(year, 10)]);
-    const [uaceAll] = await pool.query('SELECT status FROM uace_marks WHERE student_id IN (?) AND term = ? AND year = ?', [studentIds, term, parseInt(year, 10)]);
+    const [olevelAll] = await pool.query('SELECT status FROM olevel_marks WHERE student_id IN (?) AND (term = ? OR term = ?) AND year = ?', [studentIds, term, cleanTerm, parseInt(year, 10)]);
+    const [uaceAll] = await pool.query('SELECT status FROM uace_marks WHERE student_id IN (?) AND (term = ? OR term = ?) AND year = ?', [studentIds, term, cleanTerm, parseInt(year, 10)]);
 
     if (olevelAll.length === 0 && uaceAll.length === 0) {
       return res.status(400).json({ error: 'No marks records found. Cannot print blank report cards.' });
@@ -7616,8 +7680,8 @@ app.post('/api/pdf/generate-reports', async (req, res) => {
           return a.name.localeCompare(b.name);
         });
 
-        const [olevelMarks] = await pool.query('SELECT * FROM olevel_marks WHERE student_id IN (?) AND term = ? AND year = ?', [studentIds, term, parseInt(year, 10)]);
-        const [uaceMarks] = await pool.query('SELECT * FROM uace_marks WHERE student_id IN (?) AND term = ? AND year = ?', [studentIds, term, parseInt(year, 10)]);
+        const [olevelMarks] = await pool.query('SELECT * FROM olevel_marks WHERE student_id IN (?) AND (term = ? OR term = ?) AND year = ?', [studentIds, term, cleanTerm, parseInt(year, 10)]);
+        const [uaceMarks] = await pool.query('SELECT * FROM uace_marks WHERE student_id IN (?) AND (term = ? OR term = ?) AND year = ?', [studentIds, term, cleanTerm, parseInt(year, 10)]);
 
         const [settingsRows] = await pool.query('SELECT key_name, val_value FROM settings');
         const settings = {};

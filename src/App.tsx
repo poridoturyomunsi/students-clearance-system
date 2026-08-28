@@ -287,6 +287,12 @@ function AppContent() {
   const [activeBoardStream, setActiveBoardStream] = useState<'A' | 'B' | 'C'>('A');
   const [currentPage, setCurrentPage] = useState<number>(1);
   const [pageSize, setPageSize] = useState<number>(50);
+  const [displayLimit, setDisplayLimit] = useState<number>(100);
+
+  // Auto-reset progressive display limit when filters change
+  useEffect(() => {
+    setDisplayLimit(100);
+  }, [searchQuery, filterLevel, filterClass, filterStream, filterGender, filterClearance, filterBoarding, filterAcademicYear, filterPhoto, printNewOnly, pageSize, currentPage]);
 
   // Background Tasks Queue States
   interface BackgroundTask {
@@ -669,8 +675,8 @@ function AppContent() {
       const isAllBoard = viewMode === 'board' && (activeBoardClass === 'ALL' || activeBoardClass === 'All');
 
       const params: any = {
-        page: currentPage || 1,
-        limit: (activeClass || isAllBoard) ? -1 : (pageSize || 50),
+        page: 1,
+        limit: -1,
         search: searchQuery ? searchQuery.trim() : undefined,
         gradeClass: isAllBoard ? undefined : activeClass,
         stream: activeStream,
@@ -734,7 +740,7 @@ function AppContent() {
     } finally {
       setIsTableLoading(false);
     }
-  }, [dbConnectionError, viewMode, pageSize, currentPage, searchQuery, filterLevel, filterClass, filterStream, filterGender, filterClearance, filterBoarding, filterPhoto, printNewOnly, filterAcademicYear, sortBy, activeBoardClass, activeBoardStream]);
+  }, [dbConnectionError, viewMode, searchQuery, filterLevel, filterClass, filterStream, filterGender, filterClearance, filterBoarding, filterPhoto, printNewOnly, filterAcademicYear, sortBy, activeBoardClass, activeBoardStream]);
 
   const handleExportScopeCsv = async () => {
     try {
@@ -1572,10 +1578,12 @@ function AppContent() {
   ]);
 
   const paginatedStudents = useMemo(() => {
-    if (pageSize === -1) return filteredStudents;
+    if (pageSize === -1) {
+      return filteredStudents.slice(0, displayLimit);
+    }
     const startIndex = (currentPage - 1) * pageSize;
     return filteredStudents.slice(startIndex, startIndex + pageSize);
-  }, [filteredStudents, currentPage, pageSize]);
+  }, [filteredStudents, currentPage, pageSize, displayLimit]);
 
   const effectiveTotalCount = useMemo(() => {
     return filteredStudents.length;
@@ -5127,7 +5135,19 @@ function AppContent() {
                 })()}
               </div>
             ) : (
-              <div className="overflow-x-auto">
+              <div
+                className="overflow-x-auto max-h-[72vh] overflow-y-auto"
+                onScroll={(e) => {
+                  if (pageSize === -1) {
+                    const { scrollTop, scrollHeight, clientHeight } = e.currentTarget;
+                    if (scrollTop + clientHeight >= scrollHeight - 400) {
+                      if (displayLimit < filteredStudents.length) {
+                        setDisplayLimit((prev) => Math.min(prev + 150, filteredStudents.length));
+                      }
+                    }
+                  }
+                }}
+              >
                 <table className="w-full min-w-[1000px] text-left border-collapse select-none">
                 <thead>
                   <tr className="border-b border-slate-800 bg-slate-900/60 text-[9px] font-mono font-bold text-slate-400 uppercase tracking-widest">
@@ -5356,7 +5376,22 @@ function AppContent() {
             <div className="p-4 border-t border-slate-850 bg-slate-900/40 flex flex-col md:flex-row gap-4 justify-between items-center text-xs select-none">
               <div className="flex items-center gap-3">
                 <span className="text-slate-500 font-mono">
-                  Showing {effectiveTotalCount === 0 ? 0 : (currentPage - 1) * pageSize + 1}-{Math.min(effectiveTotalCount, currentPage * pageSize)} of {effectiveTotalCount} matching ({students.length} total)
+                  {pageSize === -1 ? (
+                    <>
+                      Showing {paginatedStudents.length} of {effectiveTotalCount} matching ({students.length} total)
+                      {displayLimit < effectiveTotalCount && (
+                        <button
+                          onClick={() => setDisplayLimit(effectiveTotalCount)}
+                          className="ml-2 px-2 py-0.5 bg-indigo-900/60 hover:bg-indigo-800 text-indigo-200 border border-indigo-700/50 rounded text-[10px] font-mono cursor-pointer transition-colors"
+                          title="Click to immediately render all matching records"
+                        >
+                          Load All {effectiveTotalCount} At Once
+                        </button>
+                      )}
+                    </>
+                  ) : (
+                    `Showing ${effectiveTotalCount === 0 ? 0 : (currentPage - 1) * pageSize + 1}-${Math.min(effectiveTotalCount, currentPage * pageSize)} of ${effectiveTotalCount} matching (${students.length} total)`
+                  )}
                 </span>
                 <span className="text-slate-700">|</span>
                 <div className="flex items-center gap-1.5">

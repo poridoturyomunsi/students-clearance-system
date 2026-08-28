@@ -32,6 +32,10 @@ async function validateEnv() {
 
   let missing = 0;
   for (const env of required) {
+    if (env === 'DATABASE_URL' && !process.env.DATABASE_URL && process.env.DB_HOST && process.env.DB_DATABASE) {
+      console.log(`✅ Loaded: DB_HOST = ${process.env.DB_HOST}, DB_DATABASE = ${process.env.DB_DATABASE}`);
+      continue;
+    }
     if (!process.env[env]) {
       console.error(`❌ Missing variable: ${env}`);
       missing++;
@@ -54,13 +58,16 @@ async function validateEnv() {
 async function validateDatabase() {
   console.log('\n--- 2. Checking Database Connectivity ---');
   const dbUrl = process.env.DATABASE_URL;
-  if (!dbUrl) {
-    console.error('❌ Cannot test database: DATABASE_URL is not set.');
-    return false;
-  }
+  const dbConfig = dbUrl || {
+    host: process.env.DB_HOST || 'localhost',
+    port: parseInt(process.env.DB_PORT || '3306', 10),
+    user: process.env.DB_USER || 'root',
+    password: process.env.DB_PASSWORD || 'root123',
+    database: process.env.DB_DATABASE || 'student_clearance'
+  };
 
   try {
-    const connection = await mysql.createConnection(dbUrl);
+    const connection = await mysql.createConnection(dbConfig);
     console.log('✅ Successfully connected to MySQL database.');
     
     // Check tables

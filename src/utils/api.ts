@@ -94,7 +94,7 @@ export async function apiCall(path: string, options: RequestInit = {}) {
     const response = await fetchWithPerf(url, config);
     clearTimeout(timeoutId);
     if (!response.ok) {
-      if (response.status === 401 || response.status === 403) {
+      if (response.status === 401 && !path.startsWith('/api/auth/')) {
         if (typeof window !== 'undefined') {
           localStorage.removeItem('spss_session');
           localStorage.removeItem('spss_token');
@@ -146,7 +146,7 @@ export async function fetchStudentsFromDb(params?: {
   sortBy?: string;
 }): Promise<{ data: Student[]; total: number; page: number; limit: number }> {
   let queryString = '';
-  const mergedParams = { limit: 50, ...params };
+  const mergedParams = { limit: -1, ...params };
   const queryParts = Object.entries(mergedParams)
     .filter(([_, val]) => val !== undefined && val !== null && val !== '')
     .map(([key, val]) => `${encodeURIComponent(key)}=${encodeURIComponent(String(val))}`);
