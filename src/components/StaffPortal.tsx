@@ -1210,12 +1210,17 @@ export default function StaffPortal({
             </div>
 
             {error && (
-              <div className="bg-rose-950/40 border border-rose-900/60 p-4 rounded-xl flex items-start gap-3 text-rose-300 text-xs">
-                <AlertCircle className="w-5 h-5 shrink-0 text-rose-400" />
-                <div>
-                  <p className="font-bold">Error occurred</p>
-                  <p className="mt-0.5">{error}</p>
+              <div className={error.includes('Cannot reach') || error.includes('network connectivity') ? "bg-amber-950/40 border border-amber-800/60 p-3.5 rounded-xl flex items-center justify-between text-amber-300 text-xs font-medium" : "bg-rose-950/40 border border-rose-900/60 p-4 rounded-xl flex items-start gap-3 text-rose-300 text-xs"}>
+                <div className="flex items-center gap-2.5">
+                  <AlertCircle className={`w-4 h-4 shrink-0 ${error.includes('Cannot reach') ? 'text-amber-400' : 'text-rose-400'}`} />
+                  <div>
+                    <p className="font-bold">{error.includes('Cannot reach') ? 'Offline Mode Active' : 'Error occurred'}</p>
+                    <p className="mt-0.5 text-[11px] opacity-90">{error.includes('Cannot reach') ? 'Server unreachable. Operating seamlessly on local offline worksheet data.' : error}</p>
+                  </div>
                 </div>
+                {error.includes('Cannot reach') && (
+                  <button onClick={() => setError(null)} className="px-2.5 py-1 bg-amber-900/50 hover:bg-amber-800/60 text-amber-200 rounded-lg text-[10px] uppercase font-bold tracking-wider transition-all cursor-pointer">Dismiss</button>
+                )}
               </div>
             )}
 
