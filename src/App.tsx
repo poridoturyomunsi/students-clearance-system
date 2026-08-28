@@ -247,7 +247,7 @@ function AppContent() {
   const [dbConnectionError, setDbConnectionError] = useState<boolean>(false);
   const [syncQueueCount, setSyncQueueCount] = useState<number>(0);
   const [isSaving, setIsSaving] = useState<boolean>(false);
-  const [isInitializing, setIsInitializing] = useState<boolean>(true);
+  const [isInitializing, setIsInitializing] = useState<boolean>(false);
   const [hasSetInitialModule, setHasSetInitialModule] = useState<boolean>(false);
 
   // UI filters, sorting and view state used throughout the admin lists
