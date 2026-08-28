@@ -6942,10 +6942,29 @@ app.get('/api/teacher/marks', async (req, res) => {
 
 // POST save/update teacher marks
 app.post('/api/teacher/marks', async (req, res) => {
-  const { gradeClass, subject, term, year, teacherId, marksList, paper, expectedCount } = req.body;
+  let { gradeClass, subject, term, year, teacherId, marksList, paper, expectedCount, marks } = req.body;
   
-  if (!gradeClass || !subject || !term || !year || !marksList || !Array.isArray(marksList)) {
-    console.error(`[DB-ERROR-SAVE] [${new Date().toISOString()}] Missing parameters in request body.`);
+  // Backward-compatibility: support legacy payloads passing { marks: [...] }
+  if (!marksList && Array.isArray(marks)) {
+    marksList = marks;
+  }
+
+  // Infer missing parameters from first mark record if available
+  if (Array.isArray(marksList) && marksList.length > 0) {
+    const sample = marksList[0];
+    if (!gradeClass && sample.gradeClass) gradeClass = sample.gradeClass;
+    if (!gradeClass && sample.grade_class) gradeClass = sample.grade_class;
+    if (!subject && sample.subject) subject = sample.subject;
+    if (!term && sample.term) term = sample.term;
+    if (!year && sample.year) year = sample.year;
+  }
+
+  // Provide fallbacks for term and year
+  if (!term) term = 'Term 3';
+  if (!year) year = 2026;
+
+  if (!gradeClass || !subject || !marksList || !Array.isArray(marksList)) {
+    console.error(`[DB-ERROR-SAVE] [${new Date().toISOString()}] Missing parameters in request body:`, { gradeClass, subject, term, year, hasMarksList: !!marksList });
     return res.status(400).json({ error: 'Missing parameters' });
   }
 
