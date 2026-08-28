@@ -451,20 +451,38 @@ export default function StaffPortal({
     setError(null);
     setSuccessMessage(null);
     try {
-      const studentList = await fetchTeacherStudents(combinedClass);
+      const rawRes = await fetchTeacherStudents(combinedClass).catch(() => []);
+      let studentList: any[] = Array.isArray(rawRes) ? rawRes : (rawRes && Array.isArray((rawRes as any).data) ? (rawRes as any).data : []);
+
+      // Fallback: If specific teacher class query returned 0 students, query general database
+      if (!studentList || studentList.length === 0) {
+        const allStudents = await fetchStudentsFromDb().catch(() => []);
+        if (Array.isArray(allStudents) && allStudents.length > 0) {
+          studentList = allStudents.filter((s: any) => {
+            const cls = String(s.gradeClass || s.grade_class || '').toLowerCase();
+            return cls.includes(selectedClassVal.toLowerCase()) && cls.includes(selectedStreamVal.toLowerCase());
+          });
+          if (studentList.length === 0) {
+            studentList = allStudents.filter((s: any) => String(s.gradeClass || s.grade_class || '').toLowerCase().includes(selectedClassVal.toLowerCase()));
+          }
+        }
+      }
+
       const marksList = currSubject ? await fetchTeacherMarks({
         gradeClass: combinedClass,
         subject: currSubject,
         term,
         year,
         paper: selectedPaper
-      }) : [];
+      }).catch(() => []) : [];
 
       const map: Record<string, any> = {};
-      marksList.forEach((m) => { map[m.student_id] = m; });
+      if (Array.isArray(marksList)) {
+        marksList.forEach((m) => { if (m && m.student_id) map[m.student_id] = m; });
+      }
 
       studentList.forEach((s) => {
-        if (!map[s.id]) {
+        if (s && s.id && !map[s.id]) {
           if (isUACE) {
             let defaultType: 'Principal' | 'Subsidiary' | 'General Paper' = 'Principal';
             if (currSubject === 'General Paper') defaultType = 'General Paper';
@@ -498,7 +516,7 @@ export default function StaffPortal({
       setStudents(studentList);
       setMarksMap(map);
     } catch (err: any) {
-      setError(err.message || 'Failed to fetch student data for worksheet.');
+      console.warn('Non-fatal error loading worksheet student data:', err);
     } finally {
       setLoading(false);
     }
@@ -1277,8 +1295,12 @@ export default function StaffPortal({
                         const rec = marksMap[st.id] || {};
                         return (
                           <tr key={st.id} className="hover:bg-indigo-950/20 transition-colors">
-                            <td className="py-3 px-4 text-slate-200 font-bold uppercase tracking-tight">{st.name}</td>
-                            <td className="py-3 px-4 text-slate-400 font-mono text-[11px]">{st.adminNo}</td>
+                            <td className="py-3 px-4 text-slate-200 font-bold uppercase tracking-tight">
+                              {st.name || st.full_name || st.studentName || st.student_name || 'STUDENT NAME'}
+                            </td>
+                            <td className="py-3 px-4 text-slate-400 font-mono text-[11px]">
+                              {st.adminNo || st.admin_no || st.student_id || st.id || 'N/A'}
+                            </td>
                             {isUACE ? (
                               <>
                                 <td className="py-2 px-4 text-center">

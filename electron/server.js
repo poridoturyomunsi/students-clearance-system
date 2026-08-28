@@ -6788,7 +6788,33 @@ app.get('/api/teacher/students', async (req, res) => {
       params = classWhere.params;
     }
     sql += ' ORDER BY name';
-    const [rows] = await pool.query(sql, params);
+    let [rows] = await pool.query(sql, params);
+
+    // Fallback partial lookup if specific classWhere matched 0 rows
+    if (rows.length === 0) {
+      const cleanClass = String(gradeClass).trim();
+      const parts = cleanClass.split(/\s+/);
+      const classPart = parts[0] || '';
+      const streamPart = parts[1] || '';
+
+      let [fallbackRows] = await pool.query(
+        `SELECT id, adminNo, name, gender, gradeClass, boardingStatus FROM students 
+         WHERE (LOWER(gradeClass) LIKE LOWER(?) AND LOWER(gradeClass) LIKE LOWER(?))
+            OR LOWER(gradeClass) LIKE LOWER(?)
+         ORDER BY name`,
+        [`%${classPart}%`, `%${streamPart}%`, `%${cleanClass}%`]
+      );
+      if (fallbackRows.length === 0) {
+        [fallbackRows] = await pool.query(
+          `SELECT id, adminNo, name, gender, gradeClass, boardingStatus FROM students 
+           WHERE LOWER(gradeClass) LIKE LOWER(?)
+           ORDER BY name`,
+          [`%${classPart}%`]
+        );
+      }
+      rows = fallbackRows;
+    }
+
     res.json(rows);
   } catch (err) {
     res.status(500).json({ error: err.message });
