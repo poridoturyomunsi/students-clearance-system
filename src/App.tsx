@@ -743,7 +743,8 @@ function AppContent() {
         err.message.includes('401') ||
         err.message.includes('403')
       );
-      if (!isAuthError) {
+      const isWebBrowserMode = typeof window !== 'undefined' && !(window as any).electron;
+      if (!isAuthError && !isWebBrowserMode) {
         setDbConnectionError(true);
       }
       setTableError(err?.message || 'Unable to load student records from server.');
@@ -3587,51 +3588,9 @@ function AppContent() {
   if (dbConnectionError) {
     const isCloudProduction = typeof window !== 'undefined' && !(window as any).electron;
     if (isCloudProduction) {
-      return (
-        <div className="min-h-screen w-full bg-radial from-slate-900 via-slate-950 to-black flex items-center justify-center p-4 font-sans select-none antialiased relative">
-          <div className="absolute top-1/4 left-1/4 w-96 h-96 bg-rose-500/5 rounded-full blur-3xl pointer-events-none" />
-          <div className="absolute bottom-1/4 right-1/4 w-96 h-96 bg-indigo-500/5 rounded-full blur-3xl pointer-events-none" />
-          
-          <div className="w-full max-w-lg bg-slate-900/40 border border-slate-800 rounded-3xl p-8 backdrop-blur-xl shadow-2xl space-y-6 relative overflow-hidden text-center">
-            <div className="absolute top-0 left-0 right-0 h-1 bg-gradient-to-r from-rose-500 via-violet-500 to-indigo-500 opacity-60" />
-            
-            <div className="flex flex-col items-center gap-4">
-              <div className="p-3.5 bg-rose-500/10 rounded-2xl border border-rose-500/25 shadow-inner text-rose-400 flex items-center justify-center">
-                <AlertCircle className="w-10 h-10" />
-              </div>
-              <div>
-                <h2 className="text-lg font-black text-slate-100 uppercase tracking-tight">Database Connection Failed</h2>
-                <p className="text-[10px] text-indigo-400 font-bold uppercase tracking-widest mt-1">Cloud Production Mode</p>
-              </div>
-            </div>
-
-            <div className="bg-slate-955/65 border border-slate-850 rounded-2xl p-5 text-xs text-slate-300 leading-relaxed text-left space-y-3 font-medium">
-              <p className="text-slate-205 font-bold text-rose-400/90">
-                The application was unable to establish a secure connection to the database.
-              </p>
-              <p className="text-slate-450 text-[10.5px]">
-                In Cloud Production mode, settings inputs are locked. Database credentials must be configured on the host server environment variables.
-              </p>
-              <div className="pt-2 border-t border-slate-850 space-y-1.5">
-                <span className="text-[9px] text-slate-500 font-black uppercase tracking-wider block">Required Environment Variables:</span>
-                <code className="block p-2 bg-slate-950 rounded border border-slate-850 font-mono text-[9.5px] text-slate-300 whitespace-pre-wrap select-all">
-                  DATABASE_URL (Recommended) or{"\n"}
-                  DB_HOST, DB_USER, DB_PASSWORD, DB_DATABASE
-                </code>
-              </div>
-            </div>
-
-            <div className="flex flex-col gap-2.5">
-              <button
-                onClick={handleRetryConnection}
-                className="w-full py-3 bg-gradient-to-r from-rose-600 to-indigo-600 hover:from-rose-500 hover:to-indigo-500 text-white font-bold text-xs uppercase tracking-wider rounded-xl shadow-lg border border-indigo-500 shadow-indigo-950/40 transition-all duration-150 cursor-pointer flex items-center justify-center gap-2 font-sans"
-              >
-                <RefreshCw className="w-4 h-4" /> Retry Connection
-              </button>
-            </div>
-          </div>
-        </div>
-      );
+      // In cloud web browser mode, do not block the user with a connection error screen; allow direct access to login and portal
+      setTimeout(() => setDbConnectionError(false), 0);
+      return null;
     }
 
     return (
