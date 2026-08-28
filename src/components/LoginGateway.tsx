@@ -43,7 +43,10 @@ export default function LoginGateway({ onLogin, schoolLogo, dbConnectionError }:
                             lowerUser === 'kenethbiiro' || lowerUser === 'biiro' ? 'Keneth Biiro' :
                             cleanUser.toUpperCase();
         userObj = {
-          id: cleanUser.toUpperCase().startsWith('STP') ? cleanUser : 'T-' + cleanUser,
+          id: cleanUser.toUpperCase().startsWith('STP') ? cleanUser : 
+              (lowerUser === 'musenze' ? 'STP-16-2026' : 
+               lowerUser === 'mudoola' ? 'STP-01-2026' : 
+               lowerUser === 'biiro' || lowerUser === 'kenethbiiro' ? 'STP-30-2026' : 'T-' + cleanUser),
           name: displayName,
           username: lowerUser,
           status: 'Active',
