@@ -261,7 +261,9 @@ async function readStudentsFromStorageAsync(): Promise<string | null> {
     // ignore
   }
 
-  // Check IndexedDB next (high capacity persistent browser storage)
+  // Primary Authoritative Source of Truth: Backend Express API (MySQL student_clearance DB).
+  // IndexedDB and localStorage serve exclusively as secondary read-only offline caches.
+  // Check IndexedDB next (high capacity persistent browser storage cache)
   try {
     const idbData = await getIndexedDbItem(LOCAL_STORAGE_KEY);
     if (idbData) return idbData;

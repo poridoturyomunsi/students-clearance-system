@@ -130,7 +130,9 @@ export async function apiCall(path: string, options: RequestInit = {}) {
     clearTimeout(timeoutId);
     let finalErr = err;
     if (err.name === 'AbortError') {
-      finalErr = new Error('Database/API request timed out (server did not respond within 30 seconds).');
+      finalErr = new Error(`Cannot reach the configured school server at ${apiBaseUrl || 'localhost'} (request timed out).`);
+    } else if (err.message && (err.message.includes('Failed to fetch') || err.message.includes('NetworkError') || err.message.includes('ECONNREFUSED'))) {
+      finalErr = new Error(`Cannot reach the configured school server at ${apiBaseUrl || 'localhost'}. Please verify network connectivity.`);
     }
     console.error(`API Call failed on ${url}:`, finalErr);
     throw finalErr;

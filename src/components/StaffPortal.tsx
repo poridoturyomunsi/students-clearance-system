@@ -17,6 +17,7 @@ import {
   submitTeacherMarks,
   fetchClassesFromDb,
   fetchStreamsFromDb,
+  fetchStudentsFromDb,
   fetchSettings,
   fetchAttendanceLogs,
   fetchParentContacts,

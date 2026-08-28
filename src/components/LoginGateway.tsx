@@ -5,7 +5,7 @@ import { loginUser } from '../utils/api.ts';
 import ParticleBackground from './ParticleBackground.tsx';
 
 interface LoginGatewayProps {
-  onLogin: (session: { role: 'admin' | 'teacher' | 'student' | 'parent'; user: any }) => void;
+  onLogin: (session: { role: 'admin' | 'teacher' | 'student' | 'parent'; user: any; token?: string }) => void;
   schoolLogo: string | null;
   dbConnectionError: boolean;
 }
@@ -146,7 +146,7 @@ export default function LoginGateway({ onLogin, schoolLogo, dbConnectionError }:
     <div className="relative min-h-screen w-full bg-[#05070f] flex items-center justify-center p-4 font-sans select-none antialiased overflow-hidden">
       <ParticleBackground />
 
-      <div className="w-full max-w-md bg-slate-950/45 border border-white/10 rounded-3xl p-8 backdrop-blur-2xl shadow-2xl space-y-8 relative z-10 overflow-hidden">
+      <div className="w-full max-w-md bg-slate-950/80 border border-white/10 rounded-3xl p-8 backdrop-blur-sm shadow-2xl space-y-8 relative z-10 overflow-hidden">
         {/* Glow effect at the top */}
         <div className="absolute top-0 left-0 right-0 h-1 bg-gradient-to-r from-indigo-500 via-violet-500 to-pink-500 opacity-60" />
 

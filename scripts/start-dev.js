@@ -14,7 +14,7 @@ function normalizeDbConfig(rawConfig) {
   const port = parseInt(String(rawConfig.db?.port || rawConfig.port || rawConfig.databasePort || 3306), 10) || 3306;
   const user = rawConfig.db?.user || rawConfig.user || rawConfig.databaseUsername || '';
   const password = rawConfig.db?.password || rawConfig.password || rawConfig.databasePassword || '';
-  const database = rawConfig.db?.database || rawConfig.database || rawConfig.databaseName || 'school_system';
+  const database = rawConfig.db?.database || rawConfig.database || rawConfig.databaseName || 'student_clearance';
 
   return {
     host,
@@ -37,7 +37,7 @@ async function testDatabaseConnection() {
       port: parseInt(process.env.MYSQLPORT || '3306', 10),
       user: process.env.MYSQLUSER || 'root',
       password: process.env.MYSQLPASSWORD || '',
-      database: process.env.MYSQLDATABASE || 'railway'
+      database: process.env.MYSQLDATABASE || 'student_clearance'
     };
   } else if (process.env.DB_HOST) {
     dbConfig = {
@@ -45,15 +45,15 @@ async function testDatabaseConnection() {
       port: parseInt(process.env.DB_PORT || '3306', 10),
       user: process.env.DB_USER || 'root',
       password: process.env.DB_PASSWORD || '',
-      database: process.env.DB_DATABASE || 'school_system'
+      database: process.env.DB_DATABASE || 'student_clearance'
     };
   } else {
     dbConfig = {
-      host: '192.168.0.155',
+      host: 'localhost',
       port: 3306,
       user: 'root',
       password: '',
-      database: 'school_system'
+      database: 'student_clearance'
     };
 
     const possiblePaths = [

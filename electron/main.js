@@ -12,11 +12,22 @@ const { startServer, stopServer, initDb } = require('./server')
 
 const CONFIG_FILE = 'db_config.json'
 
-// Disable GPU hardware acceleration BEFORE app is ready to prevent GPU crashes
-try {
-  app.disableHardwareAcceleration();
-} catch (e) {
-  console.warn('Could not disable hardware acceleration:', e);
+// Controlled Hardware Acceleration Strategy with Safe Crash Fallback
+if (process.env.DISABLE_GPU === '1' || process.argv.includes('--disable-gpu')) {
+  console.log('[ELECTRON-GPU] Hardware acceleration explicitly disabled by environment/flag.');
+  try {
+    app.disableHardwareAcceleration();
+  } catch (e) {}
+} else {
+  // Listen for GPU child process crashes and fall back to software rendering if GPU fails
+  app.on('child-process-destroyed', (event, details) => {
+    if (details.type === 'GPU' && details.reason !== 'clean') {
+      console.warn('[ELECTRON-GPU] GPU process crashed or exited unexpectedly. Re-starting in safe software rendering mode...');
+      try {
+        app.disableHardwareAcceleration();
+      } catch (e) {}
+    }
+  });
 }
 
 // Helper to safely get the user data path after Electron is initialized
@@ -96,7 +107,7 @@ function getDbConfigFromEnv() {
       port: parseInt(process.env.DB_PORT || process.env.MYSQLPORT || '3306', 10),
       user: process.env.DB_USER || process.env.MYSQLUSER || 'root',
       password: process.env.DB_PASSWORD || process.env.MYSQLPASSWORD || '',
-      database: process.env.DB_DATABASE || process.env.MYSQLDATABASE || process.env.DB_NAME || 'school_system'
+      database: process.env.DB_DATABASE || process.env.MYSQLDATABASE || process.env.DB_NAME || 'student_clearance'
     };
   }
   return null;
@@ -152,7 +163,7 @@ function normalizeDbConfig(rawConfig) {
   const port = parseInt(String(dbData.port || dbData.databasePort || 3306), 10) || 3306;
   const user = dbData.user || dbData.databaseUsername || '';
   const password = dbData.password || dbData.databasePassword || '';
-  const database = dbData.database || dbData.databaseName || 'school_system';
+  const database = dbData.database || dbData.databaseName || 'student_clearance';
 
   return {
     mode: rawConfig.mode || 'network',
@@ -194,13 +205,13 @@ function loadDbConfig() {
   // Default Config
   const defaultConfig = {
     mode: 'network', // 'network' or 'client'
-    serverUrl: 'http://192.168.0.155:3000',
+    serverUrl: 'http://localhost:3000',
     db: {
-      host: '192.168.0.155',
+      host: 'localhost',
       port: 3306,
       user: 'root',
       password: '',
-      database: 'school_system'
+      database: 'student_clearance'
     }
   }
   

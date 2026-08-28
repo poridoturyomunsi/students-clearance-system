@@ -3538,8 +3538,8 @@ function AppContent() {
           setAuthSession(session);
           try { 
             localStorage.setItem('spss_session', JSON.stringify(session)); 
-            if (session && session.token) {
-              localStorage.setItem('spss_token', session.token);
+            if (session && (session as any).token) {
+              localStorage.setItem('spss_token', (session as any).token);
             }
           } catch (e) { /* ignore */ }
 

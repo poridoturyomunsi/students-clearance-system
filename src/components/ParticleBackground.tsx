@@ -9,7 +9,7 @@ interface Particle {
   orbitOffset: number;   // Cumulative angular rotation
   angularSpeed: number;  // Orbital speed
   size: number;          // Size of particle
-  color: string;         // Color in hsla format with OPACITY placeholder
+  color: string;         // Pre-formatted rgb color string
   pulseSpeed: number;    // Speed of opacity pulsing
   pulseTime: number;     // Initial pulse phase
   baseOpacity: number;   // Maximum opacity
@@ -33,14 +33,14 @@ export default function ParticleBackground() {
     let width = (canvas.width = window.innerWidth);
     let height = (canvas.height = window.innerHeight);
 
-    // Particle Configuration
-    const PARTICLE_COUNT = 850;
+    // Optimized Particle Configuration (140 high-performance particles)
+    const PARTICLE_COUNT = 140;
     const particles: Particle[] = [];
     const colors = [
-      'hsla(217, 91%, 60%, OPACITY)',  // Blue
-      'hsla(43, 96%, 56%, OPACITY)',   // Gold
-      'hsla(0, 0%, 100%, OPACITY)',    // White
-      'hsla(270, 84%, 67%, OPACITY)',  // Light Purple
+      'rgb(59, 130, 246)',   // Blue
+      'rgb(245, 158, 11)',   // Gold
+      'rgb(255, 255, 255)',  // White
+      'rgb(192, 132, 252)',  // Light Purple
     ];
 
     // Spiral Configuration
@@ -63,8 +63,6 @@ export default function ParticleBackground() {
     const createParticle = (index: number, initFullRadius = false): Particle => {
       const isSpiral = Math.random() < 0.75;
       
-      // If initFullRadius is true, distribute radius across the whole screen (on startup).
-      // Otherwise, start near the center (on reset/spawn).
       let baseRadius = 5;
       if (initFullRadius) {
         const ratio = index / PARTICLE_COUNT;
@@ -73,7 +71,7 @@ export default function ParticleBackground() {
         baseRadius = Math.random() * 30; // Spawn near center
       }
 
-      const outwardSpeed = isSpiral ? (0.2 + Math.random() * 0.5) : 0; // Only spiral particles drift outward
+      const outwardSpeed = isSpiral ? (0.2 + Math.random() * 0.5) : 0;
       const arm = Math.floor(Math.random() * numArms);
       const dispersion = (Math.random() - 0.5) * 0.45;
       const orbitOffset = Math.random() * Math.PI * 2;
@@ -82,15 +80,14 @@ export default function ParticleBackground() {
         : (0.0001 + Math.random() * 0.0004) * (Math.random() > 0.5 ? 1 : -1);
 
       const color = colors[Math.floor(Math.random() * colors.length)];
-      const size = 0.6 + Math.random() * 1.5;
+      const size = 0.9 + Math.random() * 1.8;
       const pulseSpeed = 0.006 + Math.random() * 0.016;
       const pulseTime = Math.random() * Math.PI * 2;
-      const baseOpacity = isSpiral ? (0.4 + Math.random() * 0.45) : (0.25 + Math.random() * 0.35);
+      const baseOpacity = isSpiral ? (0.45 + Math.random() * 0.45) : (0.3 + Math.random() * 0.4);
 
       const cx = width / 2;
       const cy = height / 2;
       
-      // Calculate starting angle
       let angle = orbitOffset;
       if (isSpiral) {
         const baseArmAngle = (arm * Math.PI * 2) / numArms;
@@ -140,22 +137,34 @@ export default function ParticleBackground() {
       height = canvas.height = window.innerHeight;
     };
 
+    let isTabVisible = true;
+    const handleVisibility = () => {
+      if (document.hidden) {
+        isTabVisible = false;
+        if (animationFrameId) cancelAnimationFrame(animationFrameId);
+      } else {
+        if (!isTabVisible) {
+          isTabVisible = true;
+          animationFrameId = requestAnimationFrame(animate);
+        }
+      }
+    };
+
     window.addEventListener('mousemove', handleMouseMove);
     window.addEventListener('mouseleave', handleMouseLeave);
     window.addEventListener('resize', handleResize);
+    document.addEventListener('visibilitychange', handleVisibility);
 
-    // Animation variables
     let time = 0;
 
-    // Animation Loop
+    // Animation Loop (Optimized without string replacements)
     const animate = () => {
+      if (document.hidden) return;
       time += 1;
       
-      // Deep space background clear
       ctx.fillStyle = '#05070f';
       ctx.fillRect(0, 0, width, height);
 
-      // Smooth mouse coordinates interpolation
       mouse.x += (mouse.targetX - mouse.x) * 0.1;
       mouse.y += (mouse.targetY - mouse.y) * 0.1;
 
@@ -165,31 +174,24 @@ export default function ParticleBackground() {
       for (let i = 0; i < PARTICLE_COUNT; i++) {
         let p = particles[i];
 
-        // 1. Update Position & Orbit
         p.orbitOffset += p.angularSpeed;
 
         if (p.isSpiral) {
-          // Drift outward
           p.baseRadius += p.outwardSpeed;
-          
-          // Reset to center if it goes off screen
           if (p.baseRadius > maxRadius) {
             particles[i] = createParticle(i, false);
             continue;
           }
         }
 
-        // 2. Calculate Target Coordinates
         let angle = p.orbitOffset;
         let currentRadius = p.baseRadius;
 
         if (p.isSpiral) {
-          // Spiral angle calculation with twist based on radius
           const baseArmAngle = (p.arm * Math.PI * 2) / numArms;
           const twist = p.baseRadius * tightness;
           angle = baseArmAngle + twist + p.dispersion + p.orbitOffset;
         } else {
-          // Circular particle breathing
           currentRadius = p.baseRadius + Math.sin(p.orbitOffset * 2 + time * 0.01) * 8;
         }
 
@@ -199,7 +201,6 @@ export default function ParticleBackground() {
         let targetX = orbitalX;
         let targetY = orbitalY;
 
-        // 3. Mouse Interaction (Repulsion force)
         if (mouse.x > -500 && mouse.y > -500) {
           const dx = orbitalX - mouse.x;
           const dy = orbitalY - mouse.y;
@@ -213,38 +214,37 @@ export default function ParticleBackground() {
           }
         }
 
-        // 4. Smooth Particle Position Easing
         p.x += (targetX - p.x) * 0.08;
         p.y += (targetY - p.y) * 0.08;
 
-        // 5. Draw Particle with double layer for soft glow
         const opacity = (Math.sin(time * p.pulseSpeed + p.pulseTime) * 0.25 + 0.75) * p.baseOpacity;
+        ctx.fillStyle = p.color;
         
-        // Layer 1: Soft Outer Glow
+        // Outer Glow
+        ctx.globalAlpha = opacity * 0.22;
         ctx.beginPath();
         ctx.arc(p.x, p.y, p.size * 2.3, 0, Math.PI * 2);
-        ctx.fillStyle = p.color.replace('OPACITY', (opacity * 0.22).toFixed(2));
         ctx.fill();
 
-        // Layer 2: Glowing Core
+        // Glowing Core
+        ctx.globalAlpha = opacity;
         ctx.beginPath();
         ctx.arc(p.x, p.y, p.size * 0.9, 0, Math.PI * 2);
-        ctx.fillStyle = p.color.replace('OPACITY', opacity.toFixed(2));
         ctx.fill();
       }
 
+      ctx.globalAlpha = 1.0;
       animationFrameId = requestAnimationFrame(animate);
     };
 
-    // Start
     animate();
 
-    // Cleanup
     return () => {
       cancelAnimationFrame(animationFrameId);
       window.removeEventListener('mousemove', handleMouseMove);
       window.removeEventListener('mouseleave', handleMouseLeave);
       window.removeEventListener('resize', handleResize);
+      document.removeEventListener('visibilitychange', handleVisibility);
     };
   }, []);
 

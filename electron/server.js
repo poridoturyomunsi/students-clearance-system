@@ -46,7 +46,7 @@ function normalizeDbConfig(rawConfig) {
   const port = parseInt(String(dbData.port || dbData.databasePort || 3306), 10) || 3306;
   const user = dbData.user || dbData.databaseUsername || '';
   const password = dbData.password || dbData.databasePassword || '';
-  const database = dbData.database || dbData.databaseName || 'school_system';
+  const database = dbData.database || dbData.databaseName || 'student_clearance';
 
   return {
     host,
@@ -126,7 +126,7 @@ function getDbConfigFromEnv() {
       port: parseInt(process.env.DB_PORT || process.env.MYSQLPORT || process.env.MYSQL_PORT || '3306', 10),
       user: process.env.DB_USER || process.env.MYSQLUSER || process.env.MYSQL_USER || 'root',
       password: process.env.DB_PASSWORD || process.env.MYSQLPASSWORD || process.env.MYSQL_PASSWORD || '',
-      database: process.env.DB_DATABASE || process.env.MYSQLDATABASE || process.env.MYSQL_DATABASE || process.env.DB_NAME || 'school_system'
+      database: process.env.DB_DATABASE || process.env.MYSQLDATABASE || process.env.MYSQL_DATABASE || process.env.DB_NAME || 'student_clearance'
     };
   }
   return null;
@@ -175,7 +175,7 @@ function loadDbConfig() {
     port: 3306,
     user: 'root',
     password: '',
-    database: 'school_system'
+    database: 'student_clearance'
   };
 }
 
@@ -1088,24 +1088,28 @@ async function runStaffMigrations(conn) {
 async function ensurePerformanceIndexes(dbPool) {
   if (!dbPool) return;
   const queries = [
-    'ALTER TABLE students ADD INDEX idx_adminNo (adminNo)',
-    'ALTER TABLE students ADD INDEX idx_name (name(100))',
-    'ALTER TABLE students ADD INDEX idx_gradeClass (gradeClass)',
-    'ALTER TABLE students ADD INDEX idx_isCleared (isCleared)',
-    'ALTER TABLE students ADD INDEX idx_boardingStatus (boardingStatus)',
-    'ALTER TABLE students ADD INDEX idx_printStatus (printStatus)',
-    'ALTER TABLE students ADD INDEX idx_gender (gender)',
-    'ALTER TABLE students ADD INDEX idx_search_composite (name(50), adminNo, gradeClass)',
-    'ALTER TABLE student_accounts ADD INDEX idx_student_accounts_id (student_id)',
-    'ALTER TABLE olevel_marks ADD INDEX idx_olevel_student_term_year (student_id, term, year)',
-    'ALTER TABLE uace_marks ADD INDEX idx_uace_student_term_year (student_id, term, year)'
+    { table: 'students', index: 'idx_adminNo', sql: 'ALTER TABLE students ADD INDEX idx_adminNo (adminNo)' },
+    { table: 'students', index: 'idx_name', sql: 'ALTER TABLE students ADD INDEX idx_name (name(100))' },
+    { table: 'students', index: 'idx_gradeClass', sql: 'ALTER TABLE students ADD INDEX idx_gradeClass (gradeClass)' },
+    { table: 'students', index: 'idx_isCleared', sql: 'ALTER TABLE students ADD INDEX idx_isCleared (isCleared)' },
+    { table: 'students', index: 'idx_boardingStatus', sql: 'ALTER TABLE students ADD INDEX idx_boardingStatus (boardingStatus)' },
+    { table: 'students', index: 'idx_printStatus', sql: 'ALTER TABLE students ADD INDEX idx_printStatus (printStatus)' },
+    { table: 'students', index: 'idx_gender', sql: 'ALTER TABLE students ADD INDEX idx_gender (gender)' },
+    { table: 'students', index: 'idx_search_composite', sql: 'ALTER TABLE students ADD INDEX idx_search_composite (name(50), adminNo, gradeClass)' },
+    { table: 'student_accounts', index: 'idx_student_accounts_id', sql: 'ALTER TABLE student_accounts ADD INDEX idx_student_accounts_id (student_id)' },
+    { table: 'olevel_marks', index: 'idx_olevel_student_term_year', sql: 'ALTER TABLE olevel_marks ADD INDEX idx_olevel_student_term_year (student_id, term, year)' },
+    { table: 'uace_marks', index: 'idx_uace_student_term_year', sql: 'ALTER TABLE uace_marks ADD INDEX idx_uace_student_term_year (student_id, term, year)' }
   ];
   for (const q of queries) {
     try {
-      await dbPool.query(q);
-    } catch (e) {
-      // Index already exists or table not yet present
-    }
+      const [rows] = await dbPool.query(
+        'SELECT INDEX_NAME FROM information_schema.STATISTICS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = ? AND INDEX_NAME = ? LIMIT 1',
+        [q.table, q.index]
+      );
+      if (rows.length === 0) {
+        await dbPool.query(q.sql);
+      }
+    } catch (e) {}
   }
 }
 
@@ -1671,33 +1675,31 @@ async function ensureDbInitialized() {
       await pool.query("ALTER TABLE students ADD COLUMN parentContact VARCHAR(255) NULL AFTER parentName");
     } catch (e) {}
 
-    // Create performance indexes if they don't exist
-    try {
-      await pool.query('ALTER TABLE students ADD INDEX idx_adminNo (adminNo)');
-    } catch (e) {}
-    try {
-      await pool.query('ALTER TABLE students ADD INDEX idx_name (name(100))');
-    } catch (e) {}
-    try {
-      await pool.query('ALTER TABLE students ADD INDEX idx_gradeClass (gradeClass)');
-    } catch (e) {}
-    try {
-      await pool.query('ALTER TABLE students ADD INDEX idx_isCleared (isCleared)');
-    } catch (e) {}
-    // OPTIMIZED: Add more filter column indexes for faster WHERE clause execution
-    try {
-      await pool.query('ALTER TABLE students ADD INDEX idx_boardingStatus (boardingStatus)');
-    } catch (e) {}
-    try {
-      await pool.query('ALTER TABLE students ADD INDEX idx_printStatus (printStatus)');
-    } catch (e) {}
-    try {
-      await pool.query('ALTER TABLE students ADD INDEX idx_gender (gender)');
-    } catch (e) {}
-    // OPTIMIZED: Add composite index for common search patterns
-    try {
-      await pool.query('ALTER TABLE students ADD INDEX idx_search_composite (name(50), adminNo, gradeClass)');
-    } catch (e) {}
+    // Helper for safe index creation
+    const safeAddIndex = async (table, indexName, alterSql) => {
+      try {
+        const [rows] = await pool.query(
+          'SELECT INDEX_NAME FROM information_schema.STATISTICS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = ? AND INDEX_NAME = ? LIMIT 1',
+          [table, indexName]
+        );
+        if (rows.length === 0) {
+          await pool.query(alterSql);
+        }
+      } catch (e) {}
+    };
+
+    // Create performance indexes safely if they don't exist
+    await safeAddIndex('students', 'idx_adminNo', 'ALTER TABLE students ADD INDEX idx_adminNo (adminNo)');
+    await safeAddIndex('students', 'idx_name', 'ALTER TABLE students ADD INDEX idx_name (name(100))');
+    await safeAddIndex('students', 'idx_gradeClass', 'ALTER TABLE students ADD INDEX idx_gradeClass (gradeClass)');
+    await safeAddIndex('students', 'idx_isCleared', 'ALTER TABLE students ADD INDEX idx_isCleared (isCleared)');
+    await safeAddIndex('students', 'idx_boardingStatus', 'ALTER TABLE students ADD INDEX idx_boardingStatus (boardingStatus)');
+    await safeAddIndex('students', 'idx_printStatus', 'ALTER TABLE students ADD INDEX idx_printStatus (printStatus)');
+    await safeAddIndex('students', 'idx_gender', 'ALTER TABLE students ADD INDEX idx_gender (gender)');
+    await safeAddIndex('students', 'idx_search_composite', 'ALTER TABLE students ADD INDEX idx_search_composite (name(50), adminNo, gradeClass)');
+    await safeAddIndex('student_accounts', 'idx_student_accounts_id', 'ALTER TABLE student_accounts ADD INDEX idx_student_accounts_id (student_id)');
+    await safeAddIndex('olevel_marks', 'idx_olevel_student_term_year', 'ALTER TABLE olevel_marks ADD INDEX idx_olevel_student_term_year (student_id, term, year)');
+    await safeAddIndex('uace_marks', 'idx_uace_student_term_year', 'ALTER TABLE uace_marks ADD INDEX idx_uace_student_term_year (student_id, term, year)');
 
     // Normalize gradeClass in database for consistent querying across the app
     try {
@@ -2081,24 +2083,53 @@ async function initDb(config) {
       }
     } else {
       ensureDbInitialized()
-        .then(success => {
+        .then(async success => {
           if (success) {
             console.log('Database migrations completed successfully on startup.');
-            // Sync environment config back to db_config files for UI display / permanency
+            // Sync environment config back to db_config files for UI display / permanency while PRESERVING user application mode
             try {
               const fs = require('fs');
               const path = require('path');
+              const appDataPath = getDbConfigFilePath();
+              let existingMode = 'network';
+              let existingServerUrl = process.env.VITE_API_URL || 'http://localhost:3000';
+              if (fs.existsSync(appDataPath)) {
+                try {
+                  const existingConfig = JSON.parse(fs.readFileSync(appDataPath, 'utf8'));
+                  if (existingConfig.mode) existingMode = existingConfig.mode;
+                  if (existingConfig.serverUrl) existingServerUrl = existingConfig.serverUrl;
+                } catch (e) {}
+              }
               const rawConfig = {
-                mode: 'network',
-                serverUrl: process.env.VITE_API_URL || 'http://localhost:3000',
+                mode: existingMode,
+                serverUrl: existingServerUrl,
                 db: targetConfig
               };
               const configJson = JSON.stringify(rawConfig, null, 2);
-              const appDataPath = getDbConfigFilePath();
               fs.writeFileSync(appDataPath, configJson, 'utf8');
               const rootPath = path.join(__dirname, '..', 'db_config.json');
               fs.writeFileSync(rootPath, configJson, 'utf8');
-              console.log('[initDb] Synced successful database configuration to config files.');
+              console.log('[initDb] Synced database configuration while preserving application mode:', existingMode);
+
+              // Print Startup Database Diagnostic Banner
+              let tableCount = 0;
+              try {
+                const [tRows] = await pool.query('SELECT COUNT(*) as count FROM information_schema.TABLES WHERE table_schema = DATABASE()');
+                tableCount = tRows[0]?.count || 0;
+              } catch (e) {}
+
+              console.log(`
+========================================
+DATABASE CONNECTION DIAGNOSTIC
+========================================
+Host:     ${targetConfig.host || 'localhost'}
+Port:     ${targetConfig.port || 3306}
+Database: ${targetConfig.database || 'student_clearance'}
+Status:   CONNECTED
+Tables:   ${tableCount}
+Mode:     ${existingMode}
+========================================
+`);
             } catch (syncErr) {
               console.warn('[initDb] Failed to sync config back to files:', syncErr.message);
             }
@@ -2161,6 +2192,7 @@ const JWT_SECRET = process.env.JWT_SECRET || 'fallback_secret_spss_123';
 app.use(async (req, res, next) => {
   // 1. JWT verification for protected endpoints
   const publicPaths = [
+    '/api/health',
     '/api/auth/login',
     '/api/config-status',
     '/api/database-status',
@@ -2216,6 +2248,7 @@ app.use(async (req, res, next) => {
 
   // 2. Database connectivity checks
   const connectionBypassPaths = [
+    '/api/health',
     '/api/config-status',
     '/api/database-status',
     '/api/test-db-connection',
@@ -2262,6 +2295,43 @@ app.use(async (req, res, next) => {
     return res.status(500).json({ error: 'Database connection failed: The database is offline, unreachable, or tables could not be initialized. Please check credentials and server status.' });
   }
   next();
+});
+
+app.get('/api/health', async (req, res) => {
+  let dbConnected = false;
+  let tableCount = 0;
+  let dbName = currentDbConfig ? currentDbConfig.database : 'student_clearance';
+  let dbError = null;
+
+  if (pool) {
+    try {
+      const [rows] = await pool.query('SELECT COUNT(*) as count FROM information_schema.TABLES WHERE table_schema = DATABASE()');
+      tableCount = rows[0]?.count || 0;
+      dbConnected = true;
+    } catch (err) {
+      dbConnected = false;
+      dbError = err.message;
+    }
+  }
+
+  let currentMode = 'network';
+  try {
+    const fs = require('fs');
+    const appDataPath = getDbConfigFilePath();
+    if (fs.existsSync(appDataPath)) {
+      const parsed = JSON.parse(fs.readFileSync(appDataPath, 'utf8'));
+      if (parsed.mode) currentMode = parsed.mode;
+    }
+  } catch (e) {}
+
+  res.json({
+    backend: 'ok',
+    database: dbConnected ? 'connected' : 'disconnected',
+    databaseName: dbName,
+    mode: currentMode,
+    tablesCount: tableCount,
+    error: dbError || undefined
+  });
 });
 
 app.get('/api/config-status', async (req, res) => {
@@ -3021,7 +3091,7 @@ app.get('/api/students', async (req, res) => {
       sortBy = 'name';
     }
 
-    let whereClauses = [];
+    let whereClauses = ['deleted_at IS NULL'];
     let queryParams = [];
 
     // OPTIMIZED: Prefix search pattern for better index usage
@@ -4166,11 +4236,12 @@ app.post('/api/streams', async (req, res) => {
   }
 });
 
-// --- MARKS ENDPOINTS ---
+// --- MARKS ENDPOINTS (ALIASED TO ACTIVE olevel_marks / uace_marks TABLES) ---
 app.get('/api/marks', async (req, res) => {
   try {
-    const [rows] = await pool.query('SELECT * FROM marks');
-    res.json(rows);
+    const [oRows] = await pool.query('SELECT id, student_id, subject, exam_score as marks_obtained, 100 as max_marks, term, year FROM olevel_marks LIMIT 500');
+    const [uRows] = await pool.query('SELECT id, student_id, subject, paper1 as marks_obtained, 100 as max_marks, term, year FROM uace_marks LIMIT 500');
+    res.json([...oRows, ...uRows]);
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
@@ -4178,8 +4249,10 @@ app.get('/api/marks', async (req, res) => {
 
 app.get('/api/marks/:studentId', async (req, res) => {
   try {
-    const [rows] = await pool.query('SELECT * FROM marks WHERE student_id = ?', [req.params.studentId]);
-    res.json(rows);
+    const studentId = req.params.studentId;
+    const [oRows] = await pool.query('SELECT id, student_id, subject, integration1, integration2, integration3, exam_score as marks_obtained, 100 as max_marks, term, year FROM olevel_marks WHERE student_id = ?', [studentId]);
+    const [uRows] = await pool.query('SELECT id, student_id, subject, paper1 as marks_obtained, 100 as max_marks, term, year FROM uace_marks WHERE student_id = ?', [studentId]);
+    res.json([...oRows, ...uRows]);
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
@@ -4187,15 +4260,15 @@ app.get('/api/marks/:studentId', async (req, res) => {
 
 app.post('/api/marks', async (req, res) => {
   try {
-    const { student_id, subject, marks_obtained, max_marks, term, year } = req.body;
+    const { student_id, subject, marks_obtained, term, year } = req.body;
     if (!student_id || !subject || marks_obtained === undefined || !term || !year) {
       return res.status(400).json({ error: 'Missing required parameters for marks' });
     }
     await pool.query(
-      `INSERT INTO marks (student_id, subject, marks_obtained, max_marks, term, year) 
-       VALUES (?, ?, ?, ?, ?, ?) 
-       ON DUPLICATE KEY UPDATE marks_obtained = ?, max_marks = ?`,
-      [student_id, subject, marks_obtained, max_marks || 100.00, term, year, marks_obtained, max_marks || 100.00]
+      `INSERT INTO olevel_marks (student_id, subject, exam_score, term, year) 
+       VALUES (?, ?, ?, ?, ?) 
+       ON DUPLICATE KEY UPDATE exam_score = ?`,
+      [student_id, subject, marks_obtained, term, year, marks_obtained]
     );
     res.json({ success: true });
   } catch (err) {
@@ -4205,7 +4278,7 @@ app.post('/api/marks', async (req, res) => {
 
 app.delete('/api/marks/:id', async (req, res) => {
   try {
-    await pool.query('DELETE FROM marks WHERE id = ?', [req.params.id]);
+    await pool.query('DELETE FROM olevel_marks WHERE id = ?', [req.params.id]);
     res.json({ success: true });
   } catch (err) {
     res.status(500).json({ error: err.message });
@@ -5586,7 +5659,7 @@ app.get('/api/integration/student/:adminNo', async (req, res) => {
     }
     
     // Get attendance
-    const [attendanceRows] = await pool.query('SELECT * FROM attendance WHERE student_id = ? ORDER BY date DESC', [studentId]);
+    const [attendanceRows] = await pool.query('SELECT * FROM attendance_logs WHERE student_id = ? ORDER BY date DESC', [studentId]);
     // Get fees
     const [feesRows] = await pool.query('SELECT * FROM fees WHERE student_id = ?', [studentId]);
     // Get recent announcements
@@ -7437,7 +7510,7 @@ app.get('/api/admin/students/suspected-duplicates', async (req, res) => {
         const marksCount = marksCountRows[0]?.total || 0;
 
         // Count attendance
-        const [attCountRows] = await pool.query('SELECT COUNT(*) as count FROM attendance WHERE student_id = ?', [s.id]);
+        const [attCountRows] = await pool.query('SELECT COUNT(*) as count FROM attendance_logs WHERE student_id = ?', [s.id]);
         const attendanceCount = attCountRows[0]?.count || 0;
 
         // Count fees
