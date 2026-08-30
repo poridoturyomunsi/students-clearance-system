@@ -1,5 +1,11 @@
 import React, { useEffect, useState } from 'react';
-import { GraduationCap, LogOut, Download, CheckCircle2, XCircle, DollarSign, CalendarDays, Award, AlertCircle, RefreshCw, Megaphone, Users, Layers } from 'lucide-react';
+import { 
+  LayoutDashboard, BookOpen, Award, TrendingUp, CreditCard, 
+  CheckSquare, FileText, Megaphone, User, Settings, 
+  Menu, X, LogOut, Download, CheckCircle2, XCircle, 
+  DollarSign, CalendarDays, AlertCircle, RefreshCw, Users, Layers,
+  ChevronRight, Sparkles, Printer, UserCheck
+} from 'lucide-react';
 import SchoolLogo from './SchoolLogo.tsx';
 import ClearanceCard from './ClearanceCard.tsx';
 import { Student } from '../types.ts';
@@ -30,7 +36,10 @@ export default function StudentPortal({ studentId, studentName, adminNo, student
   } | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [activeTab, setActiveTab] = useState<'overview' | 'academic' | 'clearance' | 'report'>('overview');
+  
+  // Tab states: dashboard, subjects, academic-results, performance, fees, clearance, reports, notices, profile, settings
+  const [activeTab, setActiveTab] = useState<string>('dashboard');
+  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [reportCompiling, setReportCompiling] = useState(false);
   const [reportProgress, setReportProgress] = useState<{ current: number; total: number } | null>(null);
   const [clearanceCompiling, setClearanceCompiling] = useState(false);
@@ -59,8 +68,8 @@ export default function StudentPortal({ studentId, studentName, adminNo, student
     return (
       <div className="min-h-screen bg-slate-900 text-slate-100 flex items-center justify-center font-sans">
         <div className="flex flex-col items-center gap-4 text-center">
-          <RefreshCw className="w-8 h-8 text-indigo-400 animate-spin" />
-          <p className="text-xs text-slate-400 font-bold uppercase tracking-wider">Loading student files...</p>
+          <RefreshCw className="w-8 h-8 text-violet-500 animate-spin" />
+          <p className="text-xs text-slate-400 font-bold uppercase tracking-wider">Syncing Student Portal Records...</p>
         </div>
       </div>
     );
@@ -69,20 +78,20 @@ export default function StudentPortal({ studentId, studentName, adminNo, student
   if (error || !data) {
     return (
       <div className="min-h-screen bg-slate-900 text-slate-100 flex items-center justify-center p-4 font-sans">
-        <div className="bg-slate-950 border border-slate-850 p-6 rounded-2xl max-w-sm w-full text-center space-y-4 shadow-xl">
+        <div className="bg-slate-950 border border-slate-800 p-6 rounded-2xl max-w-sm w-full text-center space-y-4 shadow-xl">
           <AlertCircle className="w-10 h-10 text-rose-500 mx-auto" />
-          <h3 className="text-sm font-black uppercase text-slate-200">Retrieval Failed</h3>
-          <p className="text-xs text-slate-500">{error || 'Unable to sync records'}</p>
+          <h3 className="text-sm font-bold uppercase text-slate-200">Retrieval Failed</h3>
+          <p className="text-xs text-slate-400">{error || 'Unable to sync records'}</p>
           <div className="flex gap-2">
             <button
               onClick={loadData}
-              className="flex-1 py-2 bg-indigo-650 hover:bg-indigo-600 text-white rounded-lg text-xs font-bold uppercase tracking-wider cursor-pointer"
+              className="flex-1 py-2 bg-violet-650 hover:bg-violet-600 text-white rounded-lg text-xs font-bold uppercase tracking-wider cursor-pointer transition-all"
             >
               Retry
             </button>
             <button
               onClick={onLogout}
-              className="flex-1 py-2 bg-slate-800 hover:bg-slate-700 text-slate-400 rounded-lg text-xs font-bold uppercase tracking-wider cursor-pointer"
+              className="flex-1 py-2 bg-slate-800 hover:bg-slate-700 text-slate-350 rounded-lg text-xs font-bold uppercase tracking-wider cursor-pointer transition-all"
             >
               Sign Out
             </button>
@@ -200,16 +209,14 @@ export default function StudentPortal({ studentId, studentName, adminNo, student
   };
 
   const handleCompileReport = async () => {
-    // Check if marks are approved
     const totalSubjects = marks.length;
     if (totalSubjects === 0) {
       alert('No academic marks registered for you in the database for this term.');
       return;
     }
 
-    // Determine active term & year from first marks record if available, fallback to '2' / 2026
     const activeMark = marks && marks.length > 0 ? marks[0] : null;
-    const targetTerm = activeMark ? String(activeMark.term) : '2';
+    const targetTerm = activeMark ? String(activeMark.term) : '3';
     const targetYear = activeMark ? parseInt(activeMark.year, 10) || 2026 : 2026;
 
     setReportCompiling(true);
@@ -248,289 +255,436 @@ export default function StudentPortal({ studentId, studentName, adminNo, student
     }
   };
 
+  // Helper to calculate student's overall average score
+  const getAverageScore = () => {
+    if (marks.length === 0) return '0.0';
+    let sum = 0;
+    let count = 0;
+    marks.forEach(m => {
+      if (isUACE) {
+        const val = parseFloat(m.score);
+        if (!isNaN(val)) {
+          sum += val;
+          count++;
+        }
+      } else {
+        const aiScores = [];
+        if (m.integration1 !== null && m.integration1 !== undefined) aiScores.push(parseFloat(m.integration1));
+        if (m.integration2 !== null && m.integration2 !== undefined) aiScores.push(parseFloat(m.integration2));
+        if (m.integration3 !== null && m.integration3 !== undefined) aiScores.push(parseFloat(m.integration3));
+        
+        let caVal = 0;
+        if (aiScores.length > 0) {
+          const sumPct = aiScores.map(score => (score / 3) * 100).reduce((a, b) => a + b, 0);
+          const caAverage = sumPct / aiScores.length;
+          caVal = (caAverage * 20) / 100;
+        }
+        const examVal = parseFloat(m.exam_score || 0);
+        const examW = (examVal * 80) / 100;
+        const totalScore = caVal + examW;
+        sum += totalScore;
+        count++;
+      }
+    });
+    return count > 0 ? (sum / count).toFixed(1) : '0.0';
+  };
+
+  // Calculate greetings based on time
+  const getGreeting = () => {
+    const hour = new Date().getHours();
+    if (hour < 12) return 'Good morning';
+    if (hour < 18) return 'Good afternoon';
+    return 'Good evening';
+  };
+
+  const navGroups = [
+    {
+      title: 'Overview',
+      items: [
+        { id: 'dashboard', label: 'Dashboard', icon: LayoutDashboard }
+      ]
+    },
+    {
+      title: 'Academics',
+      items: [
+        { id: 'subjects', label: 'Subjects', icon: BookOpen },
+        { id: 'academic-results', label: 'Academic Results', icon: Award },
+        { id: 'performance', label: 'Performance', icon: TrendingUp }
+      ]
+    },
+    {
+      title: 'Student Services',
+      items: [
+        { id: 'fees', label: 'Fees', icon: CreditCard },
+        { id: 'clearance', label: 'Clearance', icon: CheckSquare },
+        { id: 'reports', label: 'Reports', icon: FileText },
+        { id: 'notices', label: 'Notices', icon: Megaphone }
+      ]
+    },
+    {
+      title: 'Account',
+      items: [
+        { id: 'profile', label: 'Profile', icon: User },
+        { id: 'settings', label: 'Settings', icon: Settings }
+      ]
+    }
+  ];
+
+  const renderSidebarContent = () => (
+    <div className="flex-1 flex flex-col justify-between p-4 bg-slate-950 border-r border-slate-800">
+      <div className="space-y-6">
+        {navGroups.map((group, idx) => (
+          <div key={idx} className="space-y-2">
+            <span className="text-[10px] font-bold uppercase tracking-widest text-slate-500 block px-3">
+              {group.title}
+            </span>
+            <div className="space-y-0.5">
+              {group.items.map((item) => {
+                const Icon = item.icon;
+                const isActive = activeTab === item.id;
+                return (
+                  <button
+                    key={item.id}
+                    onClick={() => {
+                      setActiveTab(item.id);
+                      setMobileMenuOpen(false);
+                    }}
+                    className={`w-full py-2 px-3 rounded-lg text-xs font-semibold tracking-wide flex items-center gap-3 transition-all cursor-pointer ${
+                      isActive 
+                        ? 'bg-violet-600/15 text-violet-400 border-l-2 border-violet-500' 
+                        : 'text-slate-400 hover:text-slate-200 hover:bg-slate-900/50'
+                    }`}
+                  >
+                    <Icon className={`w-4 h-4 shrink-0 ${isActive ? 'text-violet-400' : 'text-slate-400'}`} />
+                    {item.label}
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+        ))}
+      </div>
+
+      <div className="border-t border-slate-900 pt-4">
+        <button
+          onClick={onLogout}
+          className="w-full py-2.5 px-3 rounded-lg text-xs font-bold uppercase tracking-wider flex items-center gap-3 text-rose-400 hover:text-rose-350 hover:bg-rose-950/20 transition-all cursor-pointer"
+        >
+          <LogOut className="w-4 h-4 shrink-0 text-rose-400" />
+          Logout
+        </button>
+      </div>
+    </div>
+  );
+
   return (
     <div className="min-h-screen bg-slate-900 text-slate-100 flex flex-col font-sans select-none antialiased">
-      {/* Navbar */}
-      <header className="bg-slate-950 border-b border-slate-800 shrink-0 px-4 py-4 md:px-6 flex justify-between items-center gap-3">
+      {/* Top Header */}
+      <header className="bg-slate-950 border-b border-slate-800 sticky top-0 z-40 px-4 py-3 md:px-6 flex justify-between items-center shrink-0">
         <div className="flex items-center gap-3">
-          <div className="p-1 bg-slate-900/50 border border-slate-800 rounded-lg shadow-inner">
-            <SchoolLogo className="w-10 h-10" logoBase64={schoolLogo} />
+          {/* Mobile hamburger */}
+          <button 
+            onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
+            className="p-1.5 text-slate-400 hover:text-slate-200 md:hidden cursor-pointer rounded-lg hover:bg-slate-900"
+          >
+            {mobileMenuOpen ? <X className="w-5 h-5" /> : <Menu className="w-5 h-5" />}
+          </button>
+          
+          <div className="p-1 bg-slate-900/50 border border-slate-800 rounded-lg">
+            <SchoolLogo className="w-8 h-8" logoBase64={schoolLogo} />
           </div>
           <div>
-            <h1 className="text-base font-black text-slate-100 uppercase tracking-tight">Student Portal</h1>
-            <p className="text-[10px] text-indigo-400 font-bold uppercase tracking-wider">St. Paul Secondary School</p>
+            <h1 className="text-[11px] sm:text-xs md:text-sm font-bold text-slate-100 tracking-tight">ST. PAUL SECONDARY SCHOOL – NASUTI</h1>
+            <p className="text-[9px] text-violet-400 font-bold uppercase tracking-wider -mt-0.5">School Management System</p>
           </div>
         </div>
 
-        <div className="flex items-center gap-2 px-3 py-1.5 bg-slate-900 border border-slate-800 rounded-xl">
+        <div className="flex items-center gap-2.5 px-3 py-1.5 bg-slate-900 border border-slate-800 rounded-xl">
           {student.photo ? (
             <img src={student.photo} className="w-6 h-6 rounded-full border border-slate-700 object-cover" alt="Student" />
           ) : (
-            <div className="w-6 h-6 bg-indigo-650 rounded-full flex items-center justify-center text-[10px] font-bold text-white uppercase">
+            <div className="w-6 h-6 bg-violet-700 rounded-full flex items-center justify-center text-[10px] font-bold text-white">
               {student.name.charAt(0)}
             </div>
           )}
-          <span className="text-[10px] font-black text-slate-200 hidden md:inline">{student.name.toUpperCase()}</span>
-          <button
-            onClick={onLogout}
-            className="p-1.5 text-slate-400 hover:text-red-400 transition-colors cursor-pointer rounded-md hover:bg-slate-800"
-            title="Log Out"
-          >
-            <LogOut className="w-3.5 h-3.5" />
-          </button>
+          <span className="text-[10px] font-bold text-slate-200 hidden sm:inline">{student.name.toUpperCase()}</span>
+          <span className="text-[9px] font-semibold text-slate-400 bg-slate-950 border border-slate-850 px-2 py-0.5 rounded-md">
+            {student.gradeClass}
+          </span>
         </div>
       </header>
 
-      {/* Main Content Area */}
-      <main className="flex-1 max-w-5xl w-full mx-auto p-4 md:p-6 grid grid-cols-1 md:grid-cols-4 gap-6">
-        {/* Sidebar info */}
-        <div className="md:col-span-1 space-y-6">
-          <div className="bg-slate-950 border border-slate-850 p-5 rounded-2xl text-center space-y-4 shadow-md">
-            {student.photo ? (
-              <img src={student.photo} className="w-24 h-28 mx-auto rounded-xl border border-slate-800 object-cover shadow" alt="Photo" />
-            ) : (
-              <div className="w-24 h-28 mx-auto bg-slate-900 border border-slate-800 rounded-xl flex items-center justify-center text-4xl text-slate-650">
-                👤
-              </div>
-            )}
+      {/* Main Container */}
+      <div className="flex-1 flex flex-row relative overflow-hidden">
+        
+        {/* Left Sidebar (Desktop) */}
+        <aside className="w-60 border-r border-slate-800 bg-slate-950 hidden md:flex flex-col shrink-0">
+          {renderSidebarContent()}
+        </aside>
 
-            <div>
-              <h2 className="text-sm font-black uppercase text-slate-200 tracking-tight">{student.name}</h2>
-              <span className="text-[10px] text-slate-500 font-bold tracking-wider block mt-1 uppercase">{student.adminNo}</span>
-              <span className="inline-block mt-2 px-2.5 py-0.5 text-[9px] font-bold uppercase tracking-wider bg-indigo-950 border border-indigo-900/60 text-indigo-400 rounded-full">
-                {student.gradeClass}
-              </span>
-            </div>
-
-            <div className="border-t border-slate-850 pt-3 text-left space-y-2">
-              <div className="flex justify-between text-[10px]">
-                <span className="text-slate-500 font-bold uppercase">Gender:</span>
-                <span className="text-slate-300 font-medium uppercase">{student.gender || 'Male'}</span>
-              </div>
-              <div className="flex justify-between text-[10px]">
-                <span className="text-slate-500 font-bold uppercase">Boarding:</span>
-                <span className="text-slate-300 font-medium uppercase">{student.boardingStatus || 'Day Scholar'}</span>
-              </div>
-              <div className="flex justify-between text-[10px]">
-                <span className="text-slate-500 font-bold uppercase">Clearance:</span>
-                <span className={`font-bold uppercase ${student.isCleared ? 'text-emerald-400' : 'text-amber-500'}`}>
-                  {student.isCleared ? 'Cleared' : 'On Hold'}
-                </span>
-              </div>
-            </div>
+        {/* Left Sidebar (Mobile overlay Drawer) */}
+        {mobileMenuOpen && (
+          <div className="fixed inset-0 z-50 flex md:hidden">
+            <div className="fixed inset-0 bg-slate-900/80 backdrop-blur-sm" onClick={() => setMobileMenuOpen(false)} />
+            <aside className="relative w-64 max-w-xs bg-slate-950 flex flex-col h-full animate-slide-in shadow-2xl">
+              {renderSidebarContent()}
+            </aside>
           </div>
+        )}
 
-          {/* Quick Tabs Selector */}
-          <div className="bg-slate-950 border border-slate-850 p-2.5 rounded-2xl flex flex-col gap-1 shadow-md">
-            <button
-              onClick={() => setActiveTab('overview')}
-              className={`w-full py-2.5 px-4 rounded-xl text-left text-xs font-black uppercase tracking-wider flex items-center gap-2 transition-all cursor-pointer ${
-                activeTab === 'overview' ? 'bg-indigo-600 text-white shadow' : 'text-slate-400 hover:text-slate-200 hover:bg-slate-900'
-              }`}
-            >
-              <GraduationCap className="w-4 h-4" /> Overview Dashboard
-            </button>
-            <button
-              onClick={() => setActiveTab('academic')}
-              className={`w-full py-2.5 px-4 rounded-xl text-left text-xs font-black uppercase tracking-wider flex items-center gap-2 transition-all cursor-pointer ${
-                activeTab === 'academic' ? 'bg-indigo-600 text-white shadow' : 'text-slate-400 hover:text-slate-200 hover:bg-slate-900'
-              }`}
-            >
-              <Award className="w-4 h-4" /> Academic Record
-            </button>
-            <button
-              onClick={() => setActiveTab('clearance')}
-              className={`w-full py-2.5 px-4 rounded-xl text-left text-xs font-black uppercase tracking-wider flex items-center gap-2 transition-all cursor-pointer ${
-                activeTab === 'clearance' ? 'bg-indigo-600 text-white shadow' : 'text-slate-400 hover:text-slate-200 hover:bg-slate-900'
-              }`}
-            >
-              <CheckCircle2 className="w-4 h-4" /> Clearance Card preview
-            </button>
-            <button
-              onClick={() => setActiveTab('report')}
-              className={`w-full py-2.5 px-4 rounded-xl text-left text-xs font-black uppercase tracking-wider flex items-center gap-2 transition-all cursor-pointer ${
-                activeTab === 'report' ? 'bg-indigo-600 text-white shadow' : 'text-slate-400 hover:text-slate-200 hover:bg-slate-900'
-              }`}
-            >
-              <Award className="w-4 h-4" /> Report Card Compiler
-            </button>
-          </div>
-        </div>
-
-        {/* Tab content panel */}
-        <div className="md:col-span-3 space-y-6">
-          {activeTab === 'overview' && (
+        {/* Content View Area */}
+        <main className="flex-1 p-4 md:p-6 lg:p-8 overflow-y-auto max-w-7xl w-full mx-auto space-y-6">
+          
+          {/* Dashboard Tab */}
+          {activeTab === 'dashboard' && (
             <div className="space-y-6">
-              {/* Stats & Rank Grid */}
-              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-                {/* Class Rank Card */}
-                <div className="bg-slate-950 border border-slate-850 rounded-2xl p-5 shadow-md flex items-start justify-between">
-                  <div className="space-y-2.5 w-full">
-                    <span className="text-[10px] text-slate-500 font-bold uppercase tracking-wider flex items-center gap-1.5">
-                      <Users className="w-3.5 h-3.5 text-indigo-400" />
-                      Class Position
-                    </span>
-                    <div className="space-y-0.5">
-                      <h3 className="text-xl font-black tracking-tight text-slate-200">
-                        {positions && positions.classPosition > 0 ? (
-                          <>
-                            {positions.classPosition}
-                            <span className="text-xs font-bold text-indigo-400 lowercase">{getOrdinal(positions.classPosition)}</span>
-                            <span className="text-slate-550 text-xs font-normal"> / {positions.totalClassStudents}</span>
-                          </>
-                        ) : 'Pending'}
-                      </h3>
-                      <p className="text-[9px] text-slate-500 font-bold uppercase tracking-wider">Based on Subject Average</p>
-                    </div>
+              {/* Welcome Header */}
+              <div>
+                <h2 className="text-xl font-bold tracking-tight text-slate-100 flex items-center gap-2">
+                  {getGreeting()}, {studentName} 👋
+                </h2>
+                <p className="text-xs text-slate-400 mt-1">
+                  Class: {student.gradeClass} | Stream: {student.gradeClass} | Term: {marks.length > 0 ? marks[0].term : '3'} | Year: {marks.length > 0 ? marks[0].year : '2026'}
+                </p>
+              </div>
+
+              {/* Statistics Cards */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4">
+                
+                {/* Subjects Card */}
+                <div className="bg-slate-950 border border-slate-800 rounded-xl p-5 shadow-sm space-y-2">
+                  <span className="text-[10px] text-slate-500 font-bold uppercase tracking-wider flex items-center gap-1.5">
+                    <BookOpen className="w-3.5 h-3.5 text-violet-400" />
+                    Subjects
+                  </span>
+                  <div className="space-y-0.5">
+                    <h3 className="text-2xl font-bold tracking-tight text-slate-200">
+                      {marks.length}
+                    </h3>
+                    <p className="text-[9px] text-slate-400 font-medium uppercase">Registered subjects</p>
                   </div>
                 </div>
 
-                {/* Stream Rank Card */}
-                <div className="bg-slate-950 border border-slate-850 rounded-2xl p-5 shadow-md flex items-start justify-between">
-                  <div className="space-y-2.5 w-full">
-                    <span className="text-[10px] text-slate-500 font-bold uppercase tracking-wider flex items-center gap-1.5">
-                      <Layers className="w-3.5 h-3.5 text-indigo-400" />
-                      Stream Position
-                    </span>
-                    <div className="space-y-0.5">
-                      <h3 className="text-xl font-black tracking-tight text-slate-200">
-                        {positions && positions.streamPosition > 0 ? (
-                          <>
-                            {positions.streamPosition}
-                            <span className="text-xs font-bold text-violet-400 lowercase">{getOrdinal(positions.streamPosition)}</span>
-                            <span className="text-slate-550 text-xs font-normal"> / {positions.totalStreamStudents}</span>
-                          </>
-                        ) : 'Pending'}
-                      </h3>
-                      <p className="text-[9px] text-slate-500 font-bold uppercase tracking-wider">Within {student.gradeClass}</p>
-                    </div>
+                {/* Average Score Card */}
+                <div className="bg-slate-950 border border-slate-800 rounded-xl p-5 shadow-sm space-y-2">
+                  <span className="text-[10px] text-slate-500 font-bold uppercase tracking-wider flex items-center gap-1.5">
+                    <Award className="w-3.5 h-3.5 text-violet-400" />
+                    Term Average
+                  </span>
+                  <div className="space-y-0.5">
+                    <h3 className="text-2xl font-bold tracking-tight text-slate-200">
+                      {getAverageScore()}%
+                    </h3>
+                    <p className="text-[9px] text-slate-400 font-medium uppercase">Subject Average Marks</p>
+                  </div>
+                </div>
+
+                {/* Class Position Card */}
+                <div className="bg-slate-950 border border-slate-800 rounded-xl p-5 shadow-sm space-y-2">
+                  <span className="text-[10px] text-slate-500 font-bold uppercase tracking-wider flex items-center gap-1.5">
+                    <Users className="w-3.5 h-3.5 text-violet-400" />
+                    Class Position
+                  </span>
+                  <div className="space-y-0.5">
+                    <h3 className="text-2xl font-bold tracking-tight text-slate-200">
+                      {positions && positions.classPosition > 0 ? (
+                        <>
+                          {positions.classPosition}
+                          <span className="text-xs font-bold text-violet-400 lowercase">{getOrdinal(positions.classPosition)}</span>
+                          <span className="text-slate-500 text-xs font-normal"> / {positions.totalClassStudents}</span>
+                        </>
+                      ) : 'Pending'}
+                    </h3>
+                    <p className="text-[9px] text-slate-400 font-medium uppercase">Based on grades</p>
                   </div>
                 </div>
 
                 {/* Fees Card */}
-                <div className="bg-slate-950 border border-slate-850 rounded-2xl p-5 shadow-md flex items-start justify-between">
-                  <div className="space-y-2.5 w-full">
-                    <span className="text-[10px] text-slate-500 font-bold uppercase tracking-wider flex items-center gap-1.5">
-                      <DollarSign className="w-3.5 h-3.5 text-indigo-400" />
-                      Fees Account
-                    </span>
-                    <div className="space-y-0.5">
-                      <h3 className="text-base font-black tracking-tight text-slate-200">
-                        UGX {feeBal.toLocaleString()}
-                      </h3>
-                      <p className="text-[9px] text-slate-500 font-bold uppercase tracking-wider">
-                        Status: <span className={feeStatus === 'Paid' ? 'text-emerald-400' : 'text-rose-400'}>{feeStatus}</span>
-                      </p>
+                <div className="bg-slate-950 border border-slate-800 rounded-xl p-5 shadow-sm space-y-2">
+                  <span className="text-[10px] text-slate-500 font-bold uppercase tracking-wider flex items-center gap-1.5">
+                    <DollarSign className="w-3.5 h-3.5 text-violet-400" />
+                    Fees Balance
+                  </span>
+                  <div className="space-y-0.5">
+                    <h3 className="text-2xl font-bold tracking-tight text-slate-200">
+                      UGX {feeBal.toLocaleString()}
+                    </h3>
+                    <div className="flex items-center gap-1.5">
+                      <span className={`inline-flex px-1.5 py-0.5 rounded text-[8px] uppercase font-bold tracking-wide ${
+                        feeStatus === 'Paid' ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20' : 'bg-rose-500/10 text-rose-450 border border-rose-500/20'
+                      }`}>
+                        {feeStatus}
+                      </span>
                     </div>
                   </div>
                 </div>
 
-                {/* Attendance Card */}
-                <div className="bg-slate-950 border border-slate-850 rounded-2xl p-5 shadow-md flex items-start justify-between">
-                  <div className="space-y-2.5 w-full">
-                    <span className="text-[10px] text-slate-500 font-bold uppercase tracking-wider flex items-center gap-1.5">
-                      <CalendarDays className="w-3.5 h-3.5 text-indigo-400" />
-                      Attendance Rate
-                    </span>
-                    <div className="space-y-0.5">
-                      <h3 className="text-xl font-black tracking-tight text-slate-200">
-                        {attendancePct}%
-                      </h3>
-                      <p className="text-[9px] text-slate-500 font-bold uppercase tracking-wider">{presentDays} of {totalAttendance} Days</p>
-                    </div>
+                {/* Clearance Status Card */}
+                <div className="bg-slate-950 border border-slate-800 rounded-xl p-5 shadow-sm space-y-2">
+                  <span className="text-[10px] text-slate-500 font-bold uppercase tracking-wider flex items-center gap-1.5">
+                    <CheckCircle2 className="w-3.5 h-3.5 text-violet-400" />
+                    Clearance Status
+                  </span>
+                  <div className="space-y-0.5">
+                    <h3 className={`text-2xl font-bold tracking-tight ${student.isCleared ? 'text-emerald-400' : 'text-amber-400'}`}>
+                      {student.isCleared ? 'Cleared' : 'On Hold'}
+                    </h3>
+                    <p className="text-[9px] text-slate-400 font-medium uppercase">Exam entry status</p>
                   </div>
                 </div>
               </div>
 
-              {/* School Announcements */}
-              <div className="bg-slate-950 border border-slate-850 rounded-2xl p-5 shadow-md space-y-4">
-                <span className="text-[10px] text-slate-500 font-bold uppercase tracking-wider flex items-center gap-1.5">
-                  <Megaphone className="w-3.5 h-3.5 text-indigo-400 animate-bounce" />
-                  School Announcements & Notices
-                </span>
-                {(!announcements || announcements.length === 0) ? (
-                  <div className="text-center py-6 text-xs text-slate-500 font-medium bg-slate-900/20 border border-dashed border-slate-850 rounded-xl">
-                    No official announcements posted recently.
+              {/* Grid: Announcements + Recent Attendance */}
+              <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                
+                {/* Column 1: Announcements */}
+                <div className="bg-slate-950 border border-slate-800 rounded-2xl p-5 shadow-sm space-y-4">
+                  <div className="flex justify-between items-center">
+                    <span className="text-[10px] text-slate-500 font-bold uppercase tracking-wider flex items-center gap-1.5">
+                      <Megaphone className="w-3.5 h-3.5 text-violet-400" />
+                      Recent Announcements
+                    </span>
+                    <button 
+                      onClick={() => setActiveTab('notices')}
+                      className="text-[9px] text-violet-400 hover:text-violet-350 font-bold uppercase tracking-wider flex items-center gap-0.5 cursor-pointer"
+                    >
+                      View All <ChevronRight className="w-3 h-3" />
+                    </button>
                   </div>
-                ) : (
-                  <div className="space-y-3 max-h-[300px] overflow-y-auto pr-1">
-                    {announcements.map((ann, idx) => (
-                      <div key={idx} className="bg-slate-900/40 border border-slate-850 rounded-xl p-4 space-y-2 relative overflow-hidden transition-all hover:border-slate-850">
-                        <div className="absolute top-0 left-0 bottom-0 w-1 bg-indigo-500" />
-                        <div className="flex justify-between items-start gap-2">
-                          <h4 className="text-xs font-bold text-slate-200 uppercase tracking-tight">{ann.title}</h4>
-                          <span className="text-[9px] text-slate-500 font-mono shrink-0">
-                            {ann.createdAt ? new Date(ann.createdAt).toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' }) : 'N/A'}
-                          </span>
-                        </div>
-                        <p className="text-[11px] text-slate-400 leading-relaxed font-medium whitespace-pre-wrap">{ann.content}</p>
-                        <div className="text-[9px] text-slate-500 flex justify-between font-bold uppercase tracking-wider border-t border-slate-850/50 pt-1.5">
-                          <span>Posted By: {ann.author}</span>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                )}
-              </div>
 
-              {/* Attendance Registry Logs */}
-              <div className="bg-slate-950 border border-slate-850 rounded-2xl p-5 shadow-md">
-                <span className="text-[10px] text-slate-500 font-bold uppercase tracking-wider block mb-4">
-                  Recent Attendance Register Logs
-                </span>
-                {attendance.length === 0 ? (
-                  <div className="text-center py-6 text-xs text-slate-500 font-medium bg-slate-900/20 border border-dashed border-slate-850 rounded-xl">
-                    No attendance logs recorded this term.
+                  {(!announcements || announcements.length === 0) ? (
+                    <div className="text-center py-8 text-xs text-slate-500 font-medium bg-slate-900/10 border border-dashed border-slate-800 rounded-xl">
+                      No announcements posted recently.
+                    </div>
+                  ) : (
+                    <div className="space-y-3">
+                      {announcements.slice(0, 3).map((ann, idx) => (
+                        <div key={idx} className="bg-slate-900/30 border border-slate-850 rounded-xl p-4 space-y-2 relative overflow-hidden hover:border-slate-800 transition-all">
+                          <div className="absolute top-0 left-0 bottom-0 w-0.5 bg-violet-650" />
+                          <div className="flex justify-between items-start gap-2">
+                            <h4 className="text-xs font-bold text-slate-200 uppercase tracking-tight">{ann.title}</h4>
+                            <span className="text-[8px] text-slate-500 font-mono shrink-0">
+                              {ann.createdAt ? new Date(ann.createdAt).toLocaleDateString(undefined, { month: 'short', day: 'numeric' }) : 'N/A'}
+                            </span>
+                          </div>
+                          <p className="text-[10.5px] text-slate-400 leading-relaxed line-clamp-2">{ann.content}</p>
+                          <div className="text-[8.5px] text-slate-500 flex justify-between font-semibold border-t border-slate-900 pt-1.5">
+                            <span>By: {ann.author}</span>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+
+                {/* Column 2: Attendance Summary & Logs */}
+                <div className="bg-slate-950 border border-slate-800 rounded-2xl p-5 shadow-sm space-y-4">
+                  <div className="flex justify-between items-center">
+                    <span className="text-[10px] text-slate-500 font-bold uppercase tracking-wider flex items-center gap-1.5">
+                      <CalendarDays className="w-3.5 h-3.5 text-violet-400" />
+                      Attendance Logs ({attendancePct}%)
+                    </span>
+                    <span className="text-[9px] text-slate-400 font-semibold px-2 py-0.5 bg-slate-900 border border-slate-800 rounded">
+                      {presentDays} / {totalAttendance} Days Present
+                    </span>
                   </div>
-                ) : (
-                  <div className="overflow-x-auto">
-                    <table className="w-full min-w-[600px] text-[11px] text-left border-collapse">
-                      <thead>
-                        <tr className="border-b border-slate-850 text-slate-400 uppercase font-black tracking-wider">
-                          <th className="py-2.5">Date</th>
-                          <th className="py-2.5">Status</th>
-                          <th className="py-2.5">Remarks / Reason</th>
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {attendance.slice(0, 5).map((log, idx) => (
-                          <tr key={idx} className="border-b border-slate-850 font-medium text-slate-200">
-                            <td className="py-2.5">{log.date}</td>
-                            <td className="py-2.5">
-                              <span className={`inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[9px] uppercase font-bold tracking-wider ${
-                                log.status === 'Present' ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20' :
-                                log.status === 'Late' ? 'bg-amber-500/10 text-amber-400 border border-amber-500/20' :
-                                'bg-rose-500/10 text-rose-400 border border-rose-500/20'
-                              }`}>
-                                {log.status}
-                              </span>
-                            </td>
-                            <td className="py-2.5 text-slate-500">{log.remarks || 'None'}</td>
+
+                  {attendance.length === 0 ? (
+                    <div className="text-center py-8 text-xs text-slate-500 font-medium bg-slate-900/10 border border-dashed border-slate-800 rounded-xl">
+                      No attendance logs recorded this term.
+                    </div>
+                  ) : (
+                    <div className="overflow-x-auto">
+                      <table className="w-full text-xs text-left border-collapse">
+                        <thead>
+                          <tr className="border-b border-slate-800 text-slate-500 uppercase text-[9px] font-bold tracking-wider">
+                            <th className="py-2 px-1">Date</th>
+                            <th className="py-2 px-1">Status</th>
+                            <th className="py-2 px-1">Remarks</th>
                           </tr>
-                        ))}
-                      </tbody>
-                    </table>
-                  </div>
-                )}
+                        </thead>
+                        <tbody>
+                          {attendance.slice(0, 5).map((log, idx) => (
+                            <tr key={idx} className="border-b border-slate-850/50 text-slate-355">
+                              <td className="py-2 px-1 font-medium">{log.date}</td>
+                              <td className="py-2 px-1">
+                                <span className={`inline-flex px-1.5 py-0.5 rounded text-[8px] uppercase font-bold tracking-wide ${
+                                  log.status === 'Present' ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20' :
+                                  log.status === 'Late' ? 'bg-amber-500/10 text-amber-400 border border-amber-500/20' :
+                                  'bg-rose-500/10 text-rose-450 border border-rose-500/20'
+                                }`}>
+                                  {log.status}
+                                </span>
+                              </td>
+                              <td className="py-2 px-1 text-slate-500 text-[10px]">{log.remarks || '-'}</td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  )}
+                </div>
               </div>
             </div>
           )}
 
-          {activeTab === 'academic' && (
-            <div className="bg-slate-950 border border-slate-850 rounded-2xl p-6 shadow-md space-y-6">
+          {/* Subjects Tab */}
+          {activeTab === 'subjects' && (
+            <div className="bg-slate-950 border border-slate-800 rounded-2xl p-6 shadow-sm space-y-6">
+              <div>
+                <h3 className="text-base font-bold text-slate-100 tracking-tight">Registered Subjects</h3>
+                <p className="text-xs text-slate-400 mt-1">Official subjects registered under {student.gradeClass}</p>
+              </div>
+
+              {marks.length === 0 ? (
+                <div className="text-center py-12 text-xs text-slate-500 font-medium bg-slate-900/10 border border-dashed border-slate-800 rounded-xl">
+                  No subjects registered.
+                </div>
+              ) : (
+                <div className="overflow-x-auto border border-slate-800 rounded-xl">
+                  <table className="w-full text-xs text-left border-collapse">
+                    <thead>
+                      <tr className="bg-slate-900/35 border-b border-slate-800 text-slate-400 uppercase text-[9px] font-bold tracking-wider">
+                        <th className="py-3 px-4 w-12">#</th>
+                        <th className="py-3 px-4">Subject Name</th>
+                        <th className="py-3 px-4">Category / Type</th>
+                        <th className="py-3 px-4 text-center">Status</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {marks.map((m, idx) => (
+                        <tr key={idx} className="border-b border-slate-855 hover:bg-slate-900/20 text-slate-300">
+                          <td className="py-3 px-4 font-mono text-slate-500">{idx + 1}</td>
+                          <td className="py-3 px-4 font-semibold text-slate-100">{m.subject}</td>
+                          <td className="py-3 px-4 text-[10px] uppercase text-slate-400">{m.subject_type || 'Compulsory'}</td>
+                          <td className="py-3 px-4 text-center">
+                            <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[8px] uppercase font-bold tracking-wide bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">
+                              Active
+                            </span>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* Academic Results Tab */}
+          {activeTab === 'academic-results' && (
+            <div className="bg-slate-950 border border-slate-800 rounded-2xl p-6 shadow-sm space-y-6">
               <div className="flex justify-between items-center flex-wrap gap-3">
                 <div>
-                  <h3 className="text-sm font-black uppercase text-slate-200">Academic Marks & Grades</h3>
-                  <p className="text-[10px] text-slate-500 mt-0.5">
-                    Continuous assessment and terminal exam records for {student.gradeClass}
-                  </p>
+                  <h3 className="text-base font-bold text-slate-100 tracking-tight">Academic Marks & Grades</h3>
+                  <p className="text-xs text-slate-400 mt-1">Continuous assessment and term examinations breakdown for {student.gradeClass}</p>
                 </div>
                 {positions && (
                   <div className="flex items-center gap-2">
-                    <span className="text-[10px] text-indigo-400 font-bold uppercase bg-indigo-950 border border-indigo-900/60 px-2.5 py-1 rounded-lg">
+                    <span className="text-[9px] text-violet-400 font-bold uppercase bg-violet-950 border border-violet-900/60 px-2.5 py-1 rounded-lg">
                       Class Rank: {positions.classPosition > 0 ? `${positions.classPosition}/${positions.totalClassStudents}` : 'Pending'}
                     </span>
-                    <span className="text-[10px] text-violet-400 font-bold uppercase bg-violet-950 border border-violet-900/60 px-2.5 py-1 rounded-lg">
+                    <span className="text-[9px] text-violet-400 font-bold uppercase bg-violet-950 border border-violet-900/60 px-2.5 py-1 rounded-lg">
                       Stream Rank: {positions.streamPosition > 0 ? `${positions.streamPosition}/${positions.totalStreamStudents}` : 'Pending'}
                     </span>
                   </div>
@@ -538,15 +692,15 @@ export default function StudentPortal({ studentId, studentName, adminNo, student
               </div>
 
               {marks.length === 0 ? (
-                <div className="text-center py-12 text-xs text-slate-500 font-medium bg-slate-900/20 border border-dashed border-slate-850 rounded-xl">
+                <div className="text-center py-12 text-xs text-slate-500 font-medium bg-slate-900/10 border border-dashed border-slate-800 rounded-xl">
                   No academic marks registered for you in the database for this term.
                 </div>
               ) : (
-                <div className="overflow-x-auto border border-slate-850 rounded-xl bg-slate-900/10">
+                <div className="overflow-x-auto border border-slate-800 rounded-xl">
                   {isUACE ? (
-                    <table className="w-full min-w-[800px] text-[11px] text-left border-collapse">
+                    <table className="w-full text-xs text-left border-collapse">
                       <thead>
-                        <tr className="bg-slate-950 border-b border-slate-850 text-slate-400 uppercase font-black tracking-wider">
+                        <tr className="bg-slate-900/35 border-b border-slate-800 text-slate-400 uppercase text-[9px] font-bold tracking-wider">
                           <th className="py-3 px-4">Subject Name</th>
                           <th className="py-3 px-4">Type</th>
                           <th className="py-3 px-4 text-center">Score</th>
@@ -557,14 +711,14 @@ export default function StudentPortal({ studentId, studentName, adminNo, student
                       </thead>
                       <tbody>
                         {marks.map((m, idx) => (
-                          <tr key={idx} className="border-b border-slate-850/50 hover:bg-slate-900/20 font-medium text-slate-200 transition-colors">
+                          <tr key={idx} className="border-b border-slate-855 hover:bg-slate-900/20 text-slate-300">
                             <td className="py-3 px-4 font-bold text-slate-100">{m.subject}</td>
                             <td className="py-3 px-4 uppercase text-slate-400 text-[10px]">{m.subject_type || 'Principal'}</td>
-                            <td className="py-3 px-4 text-center font-mono text-indigo-300 font-bold">{m.score}</td>
-                            <td className="py-3 px-4 text-center font-mono font-bold text-slate-200">{m.grade || 'F'}</td>
+                            <td className="py-3 px-4 text-center font-mono font-bold text-violet-400">{m.score}</td>
+                            <td className="py-3 px-4 text-center font-mono font-bold text-slate-100">{m.grade || 'F'}</td>
                             <td className="py-3 px-4 text-center font-mono text-slate-400">{m.points || 0}</td>
                             <td className="py-3 px-4 text-center">
-                              <span className={`inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[9px] uppercase font-bold tracking-wider ${
+                              <span className={`inline-flex px-1.5 py-0.5 rounded text-[8px] uppercase font-bold tracking-wide ${
                                 m.status === 'Approved' ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20' :
                                 m.status === 'Pending' ? 'bg-amber-500/10 text-amber-400 border border-amber-500/20' :
                                 'bg-slate-800 text-slate-400 border border-slate-700'
@@ -577,9 +731,9 @@ export default function StudentPortal({ studentId, studentName, adminNo, student
                       </tbody>
                     </table>
                   ) : (
-                    <table className="w-full min-w-[800px] text-[11px] text-left border-collapse">
+                    <table className="w-full text-xs text-left border-collapse">
                       <thead>
-                        <tr className="bg-slate-950 border-b border-slate-850 text-slate-400 uppercase font-black tracking-wider">
+                        <tr className="bg-slate-900/35 border-b border-slate-800 text-slate-400 uppercase text-[9px] font-bold tracking-wider">
                           <th className="py-3 px-4">Subject Name</th>
                           <th className="py-3 px-2 text-center">AI 1 (/3)</th>
                           <th className="py-3 px-2 text-center">AI 2 (/3)</th>
@@ -608,16 +762,16 @@ export default function StudentPortal({ studentId, studentName, adminNo, student
                           const totalScore = caVal + examW;
 
                           return (
-                            <tr key={idx} className="border-b border-slate-850/50 hover:bg-slate-900/20 font-medium text-slate-200 transition-colors">
-                              <td className="py-3 px-4 font-bold text-slate-100">{m.subject}</td>
-                              <td className="py-3 px-2 text-center font-mono text-slate-350">{m.integration1 !== null && m.integration1 !== undefined ? m.integration1 : '-'}</td>
-                              <td className="py-3 px-2 text-center font-mono text-slate-350">{m.integration2 !== null && m.integration2 !== undefined ? m.integration2 : '-'}</td>
-                              <td className="py-3 px-2 text-center font-mono text-slate-350">{m.integration3 !== null && m.integration3 !== undefined ? m.integration3 : '-'}</td>
-                              <td className="py-3 px-3 text-center font-mono text-indigo-400 font-bold">{caVal > 0 ? caVal.toFixed(1) : '0.0'}</td>
+                            <tr key={idx} className="border-b border-slate-855 hover:bg-slate-900/20 text-slate-355">
+                              <td className="py-3 px-4 font-semibold text-slate-100">{m.subject}</td>
+                              <td className="py-3 px-2 text-center font-mono text-slate-400">{m.integration1 !== null && m.integration1 !== undefined ? m.integration1 : '-'}</td>
+                              <td className="py-3 px-2 text-center font-mono text-slate-400">{m.integration2 !== null && m.integration2 !== undefined ? m.integration2 : '-'}</td>
+                              <td className="py-3 px-2 text-center font-mono text-slate-400">{m.integration3 !== null && m.integration3 !== undefined ? m.integration3 : '-'}</td>
+                              <td className="py-3 px-3 text-center font-mono text-violet-400 font-bold">{caVal > 0 ? caVal.toFixed(1) : '0.0'}</td>
                               <td className="py-3 px-3 text-center font-mono text-slate-400">{m.exam_score !== null && m.exam_score !== undefined ? m.exam_score : '-'}</td>
                               <td className="py-3 px-3 text-center font-mono text-emerald-400 font-bold">{totalScore > 0 ? totalScore.toFixed(1) : '0.0'}</td>
                               <td className="py-3 px-4 text-center">
-                                <span className={`inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[9px] uppercase font-bold tracking-wider ${
+                                <span className={`inline-flex px-1.5 py-0.5 rounded text-[8px] uppercase font-bold tracking-wide ${
                                   m.status === 'Approved' ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20' :
                                   m.status === 'Pending' ? 'bg-amber-500/10 text-amber-400 border border-amber-500/20' :
                                   'bg-slate-800 text-slate-400 border border-slate-700'
@@ -635,88 +789,261 @@ export default function StudentPortal({ studentId, studentName, adminNo, student
               )}
 
               {!isUACE && marks.length > 0 && (
-                <div className="p-4 mt-4 bg-slate-900/20 border border-slate-850 rounded-xl space-y-1.5 text-left" style={{ fontSize: '9.5pt' }}>
-                  <p className="text-slate-400 leading-relaxed font-medium">
-                    Final Percentage = (CA Score ÷ Maximum CA Marks × CA Weight) + (Exam Score ÷ Maximum Exam Marks × Exam Weight)
+                <div className="p-4 bg-slate-900/30 border border-slate-850 rounded-xl text-left space-y-1.5">
+                  <h4 className="text-[10px] font-bold text-slate-400 uppercase tracking-wide">Grading System Reference (Uganda O-Level CBA)</h4>
+                  <p className="text-slate-400 text-[10.5px] leading-relaxed">
+                    Continuous Assessment (CA) accounts for **20%** of the term grade, compiled from Activities of Integration (AI 1, 2, and 3). 
+                    Term exam score accounts for **80%** of the grade.
                   </p>
-                  <p className="text-slate-500 font-medium italic text-[8.5pt]">
-                    Example:<br />
-                    If CA Weight = 20% and Exam Weight = 80%:<br />
-                    Final Percentage = (CA Score ÷ Maximum CA Marks × 20) + (Exam Score ÷ Maximum Exam Marks × 80).
+                  <p className="text-slate-555 text-[9.5px] italic">
+                    Formula: (CA Score ÷ Maximum CA Marks × 20) + (Exam Score ÷ Maximum Exam Marks × 80).
                   </p>
                 </div>
               )}
             </div>
           )}
 
+          {/* Performance Tab */}
+          {activeTab === 'performance' && (
+            <div className="space-y-6">
+              <div className="bg-slate-950 border border-slate-800 rounded-2xl p-6 shadow-sm space-y-6">
+                <div>
+                  <h3 className="text-base font-bold text-slate-100 tracking-tight">Academic Performance Summary</h3>
+                  <p className="text-xs text-slate-400 mt-1">Analytics based on registered grades and positions</p>
+                </div>
+
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                  
+                  {/* Performance indicator 1 */}
+                  <div className="bg-slate-900/30 border border-slate-850 p-5 rounded-xl space-y-1">
+                    <span className="text-[9px] text-slate-500 font-bold uppercase tracking-wider block">Term Grade Average</span>
+                    <h4 className="text-3xl font-black text-violet-400 tracking-tight">{getAverageScore()}%</h4>
+                    <p className="text-[10px] text-slate-400">Class Performance Status</p>
+                  </div>
+
+                  {/* Performance indicator 2 */}
+                  <div className="bg-slate-900/30 border border-slate-850 p-5 rounded-xl space-y-1">
+                    <span className="text-[9px] text-slate-500 font-bold uppercase tracking-wider block">Subject Load</span>
+                    <h4 className="text-3xl font-black text-slate-200 tracking-tight">{marks.length} Subjects</h4>
+                    <p className="text-[10px] text-slate-400">Total Enrolled</p>
+                  </div>
+
+                  {/* Performance indicator 3 */}
+                  <div className="bg-slate-900/30 border border-slate-850 p-5 rounded-xl space-y-1">
+                    <span className="text-[9px] text-slate-500 font-bold uppercase tracking-wider block">Class Raking Position</span>
+                    <h4 className="text-3xl font-black text-slate-200 tracking-tight">
+                      {positions && positions.classPosition > 0 ? `${positions.classPosition}${getOrdinal(positions.classPosition)}` : 'Pending'}
+                    </h4>
+                    <p className="text-[10px] text-slate-400">Out of {positions?.totalClassStudents || 0} students</p>
+                  </div>
+                </div>
+
+                {/* Score Progression indicators */}
+                <div className="space-y-4">
+                  <span className="text-[10px] text-slate-500 font-bold uppercase tracking-wider block">
+                    Subject Performance Distribution
+                  </span>
+                  
+                  {marks.length === 0 ? (
+                    <div className="text-center py-6 text-xs text-slate-500 bg-slate-900/10 border border-dashed border-slate-800 rounded-xl">
+                      No records to display.
+                    </div>
+                  ) : (
+                    <div className="space-y-3.5">
+                      {marks.map((m, idx) => {
+                        let scoreVal = 0;
+                        if (isUACE) {
+                          scoreVal = parseFloat(m.score) || 0;
+                        } else {
+                          const aiScores = [];
+                          if (m.integration1 !== null && m.integration1 !== undefined) aiScores.push(parseFloat(m.integration1));
+                          if (m.integration2 !== null && m.integration2 !== undefined) aiScores.push(parseFloat(m.integration2));
+                          if (m.integration3 !== null && m.integration3 !== undefined) aiScores.push(parseFloat(m.integration3));
+                          
+                          let caVal = 0;
+                          if (aiScores.length > 0) {
+                            const sumPct = aiScores.map(score => (score / 3) * 100).reduce((a, b) => a + b, 0);
+                            const caAverage = sumPct / aiScores.length;
+                            caVal = (caAverage * 20) / 100;
+                          }
+                          const examVal = parseFloat(m.exam_score || 0);
+                          const examW = (examVal * 80) / 100;
+                          scoreVal = caVal + examW;
+                        }
+
+                        // Determine color
+                        const barColor = scoreVal >= 75 ? 'bg-emerald-500' : scoreVal >= 50 ? 'bg-violet-500' : scoreVal >= 35 ? 'bg-amber-500' : 'bg-rose-500';
+
+                        return (
+                          <div key={idx} className="space-y-1">
+                            <div className="flex justify-between text-xs font-semibold text-slate-355">
+                              <span>{m.subject}</span>
+                              <span className="font-mono">{scoreVal.toFixed(1)}%</span>
+                            </div>
+                            <div className="h-2 bg-slate-900 rounded-full overflow-hidden border border-slate-850">
+                              <div className={`h-full ${barColor} transition-all duration-300`} style={{ width: `${scoreVal}%` }} />
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  )}
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* Fees Tab */}
+          {activeTab === 'fees' && (
+            <div className="space-y-6">
+              {/* Stat panel */}
+              <div className="bg-slate-950 border border-slate-800 rounded-2xl p-6 shadow-sm space-y-6">
+                <div>
+                  <h3 className="text-base font-bold text-slate-100 tracking-tight">Fees Ledger & Statement</h3>
+                  <p className="text-xs text-slate-400 mt-1">Detailed status of school fees billing and payments</p>
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-6">
+                  <div className="bg-slate-900/30 border border-slate-850 p-5 rounded-xl space-y-1">
+                    <span className="text-[9px] text-slate-500 font-bold uppercase tracking-wider block">Total Billed Due</span>
+                    <h4 className="text-2xl font-black text-slate-200 tracking-tight">UGX {feeDue.toLocaleString()}</h4>
+                  </div>
+                  <div className="bg-slate-900/30 border border-slate-850 p-5 rounded-xl space-y-1">
+                    <span className="text-[9px] text-slate-500 font-bold uppercase tracking-wider block">Amount Paid</span>
+                    <h4 className="text-2xl font-black text-emerald-400 tracking-tight">UGX {feePaid.toLocaleString()}</h4>
+                  </div>
+                  <div className="bg-slate-900/30 border border-slate-850 p-5 rounded-xl space-y-1">
+                    <span className="text-[9px] text-slate-500 font-bold uppercase tracking-wider block">Outstanding Balance</span>
+                    <h4 className="text-2xl font-black text-rose-450 tracking-tight">UGX {feeBal.toLocaleString()}</h4>
+                  </div>
+                </div>
+
+                <div className="space-y-3">
+                  <span className="text-[10px] text-slate-500 font-bold uppercase tracking-wider block">Billing Ledger History</span>
+                  
+                  {fees.length === 0 ? (
+                    <div className="text-center py-8 text-xs text-slate-500 bg-slate-900/10 border border-dashed border-slate-800 rounded-xl">
+                      No fees statement records found.
+                    </div>
+                  ) : (
+                    <div className="overflow-x-auto border border-slate-850 rounded-xl">
+                      <table className="w-full text-xs text-left border-collapse">
+                        <thead>
+                          <tr className="bg-slate-900/35 border-b border-slate-800 text-slate-400 uppercase text-[9px] font-bold tracking-wider">
+                            <th className="py-2.5 px-4">Term / Year</th>
+                            <th className="py-2.5 px-4">Account Reference</th>
+                            <th className="py-2.5 px-4 text-right">Amount Due</th>
+                            <th className="py-2.5 px-4 text-right">Amount Paid</th>
+                            <th className="py-2.5 px-4 text-center">Status</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {fees.map((f, idx) => (
+                            <tr key={idx} className="border-b border-slate-855 text-slate-300">
+                              <td className="py-3 px-4 font-semibold">Term {f.term || '3'}, {f.year || '2026'}</td>
+                              <td className="py-3 px-4 font-mono text-[10.5px] text-slate-450">{f.account_no || 'FEE-AC-' + student.adminNo}</td>
+                              <td className="py-3 px-4 text-right font-mono font-semibold text-slate-200">UGX {parseFloat(f.amount_due).toLocaleString()}</td>
+                              <td className="py-3 px-4 text-right font-mono font-semibold text-emerald-400">UGX {parseFloat(f.amount_paid).toLocaleString()}</td>
+                              <td className="py-3 px-4 text-center">
+                                <span className={`inline-flex px-1.5 py-0.5 rounded text-[8px] uppercase font-bold tracking-wide ${
+                                  f.payment_status === 'Paid' ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20' : 'bg-rose-500/10 text-rose-450 border border-rose-500/20'
+                                }`}>
+                                  {f.payment_status}
+                                </span>
+                              </td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  )}
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* Clearance Tab */}
           {activeTab === 'clearance' && (
-            <div className="bg-slate-950 border border-slate-850 rounded-2xl p-6 shadow-md space-y-6">
+            <div className="bg-slate-950 border border-slate-880 rounded-2xl p-6 shadow-sm space-y-6">
               <div className="flex justify-between items-center flex-wrap gap-3">
                 <div>
-                  <h3 className="text-sm font-black uppercase text-slate-200">Clearance Cards Preview</h3>
-                  <p className="text-[10px] text-slate-500 mt-0.5">Dual-side student clearance credential</p>
+                  <h3 className="text-base font-bold text-slate-100 tracking-tight">Student Clearance Cards</h3>
+                  <p className="text-xs text-slate-400 mt-1">Dual-side school clearance card preview and compiler</p>
                 </div>
                 <button
                   onClick={handleDownloadClearanceCard}
                   disabled={clearanceCompiling}
-                  className="px-4 py-2 bg-indigo-650 hover:bg-indigo-600 disabled:opacity-50 text-white rounded-lg text-xs font-bold uppercase tracking-wider cursor-pointer flex items-center gap-1.5"
+                  className="px-4 py-2 bg-violet-600 hover:bg-violet-700 disabled:opacity-50 text-white rounded-lg text-xs font-bold uppercase tracking-wider cursor-pointer flex items-center gap-1.5 shadow-sm transition-all"
                 >
                   {clearanceCompiling ? (
                     <>
-                      <RefreshCw className="w-4 h-4 animate-spin" /> Compiling...
+                      <RefreshCw className="w-3.5 h-3.5 animate-spin" /> Compiling...
                     </>
                   ) : (
                     <>
-                      <Download className="w-4 h-4" /> Download PDF Card
+                      <Download className="w-3.5 h-3.5" /> Download PDF Card
                     </>
                   )}
                 </button>
               </div>
 
-              {clearanceCompiling && clearanceProgress && (
-                <div className="bg-indigo-950/40 p-3.5 rounded-2xl border border-indigo-900/30 flex flex-col gap-2 text-[10px] font-mono animate-fade-in">
-                  <div className="flex justify-between font-bold text-indigo-300">
-                    <span>GENERATING CLEARANCE CARD...</span>
-                    <span>{clearanceProgress.current} / {clearanceProgress.total} COMPLETED</span>
+              {!student.isCleared && (
+                <div className="bg-rose-500/10 border border-rose-500/20 p-4 rounded-xl flex items-start gap-3 text-xs text-rose-400">
+                  <AlertCircle className="w-5 h-5 shrink-0" />
+                  <div>
+                    <h5 className="font-bold uppercase tracking-wide">Clearance Pending / On Hold</h5>
+                    <p className="mt-0.5 text-slate-400">
+                      Your clearance credential status is currently set to On Hold. You must clear all pending tuition balance or requirements with school administrators to obtain exam clearance.
+                    </p>
                   </div>
-                  <div className="h-1.5 bg-slate-900 rounded-full overflow-hidden">
-                    <div className="h-full bg-indigo-500 transition-all duration-100" style={{ width: `${(clearanceProgress.current / clearanceProgress.total) * 100}%` }} />
+                </div>
+              )}
+
+              {clearanceCompiling && clearanceProgress && (
+                <div className="bg-slate-900/50 p-4 rounded-xl border border-slate-800 flex flex-col gap-2 text-[10px] font-mono">
+                  <div className="flex justify-between font-semibold text-violet-400 uppercase tracking-wider">
+                    <span>Compiling clearance card PDF...</span>
+                    <span>{clearanceProgress.current} / {clearanceProgress.total} Complete</span>
+                  </div>
+                  <div className="h-1.5 bg-slate-950 rounded-full overflow-hidden border border-slate-850">
+                    <div className="h-full bg-violet-500 transition-all duration-100" style={{ width: `${(clearanceProgress.current / clearanceProgress.total) * 100}%` }} />
                   </div>
                 </div>
               )}
 
               {/* Cards Grid Preview */}
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-6 p-4 bg-slate-900/30 border border-slate-850 rounded-xl overflow-auto justify-items-center">
-                <div className="border border-slate-800 rounded-xl overflow-hidden bg-slate-950 p-2 shadow-lg">
-                  <span className="text-[9px] text-slate-500 font-bold uppercase tracking-wider block mb-2 text-center">Card Front Side</span>
+              <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 p-6 bg-slate-900/20 border border-slate-850 rounded-xl justify-items-center">
+                <div className="border border-slate-800 rounded-xl overflow-hidden bg-slate-950 p-3 shadow-md flex flex-col items-center">
+                  <span className="text-[9px] text-slate-500 font-bold uppercase tracking-wider block mb-2">Card Front Side</span>
                   <ClearanceCard student={student} side="front" logoBase64={schoolLogo} showWatermark={true} watermarkOpacity={0.25} />
                 </div>
-                <div className="border border-slate-800 rounded-xl overflow-hidden bg-slate-950 p-2 shadow-lg">
-                  <span className="text-[9px] text-slate-500 font-bold uppercase tracking-wider block mb-2 text-center">Card Back Side</span>
+                <div className="border border-slate-800 rounded-xl overflow-hidden bg-slate-950 p-3 shadow-md flex flex-col items-center">
+                  <span className="text-[9px] text-slate-500 font-bold uppercase tracking-wider block mb-2">Card Back Side</span>
                   <ClearanceCard student={student} side="back" logoBase64={schoolLogo} showWatermark={true} watermarkOpacity={0.25} />
                 </div>
               </div>
             </div>
           )}
 
-          {activeTab === 'report' && (
-            <div className="bg-slate-950 border border-slate-850 rounded-2xl p-6 shadow-md space-y-6">
+          {/* Reports Tab */}
+          {activeTab === 'reports' && (
+            <div className="bg-slate-950 border border-slate-800 rounded-2xl p-6 shadow-sm space-y-6">
               <div>
-                <h3 className="text-sm font-black uppercase text-slate-200">Academic Report Cards Compiler</h3>
-                <p className="text-[10px] text-slate-500 mt-0.5">Download your official Uganda O-Level CBA or UACE report sheets</p>
+                <h3 className="text-base font-bold text-slate-100 tracking-tight">Academic Report Card Compiler</h3>
+                <p className="text-xs text-slate-400 mt-1">Compile and export official Uganda O-Level CBA or UACE terminal report sheets</p>
               </div>
 
-              <div className="p-6 bg-slate-900/30 border border-slate-850 rounded-xl flex flex-col md:flex-row items-center justify-between gap-6">
+              <div className="p-6 bg-slate-900/30 border border-slate-855 rounded-xl flex flex-col lg:flex-row items-center justify-between gap-6">
                 <div className="flex gap-4 items-center">
-                  <div className="p-3 bg-indigo-950 border border-indigo-900/60 rounded-xl text-indigo-400 shrink-0">
-                    <Award className="w-8 h-8" />
+                  <div className="p-3 bg-violet-950 border border-violet-900/60 rounded-xl text-violet-400 shrink-0">
+                    <FileText className="w-7 h-7" />
                   </div>
                   <div className="space-y-1">
-                    <h4 className="text-xs font-black uppercase text-slate-200 tracking-wider">
-                      {marks && marks.length > 0 ? ((marks[0].term === '1' || marks[0].term === '2' || marks[0].term === '3') ? `Term ${marks[0].term}` : marks[0].term) : 'Term 3'}, {marks && marks.length > 0 ? marks[0].year : '2026'} Academic Report
+                    <h4 className="text-xs font-bold uppercase text-slate-200 tracking-wider">
+                      Term {marks && marks.length > 0 ? marks[0].term : '3'}, {marks && marks.length > 0 ? marks[0].year : '2026'} Academic Report
                     </h4>
-                    <p className="text-[10.5px] text-slate-500 leading-normal max-w-md font-medium">
-                      Contains marks, continuous assessment weights, rank, averages, and signatures. Available once subject teachers submit and admin approves.
+                    <p className="text-[10.5px] text-slate-400 leading-relaxed max-w-md">
+                      Official terminal progress report card sheet containing marks, averages, class teacher comment sections, and school headteacher stamp endorsements.
                     </p>
                   </div>
                 </div>
@@ -724,65 +1051,201 @@ export default function StudentPortal({ studentId, studentName, adminNo, student
                 <button
                   onClick={handleCompileReport}
                   disabled={reportCompiling}
-                  className="px-5 py-3 bg-indigo-650 hover:bg-indigo-650/80 disabled:opacity-50 text-white rounded-lg text-xs font-bold uppercase tracking-wider cursor-pointer flex items-center gap-2 shadow"
+                  className="px-5 py-3 bg-violet-650 hover:bg-violet-600 disabled:opacity-50 text-white rounded-lg text-xs font-bold uppercase tracking-wider cursor-pointer flex items-center gap-2 shadow-sm transition-all shrink-0"
                 >
                   {reportCompiling ? (
                     <>
-                      <RefreshCw className="w-4 h-4 animate-spin" /> Compiling PDF...
+                      <RefreshCw className="w-3.5 h-3.5 animate-spin" /> Compiling Report...
                     </>
                   ) : (
                     <>
-                      <Download className="w-4 h-4" /> Download Report Card
+                      <Download className="w-3.5 h-3.5" /> Download Report Card
                     </>
                   )}
                 </button>
               </div>
 
               {reportCompiling && reportProgress && (
-                <div className="mt-3 bg-indigo-950/40 p-3.5 rounded-2xl border border-indigo-900/30 flex flex-col gap-2 text-[10px] font-mono animate-fade-in">
-                  <div className="flex justify-between font-bold text-indigo-300">
-                    <span>COMPILING ACADEMIC REPORT CARD...</span>
-                    <span>{reportProgress.current} / {reportProgress.total} COMPLETED</span>
+                <div className="bg-slate-900/50 p-4 rounded-xl border border-slate-800 flex flex-col gap-2 text-[10px] font-mono">
+                  <div className="flex justify-between font-semibold text-violet-400 uppercase tracking-wider">
+                    <span>Generating academic report sheets...</span>
+                    <span>{reportProgress.current} / {reportProgress.total} Completed</span>
                   </div>
-                  <div className="h-1.5 bg-slate-900 rounded-full overflow-hidden">
-                    <div className="h-full bg-indigo-500 transition-all duration-100" style={{ width: `${(reportProgress.current / reportProgress.total) * 100}%` }} />
+                  <div className="h-1.5 bg-slate-950 rounded-full overflow-hidden border border-slate-850">
+                    <div className="h-full bg-violet-500 transition-all duration-100" style={{ width: `${(reportProgress.current / reportProgress.total) * 100}%` }} />
                   </div>
                 </div>
               )}
 
-              {/* Status indicators */}
-              <div className="border border-slate-850 rounded-xl p-4 space-y-3 bg-slate-900/10">
+              {/* Checks */}
+              <div className="border border-slate-850 rounded-xl p-5 bg-slate-900/10 space-y-3">
                 <span className="text-[9px] text-slate-500 font-bold uppercase tracking-wider block">
-                  Report Compilation Pre-checks
+                  Report Compiler Validation Checks
                 </span>
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs">
-                  <div className="flex items-center gap-2 bg-slate-950/40 p-2.5 rounded-lg border border-slate-850 font-semibold">
+                  <div className="flex items-center gap-2.5 bg-slate-950 p-3 rounded-lg border border-slate-850 font-semibold text-slate-350">
                     {marks.length > 0 ? (
                       <CheckCircle2 className="w-4 h-4 text-emerald-400 shrink-0" />
                     ) : (
                       <XCircle className="w-4 h-4 text-rose-500 shrink-0" />
                     )}
-                    <span className="text-slate-350">
-                      {marks.length > 0 ? `Registered Marks (${marks.length} Subjects)` : 'No marks registered yet'}
+                    <span>
+                      {marks.length > 0 ? `Registered Marks (${marks.length} Subjects)` : 'No academic marks in registry'}
                     </span>
                   </div>
 
-                  <div className="flex items-center gap-2 bg-slate-950/40 p-2.5 rounded-lg border border-slate-850 font-semibold">
+                  <div className="flex items-center gap-2.5 bg-slate-950 p-3 rounded-lg border border-slate-850 font-semibold text-slate-350">
                     {marks.length > 0 && !marks.some(m => m.status !== 'Approved') ? (
                       <CheckCircle2 className="w-4 h-4 text-emerald-400 shrink-0" />
                     ) : (
                       <AlertCircle className="w-4 h-4 text-amber-500 shrink-0" />
                     )}
-                    <span className="text-slate-350">
-                      {marks.length > 0 && !marks.some(m => m.status !== 'Approved') ? 'All marks Approved by Admin' : 'Marks Pending Approval (Download Allowed)'}
+                    <span>
+                      {marks.length > 0 && !marks.some(m => m.status !== 'Approved') ? 'All Subject Marks Approved' : 'Marks Pending Approval (Download Allowed)'}
                     </span>
                   </div>
                 </div>
               </div>
             </div>
           )}
-        </div>
-      </main>
+
+          {/* Notices Tab */}
+          {activeTab === 'notices' && (
+            <div className="bg-slate-950 border border-slate-800 rounded-2xl p-6 shadow-sm space-y-6">
+              <div>
+                <h3 className="text-base font-bold text-slate-100 tracking-tight">School Notice Board</h3>
+                <p className="text-xs text-slate-400 mt-1">Official circulars, notifications, and school announcements</p>
+              </div>
+
+              {(!announcements || announcements.length === 0) ? (
+                <div className="text-center py-12 text-xs text-slate-500 font-medium bg-slate-900/10 border border-dashed border-slate-800 rounded-xl">
+                  No notifications or circulars found on the notice board.
+                </div>
+              ) : (
+                <div className="space-y-4">
+                  {announcements.map((ann, idx) => (
+                    <div key={idx} className="bg-slate-900/20 border border-slate-850 rounded-xl p-5 space-y-3 relative overflow-hidden">
+                      <div className="absolute top-0 left-0 bottom-0 w-1 bg-violet-600" />
+                      <div className="flex justify-between items-start gap-2 flex-wrap">
+                        <h4 className="text-sm font-bold text-slate-100 uppercase tracking-tight">{ann.title}</h4>
+                        <span className="text-[10px] text-slate-500 font-mono">
+                          {ann.createdAt ? new Date(ann.createdAt).toLocaleString(undefined, { month: 'long', day: 'numeric', year: 'numeric', hour: '2-digit', minute: '2-digit' }) : 'N/A'}
+                        </span>
+                      </div>
+                      <p className="text-xs text-slate-305 leading-relaxed whitespace-pre-wrap font-medium">{ann.content}</p>
+                      <div className="text-[9px] text-slate-500 flex justify-between font-bold uppercase tracking-wider border-t border-slate-900 pt-2">
+                        <span>Author: {ann.author}</span>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* Profile Tab */}
+          {activeTab === 'profile' && (
+            <div className="bg-slate-950 border border-slate-800 rounded-2xl p-6 shadow-sm space-y-6">
+              <div>
+                <h3 className="text-base font-bold text-slate-100 tracking-tight">Student Registration Profile</h3>
+                <p className="text-xs text-slate-400 mt-1">Official identity and academic registration details</p>
+              </div>
+
+              <div className="flex flex-col md:flex-row gap-8 items-start">
+                {student.photo ? (
+                  <img src={student.photo} className="w-32 h-36 rounded-xl border border-slate-800 object-cover shadow" alt="Photo" />
+                ) : (
+                  <div className="w-32 h-36 bg-slate-900 border border-slate-800 rounded-xl flex items-center justify-center text-4xl text-slate-700">
+                    👤
+                  </div>
+                )}
+
+                <div className="flex-1 w-full grid grid-cols-1 sm:grid-cols-2 gap-4 text-xs font-semibold">
+                  <div className="bg-slate-900/30 p-3 rounded-lg border border-slate-850 space-y-1">
+                    <span className="text-[9px] text-slate-500 font-bold uppercase tracking-wider block">Full Name</span>
+                    <span className="text-slate-200 uppercase">{student.name}</span>
+                  </div>
+
+                  <div className="bg-slate-900/30 p-3 rounded-lg border border-slate-850 space-y-1">
+                    <span className="text-[9px] text-slate-500 font-bold uppercase tracking-wider block">Admission Number</span>
+                    <span className="text-slate-200 uppercase font-mono">{student.adminNo}</span>
+                  </div>
+
+                  <div className="bg-slate-900/30 p-3 rounded-lg border border-slate-850 space-y-1">
+                    <span className="text-[9px] text-slate-500 font-bold uppercase tracking-wider block">Grade & Class Stream</span>
+                    <span className="text-slate-200 uppercase">{student.gradeClass}</span>
+                  </div>
+
+                  <div className="bg-slate-900/30 p-3 rounded-lg border border-slate-850 space-y-1">
+                    <span className="text-[9px] text-slate-500 font-bold uppercase tracking-wider block">Boarding Status</span>
+                    <span className="text-slate-200 uppercase">{student.boardingStatus || 'Day Scholar'}</span>
+                  </div>
+
+                  <div className="bg-slate-900/30 p-3 rounded-lg border border-slate-850 space-y-1">
+                    <span className="text-[9px] text-slate-500 font-bold uppercase tracking-wider block">Gender</span>
+                    <span className="text-slate-200 uppercase">{student.gender || 'Male'}</span>
+                  </div>
+
+                  <div className="bg-slate-900/30 p-3 rounded-lg border border-slate-850 space-y-1">
+                    <span className="text-[9px] text-slate-500 font-bold uppercase tracking-wider block">Exam Clearance</span>
+                    <span className={`uppercase font-bold ${student.isCleared ? 'text-emerald-400' : 'text-amber-400'}`}>
+                      {student.isCleared ? 'Cleared' : 'Pending Clearance'}
+                    </span>
+                  </div>
+
+                  {student.parentName && (
+                    <div className="bg-slate-900/30 p-3 rounded-lg border border-slate-850 space-y-1">
+                      <span className="text-[9px] text-slate-500 font-bold uppercase tracking-wider block">Guardian Name</span>
+                      <span className="text-slate-200 uppercase">{student.parentName}</span>
+                    </div>
+                  )}
+
+                  {student.parentContact && (
+                    <div className="bg-slate-900/30 p-3 rounded-lg border border-slate-850 space-y-1">
+                      <span className="text-[9px] text-slate-500 font-bold uppercase tracking-wider block">Guardian Phone Contact</span>
+                      <span className="text-slate-200 font-mono">{student.parentContact}</span>
+                    </div>
+                  )}
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* Settings Tab */}
+          {activeTab === 'settings' && (
+            <div className="bg-slate-950 border border-slate-800 rounded-2xl p-6 shadow-sm space-y-6">
+              <div>
+                <h3 className="text-base font-bold text-slate-100 tracking-tight">Portal & Account Settings</h3>
+                <p className="text-xs text-slate-400 mt-1">Manage system preferences and check security configurations</p>
+              </div>
+
+              <div className="space-y-4">
+                <div className="p-4 bg-slate-900/20 border border-slate-850 rounded-xl space-y-1.5">
+                  <h4 className="text-xs font-bold text-slate-350 uppercase tracking-wide">Account Status</h4>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 text-xs">
+                    <div className="space-y-0.5">
+                      <span className="text-[9px] text-slate-500 uppercase block">Account ID</span>
+                      <span className="text-slate-300 font-mono">{student.id}</span>
+                    </div>
+                    <div className="space-y-0.5">
+                      <span className="text-[9px] text-slate-500 uppercase block">System Permission Role</span>
+                      <span className="text-slate-300">Student Portal access</span>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="p-4 bg-slate-900/20 border border-slate-850 rounded-xl space-y-2">
+                  <h4 className="text-xs font-bold text-slate-350 uppercase tracking-wide">Portal Security</h4>
+                  <p className="text-slate-400 text-xs leading-relaxed max-w-lg">
+                    Your password credentials are managed securely in the school's central database server. If you require a password reset or want to configure multi-factor logins, please contact St. Paul Secondary School IT administrators or your Class Teacher.
+                  </p>
+                </div>
+              </div>
+            </div>
+          )}
+
+        </main>
+      </div>
     </div>
   );
 }

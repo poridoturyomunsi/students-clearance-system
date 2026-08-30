@@ -39,16 +39,16 @@ export default function ExecutiveDashboard({
   dbStats
 }: ExecutiveDashboardProps) {
 
-  const totalStudents = students.length;
-  const clearedStudents = students.filter(s => s.isCleared).length;
-  const pendingClearance = totalStudents - clearedStudents;
-  const printedCards = students.filter(s => s.printStatus === 'Printed').length;
+  const totalStudents = dbStats?.total ?? students.length;
+  const clearedStudents = dbStats?.cleared ?? students.filter(s => s.isCleared).length;
+  const pendingClearance = dbStats?.pending ?? (totalStudents - clearedStudents);
+  const printedCards = dbStats?.printed ?? students.filter(s => s.printStatus === 'Printed').length;
   const clearanceRate = totalStudents > 0 ? Math.round((clearedStudents / totalStudents) * 100) : 0;
   const printedRate = totalStudents > 0 ? Math.round((printedCards / totalStudents) * 100) : 0;
 
   // Breakdown by level
-  const oLevelCount = students.filter(s => s.gradeClass?.startsWith('S.1') || s.gradeClass?.startsWith('S.2') || s.gradeClass?.startsWith('S.3') || s.gradeClass?.startsWith('S.4')).length;
-  const aLevelCount = students.filter(s => s.gradeClass?.startsWith('S.5') || s.gradeClass?.startsWith('S.6')).length;
+  const oLevelCount = dbStats?.lowerSecondaryTotal ?? students.filter(s => s.gradeClass?.startsWith('S.1') || s.gradeClass?.startsWith('S.2') || s.gradeClass?.startsWith('S.3') || s.gradeClass?.startsWith('S.4')).length;
+  const aLevelCount = dbStats?.upperSecondaryTotal ?? students.filter(s => s.gradeClass?.startsWith('S.5') || s.gradeClass?.startsWith('S.6')).length;
 
   return (
     <div className="space-y-6 pb-8">

@@ -615,7 +615,7 @@ export default function StaffPortal({
         marksList: records,
         paper: selectedPaper,
         status: submitFlag ? 'Approved' : 'Draft',
-        expectedCount: students.length
+        expectedCount: records.length
       };
 
       let res;

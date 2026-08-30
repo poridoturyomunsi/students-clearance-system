@@ -244,6 +244,7 @@ function AppContent() {
   const [adminUser, setAdminUser] = useState<any>(null);
   const [dbConfig, setDbConfig] = useState<any>(null);
   const [dbStats, setDbStats] = useState<any>({});
+  const [filteredStats, setFilteredStats] = useState<any>(null);
   const [dbConnectionError, setDbConnectionError] = useState<boolean>(false);
   const [syncQueueCount, setSyncQueueCount] = useState<number>(0);
   const [isSaving, setIsSaving] = useState<boolean>(false);
@@ -500,6 +501,14 @@ function AppContent() {
       } catch (err) {
         console.warn("Failed to load class teachers:", err);
       }
+      try {
+        const statsRes = await fetchStatsFromDb();
+        if (mounted && statsRes) {
+          setDbStats(statsRes);
+        }
+      } catch (err) {
+        console.warn("Failed to load dashboard stats on session change:", err);
+      }
     })();
     return () => { mounted = false; };
   }, [authSession]);
@@ -673,7 +682,7 @@ function AppContent() {
     }
   }, [schoolLogo]);
 
-  // Load full student list from backend (or fallback to local storage)
+  // Load student list from backend with server-side pagination & filtering
   const loadStudentsFromServer = useCallback(async () => {
     if (dbConnectionError) return;
     if (!authSession) return; // Wait until authenticated to fetch from backend
@@ -685,8 +694,8 @@ function AppContent() {
       const isAllBoard = viewMode === 'board' && (activeBoardClass === 'ALL' || activeBoardClass === 'All');
 
       const params: any = {
-        page: 1,
-        limit: -1,
+        page: currentPage,
+        limit: pageSize,
         search: searchQuery ? searchQuery.trim() : undefined,
         gradeClass: isAllBoard ? undefined : activeClass,
         stream: activeStream,
@@ -696,16 +705,34 @@ function AppContent() {
         photo: filterPhoto !== 'All' ? filterPhoto : undefined,
         academicYear: filterAcademicYear !== 'All' ? filterAcademicYear : undefined,
         printStatus: printNewOnly ? 'Not Printed' : undefined,
-        sortBy
+        sortBy,
+        level: filterLevel !== 'All' ? filterLevel : undefined
       };
+
+      // Diagnostics
+      console.log("Current page:", currentPage);
+      console.log("Page size:", pageSize);
+      console.log("Current filters:", params);
 
       const res = await fetchStudentsFromDb(params);
       if (res && Array.isArray(res.data)) {
         setStudents(res.data);
         setTotalStudentsCount(res.total || res.data.length || 0);
+        if (res.stats) {
+          setFilteredStats(res.stats);
+        }
         setDbConnectionError(false);
+
+        console.log("Total database students:", res.total);
+        console.log("Returned student records:", res.data.length);
       } else {
         throw new Error("Invalid response format from database server.");
+      }
+
+      // Fetch overview statistics to keep dashboard stats in sync
+      const statsRes = await fetchStatsFromDb().catch(() => null);
+      if (statsRes) {
+        setDbStats(statsRes);
       }
     } catch (err: any) {
       console.warn('Failed to load students from server:', err);
@@ -751,7 +778,7 @@ function AppContent() {
     } finally {
       setIsTableLoading(false);
     }
-  }, [dbConnectionError, viewMode, searchQuery, filterLevel, filterClass, filterStream, filterGender, filterClearance, filterBoarding, filterPhoto, printNewOnly, filterAcademicYear, sortBy, activeBoardClass, activeBoardStream]);
+  }, [dbConnectionError, viewMode, searchQuery, filterLevel, filterClass, filterStream, filterGender, filterClearance, filterBoarding, filterPhoto, printNewOnly, filterAcademicYear, sortBy, activeBoardClass, activeBoardStream, currentPage, pageSize]);
 
   const handleExportScopeCsv = async () => {
     try {
@@ -1011,6 +1038,7 @@ function AppContent() {
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
   const [activeLevel, setActiveLevel] = useState<'master'|'selective'|'history'|'class-stream'>('master');
   const [selectiveMatchedIds, setSelectiveMatchedIds] = useState<string[]>([]);
+  const [selectiveMatchedStudents, setSelectiveMatchedStudents] = useState<Student[]>([]);
   const [selectiveSelectedIds, setSelectiveSelectedIds] = useState<string[]>([]);
   const [selectiveParsedRowsCount, setSelectiveParsedRowsCount] = useState<number>(0);
   const [selectiveUnmatchedRows, setSelectiveUnmatchedRows] = useState<string[]>([]);
@@ -1389,6 +1417,11 @@ function AppContent() {
 
   // --- FILTERED AND SORTED STUDENTS (Master Single Source of Truth Filtering) ---
   const filteredStudents = useMemo(() => {
+    if (!dbConnectionError && authSession) {
+      // Server-side filtered and sorted
+      return students;
+    }
+
     const query = searchQuery.trim().toLowerCase();
     
     // 1. Filter first
@@ -1477,7 +1510,9 @@ function AppContent() {
     filterAcademicYear,
     filterPhoto,
     sortBy,
-    printNewOnly
+    printNewOnly,
+    dbConnectionError,
+    authSession
   ]);
 
   // --- HIGH-PERFORMANCE BOARD VIEW MEMOIZATION (1 Class + 1 Stream Layout) ---
@@ -1594,36 +1629,43 @@ function AppContent() {
   ]);
 
   const paginatedStudents = useMemo(() => {
+    if (!dbConnectionError && authSession) {
+      // Already paginated on backend
+      return students;
+    }
     if (pageSize === -1) {
       return filteredStudents.slice(0, displayLimit);
     }
     const startIndex = (currentPage - 1) * pageSize;
     return filteredStudents.slice(startIndex, startIndex + pageSize);
-  }, [filteredStudents, currentPage, pageSize, displayLimit]);
+  }, [students, filteredStudents, currentPage, pageSize, displayLimit, dbConnectionError, authSession]);
 
   const effectiveTotalCount = useMemo(() => {
+    if (!dbConnectionError && authSession) {
+      return totalStudentsCount;
+    }
     return filteredStudents.length;
-  }, [filteredStudents.length]);
+  }, [filteredStudents.length, totalStudentsCount, dbConnectionError, authSession]);
 
   // Selected Student Object references
   const selectedStudentsData = useMemo(() => {
     if (activeLevel === 'master') {
       return students.filter((s) => selectedIds.includes(s.id));
     } else if (activeLevel === 'selective') {
-      return students.filter((s) => selectiveMatchedIds.includes(s.id) && selectiveSelectedIds.includes(s.id));
+      return selectiveMatchedStudents.filter((s) => selectiveSelectedIds.includes(s.id));
     }
     return [];
-  }, [students, activeLevel, selectedIds, selectiveMatchedIds, selectiveSelectedIds]);
+  }, [students, selectiveMatchedStudents, activeLevel, selectedIds, selectiveSelectedIds]);
 
   const studentsToExport = useMemo(() => {
     if (activeLevel === 'history') return [];
-    const baseList = activeLevel === 'master' ? filteredStudents : students.filter((s) => selectiveMatchedIds.includes(s.id));
+    const baseList = activeLevel === 'master' ? filteredStudents : selectiveMatchedStudents;
     
     if (pdfExportScope === 'selected') {
       if (activeLevel === 'master') {
         return students.filter((s) => selectedIds.includes(s.id));
       } else {
-        return students.filter((s) => selectiveSelectedIds.includes(s.id));
+        return selectiveMatchedStudents.filter((s) => selectiveSelectedIds.includes(s.id));
       }
     } else if (pdfExportScope === 'first-n') {
       return baseList.slice(0, Math.min(pdfExportCount, baseList.length));
@@ -1640,9 +1682,9 @@ function AppContent() {
     activeLevel,
     filteredStudents,
     students,
+    selectiveMatchedStudents,
     selectedIds,
     selectiveSelectedIds,
-    selectiveMatchedIds,
     pdfExportScope,
     pdfExportCount,
     pdfExportStart,
@@ -1662,13 +1704,13 @@ function AppContent() {
     if (activeLevel === 'history') return null;
     const listStudent = activeLevel === 'master'
       ? (students.find((s) => s.id === previewStudentId) || students[0] || null)
-      : (students.filter((s) => selectiveMatchedIds.includes(s.id)).find((s) => s.id === previewStudentId) || students[0] || null);
+      : (selectiveMatchedStudents.find((s) => s.id === previewStudentId) || students[0] || null);
 
     if (previewStudentFull && listStudent && previewStudentFull.id === listStudent.id) {
       return previewStudentFull;
     }
     return listStudent;
-  }, [students, activeLevel, previewStudentId, selectiveMatchedIds, previewStudentFull]);
+  }, [students, selectiveMatchedStudents, activeLevel, previewStudentId, previewStudentFull]);
 
   // Dynamically computed list of registered stream names
   const dynamicStreamOptions = useMemo(() => {
@@ -1691,15 +1733,17 @@ function AppContent() {
 
     const hasStudents = Array.isArray(students) && students.length > 0;
 
-    let total = dbStats.total || totalStudentsCount || (hasStudents ? students.length : 0);
-    let lowerSecondaryTotal = dbStats.lowerSecondaryTotal ?? 0;
-    let upperSecondaryTotal = dbStats.upperSecondaryTotal ?? 0;
-    let clearedCount = dbStats.cleared ?? 0;
-    let balanceCount = dbStats.pending ?? (total > clearedCount ? total - clearedCount : 0);
-    let photoCount = dbStats.withPhoto ?? 0;
+    const source = (!dbConnectionError && authSession && filteredStats) ? filteredStats : dbStats;
+
+    let total = source.total || totalStudentsCount || (hasStudents ? students.length : 0);
+    let lowerSecondaryTotal = source.lowerSecondaryTotal ?? 0;
+    let upperSecondaryTotal = source.upperSecondaryTotal ?? 0;
+    let clearedCount = source.cleared ?? 0;
+    let balanceCount = source.pending ?? (total > clearedCount ? total - clearedCount : 0);
+    let photoCount = source.withPhoto ?? 0;
 
     // Fallback calculation only when dbStats and totalStudentsCount are completely unavailable
-    if (!dbStats.total && !totalStudentsCount && hasStudents) {
+    if (!source.total && !totalStudentsCount && hasStudents) {
       total = students.length;
       lowerSecondaryTotal = 0;
       upperSecondaryTotal = 0;
@@ -1737,7 +1781,7 @@ function AppContent() {
       photoPct,
       selectCount
     };
-  }, [dbStats, totalStudentsCount, students, selectedIds, selectiveSelectedIds, activeLevel]);
+  }, [dbStats, filteredStats, dbConnectionError, authSession, totalStudentsCount, students, selectedIds, selectiveSelectedIds, activeLevel]);
 
   const isAdmin = useMemo(() => {
     return !isFirebaseConfigured() || !!adminUser;
@@ -1745,8 +1789,7 @@ function AppContent() {
 
   // --- LEVEL 2 (SELECTIVE PRINTING) MATCHED FILTERED LIST ---
   const filteredSelectiveStudents = useMemo(() => {
-    return students
-      .filter((s) => selectiveMatchedIds.includes(s.id))
+    return selectiveMatchedStudents
       .filter((s) => {
         if (!selectiveSearchQuery.trim()) return true;
         const query = selectiveSearchQuery.toLowerCase();
@@ -1756,10 +1799,10 @@ function AppContent() {
           s.gradeClass.toLowerCase().includes(query)
         );
       });
-  }, [students, selectiveMatchedIds, selectiveSearchQuery]);
+  }, [selectiveMatchedStudents, selectiveSearchQuery]);
 
   // Cascading Auto-Matching Algorithm (Level 2)
-  const handleRunAutoMatch = (inputTextContent: string) => {
+  const handleRunAutoMatch = async (inputTextContent: string) => {
     setSelectiveFileError(null);
     if (!inputTextContent.trim()) {
       alert("Please paste some student names or student numbers first.");
@@ -1772,14 +1815,27 @@ function AppContent() {
       .filter((l) => l.length > 0);
 
     const matchedIds: string[] = [];
+    const matchedStudentsList: Student[] = [];
     const unmatched: string[] = [];
+
+    let allStudents = students;
+    if (!dbConnectionError && authSession) {
+      try {
+        const fullRes = await fetchStudentsFromDb({ limit: -1 });
+        if (fullRes && Array.isArray(fullRes.data)) {
+          allStudents = fullRes.data;
+        }
+      } catch (err) {
+        console.warn("Failed to fetch all students for auto-matching, falling back to loaded page...", err);
+      }
+    }
 
     lines.forEach((line) => {
       // Split line using comma, tab, or pipe in case multiple columns pasted
       const parts = line.split(/[,\t|]+/).map((p) => p.trim()).filter((p) => p.length > 0);
       let matchedStudent: Student | null = null;
 
-      for (const s of students) {
+      for (const s of allStudents) {
         const studentAdmin = s.adminNo.toLowerCase().trim();
         const studentName = s.name.toLowerCase().trim();
 
@@ -1812,6 +1868,7 @@ function AppContent() {
       if (matchedStudent) {
         if (!matchedIds.includes(matchedStudent.id)) {
           matchedIds.push(matchedStudent.id);
+          matchedStudentsList.push(matchedStudent);
         }
       } else {
         unmatched.push(line);
@@ -1819,6 +1876,7 @@ function AppContent() {
     });
 
     setSelectiveMatchedIds(matchedIds);
+    setSelectiveMatchedStudents(matchedStudentsList);
     setSelectiveUnmatchedRows(unmatched);
     setSelectiveSelectedIds(matchedIds); // Automatically pre-select all matches for the print queue!
     setSelectiveParsedRowsCount(lines.length);
@@ -2863,14 +2921,69 @@ function AppContent() {
   };
 
   const handleTriggerPdfExport = async (customStudents?: Student[] | React.MouseEvent) => {
-    const targetStudents = Array.isArray(customStudents) ? customStudents : [...studentsToExport];
-    if (targetStudents.length === 0) {
+    let targetStudentIds: string[] = [];
+    
+    if (Array.isArray(customStudents)) {
+      targetStudentIds = customStudents.map(s => s.id);
+    } else {
+      setIsGeneratingPdf(true);
+      try {
+        const activeClass = filterClass !== 'All' ? filterClass : (viewMode === 'board' && activeBoardClass !== 'ALL' ? activeBoardClass : undefined);
+        const activeStream = filterStream !== 'All' ? filterStream : undefined;
+        const isAllBoard = viewMode === 'board' && (activeBoardClass === 'ALL' || activeBoardClass === 'All');
+
+        if (pdfExportScope === 'selected') {
+          targetStudentIds = activeLevel === 'master' ? [...selectedIds] : [...selectiveSelectedIds];
+        } else {
+          let limit = -1;
+          let offset = 0;
+
+          if (pdfExportScope === 'first-n') {
+            limit = pdfExportCount;
+          } else if (pdfExportScope === 'custom-range') {
+            const startIdx = Math.max(0, pdfExportStart - 1);
+            const endIdx = pdfExportEnd;
+            limit = Math.max(0, endIdx - startIdx);
+            offset = startIdx;
+          }
+
+          const params: any = {
+            limit: limit,
+            offset: offset,
+            search: searchQuery ? searchQuery.trim() : undefined,
+            gradeClass: isAllBoard ? undefined : activeClass,
+            stream: activeStream,
+            gender: filterGender !== 'All' ? filterGender : undefined,
+            isCleared: filterClearance !== 'All' ? filterClearance : undefined,
+            boardingStatus: filterBoarding !== 'All' ? filterBoarding : undefined,
+            photo: filterPhoto !== 'All' ? filterPhoto : undefined,
+            academicYear: filterAcademicYear !== 'All' ? filterAcademicYear : undefined,
+            printStatus: printNewOnly ? 'Not Printed' : undefined,
+            sortBy,
+            level: filterLevel !== 'All' ? filterLevel : undefined
+          };
+
+          const res = await fetchStudentsFromDb(params);
+          if (res && Array.isArray(res.data)) {
+            targetStudentIds = res.data.map((s: any) => s.id);
+          } else {
+            throw new Error("Invalid response format from database server.");
+          }
+        }
+      } catch (err: any) {
+        alert('Failed to resolve target student IDs: ' + err.message);
+        setIsGeneratingPdf(false);
+        return;
+      }
+    }
+
+    if (targetStudentIds.length === 0) {
       alert('No students fit the active export criteria / range.');
+      setIsGeneratingPdf(false);
       return;
     }
 
     try {
-      const targetStudentIds = Array.isArray(targetStudents) ? targetStudents.map(s => s.id) : [];
       const res = await generatePdfOnServer({
         layoutMode: pdfLayoutMode,
         studentIds: targetStudentIds,
@@ -2894,6 +3007,8 @@ function AppContent() {
     } catch (e: any) {
       console.error('Server PDF generation failed:', e);
       alert(`Server PDF generation failed: ${e.message}`);
+    } finally {
+      setIsGeneratingPdf(false);
     }
   };
 
@@ -5383,10 +5498,9 @@ function AppContent() {
                     }}
                     className="bg-slate-800 border border-slate-700 text-slate-300 rounded px-1.5 py-0.5 outline-none cursor-pointer text-[11px]"
                   >
+                    <option value={25}>25</option>
                     <option value={50}>50</option>
                     <option value={100}>100</option>
-                    <option value={200}>200</option>
-                    <option value={500}>500</option>
                     <option value={-1}>All</option>
                   </select>
                 </div>
@@ -5693,7 +5807,7 @@ function AppContent() {
               {/* Summary row footer */}
               <div className="p-3 bg-slate-950 border-t border-slate-850 text-[10px] flex justify-between items-center text-slate-500 font-mono">
                 <span>
-                  Cross-referenced {selectiveMatchedIds.length} of {students.length} Master Students
+                  Cross-referenced {selectiveMatchedIds.length} of {totalStudentsCount} Master Students
                 </span>
                 <span className="font-bold text-indigo-400">
                   Queue state: {selectiveSelectedIds.length} Matched Cards Selected

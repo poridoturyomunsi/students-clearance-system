@@ -1,4 +1,4 @@
-const CACHE_NAME = 'students-clearance-pwa-v13';
+const CACHE_NAME = 'students-clearance-pwa-v14';
 const STATIC_ASSETS = ['/', '/index.html', '/manifest.webmanifest', '/icon.ico'];
 
 self.addEventListener('install', (event) => {
