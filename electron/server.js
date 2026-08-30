@@ -1139,6 +1139,27 @@ async function ensureDbInitialized() {
     } finally {
       if (fastMigConn) fastMigConn.release();
     }
+
+    // RUN CRITICAL DELTA MIGRATIONS IN FAST PATH (for columns/indexes added after parent_contacts was created)
+    try {
+      await pool.query("ALTER TABLE students ADD COLUMN deleted_at DATETIME NULL DEFAULT NULL");
+    } catch (e) {}
+    try {
+      await pool.query("ALTER TABLE students ADD COLUMN deleted_by VARCHAR(100) NULL DEFAULT NULL");
+    } catch (e) {}
+    try {
+      await pool.query("ALTER TABLE students ADD COLUMN deletion_reason TEXT NULL DEFAULT NULL");
+    } catch (e) {}
+    try {
+      await pool.query("ALTER TABLE students ADD COLUMN has_photo TINYINT(1) DEFAULT 0");
+    } catch (e) {}
+    try {
+      await pool.query("ALTER TABLE students ADD INDEX idx_has_photo (has_photo)");
+    } catch (e) {}
+    try {
+      await pool.query("UPDATE students SET has_photo = IF((photo IS NOT NULL AND photo != '') OR (photoOriginal IS NOT NULL AND photoOriginal != '') OR (photoEnhanced IS NOT NULL AND photoEnhanced != ''), 1, 0) WHERE has_photo IS NULL OR has_photo = 0");
+    } catch (e) {}
+
     ensurePerformanceIndexes(pool).catch(idxErr => console.warn('[DB-INIT-LOG] Index verification warning:', idxErr.message));
     dbInitialized = true;
     initializingDb = false;
@@ -1215,6 +1236,10 @@ async function ensureDbInitialized() {
         parentName VARCHAR(255) NULL,
         parentContact VARCHAR(255) NULL,
         updatedAt TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+        deleted_at DATETIME NULL DEFAULT NULL,
+        deleted_by VARCHAR(100) NULL DEFAULT NULL,
+        deletion_reason TEXT NULL DEFAULT NULL,
+        has_photo TINYINT(1) DEFAULT 0,
         UNIQUE KEY \`unique_adminNo\` (adminNo),
         UNIQUE KEY \`unique_name_class_dob\` (name, gradeClass, dob)
       ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;`,

@@ -35,9 +35,13 @@ CREATE TABLE IF NOT EXISTS students (
   printStatus VARCHAR(20) NOT NULL DEFAULT 'Not Printed',
   uace_combination VARCHAR(50) NULL,
   parentName VARCHAR(255) NULL,
-  parentContact VARCHAR(50) NULL,
+  parentContact VARCHAR(255) NULL,
   verification_token VARCHAR(100) NULL,
   updatedAt TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  deleted_at DATETIME NULL DEFAULT NULL,
+  deleted_by VARCHAR(100) NULL DEFAULT NULL,
+  deletion_reason TEXT NULL DEFAULT NULL,
+  has_photo TINYINT(1) DEFAULT 0,
   -- Performance indexes for search and filtering
   INDEX idx_name (name(50)),
   INDEX idx_adminNo (adminNo),
@@ -47,7 +51,8 @@ CREATE TABLE IF NOT EXISTS students (
   INDEX idx_printStatus (printStatus),
   INDEX idx_gender (gender),
   INDEX idx_name_adminNo (name(50), adminNo),
-  INDEX idx_search_composite (name(50), adminNo, gradeClass)
+  INDEX idx_search_composite (name(50), adminNo, gradeClass),
+  INDEX idx_has_photo (has_photo)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
 -- Create marks table
