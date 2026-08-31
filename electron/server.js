@@ -9834,7 +9834,7 @@ app.get('/api/verify/:token', async (req, res) => {
 
       // Query card details from staff_cards if possible
       let cardData = null;
-      const [cardRows] = await pool.query('SELECT * FROM staff_cards WHERE staff_id = ? AND status = "Active" ORDER BY created_at DESC LIMIT 1', [activeStaff.id]);
+      const [cardRows] = await pool.query('SELECT * FROM staff_cards WHERE staff_id = ? AND status = \'Active\' ORDER BY created_at DESC LIMIT 1', [activeStaff.id]);
       if (cardRows.length > 0) {
         cardData = cardRows[0];
       }
