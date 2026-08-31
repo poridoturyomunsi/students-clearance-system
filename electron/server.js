@@ -9717,6 +9717,18 @@ app.get('/api/verify/:token', async (req, res) => {
     // 1. Check verifications table first
     let [vRows] = await pool.query('SELECT * FROM verifications WHERE token = ? OR reference_id = ?', [token, token]);
 
+    const vMeta = vRows.length > 0 && vRows[0].metadata ? (typeof vRows[0].metadata === 'string' ? JSON.parse(vRows[0].metadata) : vRows[0].metadata) : {};
+
+    const formatDateOnly = (dateVal) => {
+      if (!dateVal) return null;
+      const d = new Date(dateVal);
+      if (isNaN(d.getTime())) return null;
+      const year = d.getFullYear();
+      const month = String(d.getMonth() + 1).padStart(2, '0');
+      const day = String(d.getDate()).padStart(2, '0');
+      return `${year}-${month}-${day}`;
+    };
+
     // 2. Check students table directly (by id, adminNo, studentNo or verification_token)
     let studentRecord = null;
     let [sRows] = await pool.query(
@@ -9778,8 +9790,8 @@ app.get('/api/verify/:token', async (req, res) => {
         }
       }
 
-      const issueDate = vRows.length > 0 && vRows[0].createdAt ? new Date(vRows[0].createdAt).toISOString().split('T')[0] : '2026-01-01';
-      const expiryDate = vRows.length > 0 && vRows[0].expiresAt ? new Date(vRows[0].expiresAt).toISOString().split('T')[0] : '2026-12-31';
+      const issueDate = vMeta.issueDate || formatDateOnly(vRows.length > 0 ? vRows[0].createdAt : null) || '2026-01-01';
+      const expiryDate = vMeta.expiryDate || formatDateOnly(vRows.length > 0 ? vRows[0].expiresAt : null) || '2026-12-31';
 
       const metadata = {
         name: fullStudent.name,
@@ -9819,15 +9831,28 @@ app.get('/api/verify/:token', async (req, res) => {
       }
 
       const activeStaff = staffQueryRows[0];
-      const expiryDate = vRows.length > 0 && vRows[0].expiresAt ? new Date(vRows[0].expiresAt) : new Date(Date.now() + 365*24*60*60*1000);
-      const isExpired = expiryDate < new Date();
+
+      // Query card details from staff_cards if possible
+      let cardData = null;
+      const [cardRows] = await pool.query('SELECT * FROM staff_cards WHERE staff_id = ? AND status = "Active" ORDER BY created_at DESC LIMIT 1', [activeStaff.id]);
+      if (cardRows.length > 0) {
+        cardData = cardRows[0];
+      }
+
+      const cardExpiryStr = vMeta.expiryDate || (cardData ? formatDateOnly(cardData.expiry_date) : null) || (vRows.length > 0 && vRows[0].expiresAt ? formatDateOnly(vRows[0].expiresAt) : null);
+      const expiryDateObj = cardExpiryStr ? new Date(cardExpiryStr) : new Date(Date.now() + 365*24*60*60*1000);
+      const isExpired = expiryDateObj < new Date();
 
       let status = activeStaff.status || 'Active';
       if (isExpired) {
         status = 'Expired';
       }
 
-      const vMeta = vRows.length > 0 && vRows[0].metadata ? (typeof vRows[0].metadata === 'string' ? JSON.parse(vRows[0].metadata) : vRows[0].metadata) : {};
+      const cardIssue = cardData ? formatDateOnly(cardData.issue_date) : null;
+      const cardExpiry = cardData ? formatDateOnly(cardData.expiry_date) : null;
+
+      const issueDate = vMeta.issueDate || cardIssue || formatDateOnly(vRows.length > 0 ? vRows[0].createdAt : null) || 'N/A';
+      const expiryDate = vMeta.expiryDate || cardExpiry || formatDateOnly(vRows.length > 0 ? vRows[0].expiresAt : null) || 'N/A';
 
       const metadata = {
         name: activeStaff.name,
@@ -9838,8 +9863,8 @@ app.get('/api/verify/:token', async (req, res) => {
         department: activeStaff.department || 'N/A',
         position: activeStaff.position || 'N/A',
         employmentStatus: activeStaff.employment_status || 'Permanent',
-        issueDate: vRows.length > 0 && vRows[0].createdAt ? new Date(vRows[0].createdAt).toISOString().split('T')[0] : 'N/A',
-        expiryDate: expiryDate.toISOString().split('T')[0],
+        issueDate,
+        expiryDate,
         status: status
       };
 
