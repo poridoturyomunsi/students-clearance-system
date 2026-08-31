@@ -813,6 +813,13 @@ async function runStaffMigrations(conn) {
 
   // Ensure all new columns exist on staff
   const columnsToAdd = [
+    { name: 'gender', def: 'VARCHAR(20) NULL' },
+    { name: 'subjects', def: 'JSON NULL' },
+    { name: 'classes', def: 'JSON NULL' },
+    { name: 'position', def: 'VARCHAR(100) NULL' },
+    { name: 'signature', def: 'LONGTEXT NULL' },
+    { name: 'photo', def: 'LONGTEXT NULL' },
+    { name: 'status', def: "VARCHAR(20) DEFAULT 'Active'" },
     { name: 'employee_number', def: 'VARCHAR(50) NULL' },
     { name: 'first_name', def: 'VARCHAR(50) NULL' },
     { name: 'middle_name', def: 'VARCHAR(50) NULL' },
@@ -1007,6 +1014,82 @@ async function runStaffMigrations(conn) {
       updatedAt TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
     ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
   `);
+
+  // Seed Mudoola Racheal if not present
+  try {
+    const [existingStaff] = await conn.query("SELECT id FROM staff WHERE id = 'STP-01-2026'");
+    if (existingStaff.length === 0) {
+      console.log('Seeding Mudoola Racheal into staff table...');
+      let photoBase64 = 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg=='; // Fallback
+      let fs = require('fs');
+      let path = require('path');
+      try {
+        let photoPath = path.join(__dirname, 'mudoola_photo_crop.png');
+        if (fs.existsSync(photoPath)) {
+          let cropData = fs.readFileSync(photoPath).toString('base64');
+          photoBase64 = 'data:image/png;base64,' + cropData;
+        } else {
+          let parentPhotoPath = path.join(__dirname, '..', 'mudoola_photo_crop.png');
+          if (fs.existsSync(parentPhotoPath)) {
+            let cropData = fs.readFileSync(parentPhotoPath).toString('base64');
+            photoBase64 = 'data:image/png;base64,' + cropData;
+          }
+        }
+      } catch (err) {
+        console.error('Error reading cropped photo file:', err);
+      }
+      
+      const passwordHash = 'a665a45920422f9d417e4867efdc4fb8a04a1f3fff1fa07e998e86f7f7a27ae3';
+      const verificationToken = '311803adc164a9bb7ee5fe0023d7496c';
+      
+      await conn.query(`
+        INSERT INTO staff (
+          id, username, password_hash, name, gender, subjects, classes, position, signature, photo, status, phone, email, category, department, employment_status, verification_token
+        ) VALUES (
+          'STP-01-2026', 'mudoola', ?, 'MUDOOLA RACHEAL', 'Female', ?, ?, 'HEADTEACHER', ?, ?, 'Active', '+256 776249910', 'stpaulssnasuti2022@gmail.com', 'Administration', 'ADMINISTRATION', 'Permanent', ?
+        )
+      `, [
+        passwordHash,
+        JSON.stringify(['Mathematics']),
+        JSON.stringify(['S.1 A']),
+        'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==',
+        photoBase64,
+        verificationToken
+      ]);
+      
+      await conn.query(`
+        INSERT INTO staff_cards (
+          staff_id, card_id, status, issue_date, expiry_date
+        ) VALUES (
+          'STP-01-2026', 'SN-4790CF90', 'Active', '2026-06-24', '2031-06-24'
+        )
+      `);
+      
+      await conn.query(`
+        INSERT INTO verifications (
+          token, document_type, reference_id, metadata, status, expiresAt
+        ) VALUES (
+          ?, 'Staff ID', 'STP-01-2026', ?, 'Active', '2031-06-24'
+        )
+      `, [
+        verificationToken,
+        JSON.stringify({
+          name: 'MUDOOLA RACHEAL',
+          photo: photoBase64,
+          category: 'Administration',
+          department: 'ADMINISTRATION',
+          position: 'HEADTEACHER',
+          employmentStatus: 'Permanent',
+          issueDate: '2026-06-24',
+          expiryDate: '2031-06-24',
+          status: 'Active'
+        })
+      ]);
+      console.log('Seeded Mudoola Racheal successfully.');
+    }
+  } catch (seedErr) {
+    console.error('Error seeding Mudoola Racheal:', seedErr);
+  }
 
   // Sync verifications table with active staff
   const [activeStaff] = await conn.query('SELECT id, name, category, position, department, employment_status, verification_token, status, photo FROM staff');
@@ -9716,10 +9799,13 @@ app.get('/api/verify/:token', async (req, res) => {
         status = 'Expired';
       }
 
+      const vMeta = vRows.length > 0 && vRows[0].metadata ? (typeof vRows[0].metadata === 'string' ? JSON.parse(vRows[0].metadata) : vRows[0].metadata) : {};
+
       const metadata = {
         name: activeStaff.name,
         staffId: activeStaff.employee_number || activeStaff.id,
         photo: activeStaff.photo || null,
+        qrCode: vMeta.qrCode || null,
         category: activeStaff.category || 'Teaching',
         department: activeStaff.department || 'N/A',
         position: activeStaff.position || 'N/A',
